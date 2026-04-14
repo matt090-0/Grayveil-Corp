@@ -1,14 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
 export default function SetupProfile() {
-  const { session, refreshProfile } = useAuth()
+  const { session, profile, loading: authLoading, refreshProfile } = useAuth()
   const [handle, setHandle] = useState('')
   const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  // Guard: redirect if not logged in or already has profile
+  useEffect(() => {
+    if (authLoading) return
+    if (!session) navigate('/auth', { replace: true })
+    else if (profile) navigate('/', { replace: true })
+  }, [authLoading, session, profile, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -32,8 +39,12 @@ export default function SetupProfile() {
     }
 
     await refreshProfile()
-    navigate('/')
+    setLoading(false)
+    navigate('/', { replace: true })
   }
+
+  // Don't render while auth is loading or if missing session
+  if (authLoading || !session) return null
 
   return (
     <div className="auth-shell">

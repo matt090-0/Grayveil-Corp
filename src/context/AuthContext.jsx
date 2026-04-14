@@ -1,69 +1,116 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 
 const AuthContext = createContext(null)
 
-export function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}
 
-  // Listen for auth state changes — sync only
+export function AuthProvider({ children }) {
+  const [session, setSession]     = useState(undefined) // undefined = not yet checked
+  const [profile, setProfile]     = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const profileFetchId = useRef(0) // prevents stale fetches from overwriting fresh ones
+
+  // ── 1. SESSION: synchronous listener + explicit getSession fallback ──
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session ?? null)
+    let ignore = false
+
+    // Synchronous callback — no async, no race conditions, StrictMode safe
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, s) => {
+        if (!ignore) setSession(s)
+      }
+    )
+
+    // Explicit fallback — guarantees we get the initial session
+    // even if INITIAL_SESSION event was missed (StrictMode double-mount)
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!ignore) setSession(s)
     })
-    return () => subscription.unsubscribe()
+
+    return () => {
+      ignore = true
+      subscription.unsubscribe()
+    }
   }, [])
 
-  // Fetch profile whenever session user changes
+  // ── 2. PROFILE: reactive fetch whenever session changes ──
   useEffect(() => {
-    if (session === undefined) return // not initialised yet
+    // session is still undefined — haven't checked yet, stay loading
+    if (session === undefined) return
 
+    // No session — clear profile, done loading
     if (!session) {
       setProfile(null)
       setLoading(false)
       return
     }
 
-    let cancelled = false
-    setLoading(true)
+    // Session exists — fetch profile
+    let ignore = false
+    const fetchId = ++profileFetchId.current
 
-    // Use getSession() to guarantee a fresh, valid token before querying
-    supabase.auth.getSession()
-      .then(({ data: { session: current } }) => {
-        if (cancelled || !current) {
-          if (!cancelled) { setProfile(null); setLoading(false) }
-          return
-        }
-        return supabase
+    async function loadProfile() {
+      try {
+        const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', current.user.id)
+          .eq('id', session.user.id)
           .maybeSingle()
-          .then(({ data }) => {
-            if (!cancelled) { setProfile(data || null); setLoading(false) }
-          })
-      })
-      .catch(() => {
-        if (!cancelled) { setProfile(null); setLoading(false) }
-      })
 
-    return () => { cancelled = true }
-  }, [session?.user?.id])
+        // Only apply if this is still the latest fetch
+        if (ignore || fetchId !== profileFetchId.current) return
 
-  async function refreshProfile() {
-    if (!session) return
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle()
-    setProfile(data || null)
-  }
+        if (error) {
+          console.error('[Auth] profile fetch error:', error.message)
+          setProfile(null)
+        } else {
+          setProfile(data) // null if no profile row yet (new user)
+        }
+      } catch (err) {
+        console.error('[Auth] profile fetch exception:', err)
+        if (!ignore) setProfile(null)
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+
+    loadProfile()
+    return () => { ignore = true }
+  }, [session])
+
+  // ── 3. SAFETY TIMEOUT — never stay loading forever ──
+  useEffect(() => {
+    if (!loading) return
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
+  }, [loading])
+
+  // ── 4. ACTIONS ──
+  const refreshProfile = useCallback(async () => {
+    const { data: { session: s } } = await supabase.auth.getSession()
+    if (!s?.user?.id) return null
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', s.user.id)
+        .maybeSingle()
+      setProfile(data)
+      return data
+    } catch {
+      return null
+    }
+  }, [])
 
   async function signOut() {
     await supabase.auth.signOut()
+    setSession(null)
+    setProfile(null)
   }
 
   return (
@@ -71,8 +118,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  return useContext(AuthContext)
 }
