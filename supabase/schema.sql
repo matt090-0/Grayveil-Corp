@@ -230,3 +230,85 @@ CREATE TRIGGER recruitment_updated_at BEFORE UPDATE ON public.recruitment
 -- UPDATE public.profiles
 -- SET rank = 'ARCHITECT', tier = 1, is_founder = true
 -- WHERE handle = 'SearthNox';
+
+-- ============================================================
+-- FEATURE EXPANSION — Run this after the initial schema
+-- ============================================================
+
+-- Activity log: add target_type for generic references
+ALTER TABLE public.activity_log ADD COLUMN IF NOT EXISTS target_type TEXT;
+
+-- Profiles: activity tracking
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+
+-- NOTIFICATIONS
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  recipient_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL, title TEXT NOT NULL, message TEXT,
+  is_read BOOLEAN DEFAULT FALSE, link TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON public.notifications(recipient_id, is_read, created_at DESC);
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- CONTRACT COMMENTS
+CREATE TABLE IF NOT EXISTS public.contract_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  contract_id UUID REFERENCES public.contracts(id) ON DELETE CASCADE NOT NULL,
+  author_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.contract_comments ENABLE ROW LEVEL SECURITY;
+
+-- FLEET REQUESTS
+CREATE TABLE IF NOT EXISTS public.fleet_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  vessel_id UUID REFERENCES public.fleet(id) ON DELETE CASCADE NOT NULL,
+  requester_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  reason TEXT, status TEXT DEFAULT 'PENDING',
+  reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.fleet_requests ENABLE ROW LEVEL SECURITY;
+
+-- INVITE LINKS
+CREATE TABLE IF NOT EXISTS public.invite_links (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  label TEXT, max_uses INTEGER, uses INTEGER DEFAULT 0,
+  expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.invite_links ENABLE ROW LEVEL SECURITY;
+
+-- APPLICATIONS
+CREATE TABLE IF NOT EXISTS public.applications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  handle TEXT NOT NULL, discord TEXT, email TEXT, timezone TEXT,
+  experience TEXT, referral_code TEXT,
+  referred_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  notes TEXT, status TEXT DEFAULT 'PENDING',
+  reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
+
+-- ORG SETTINGS
+CREATE TABLE IF NOT EXISTS public.org_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+ALTER TABLE public.org_settings ENABLE ROW LEVEL SECURITY;
+
+-- Helper RPC
+CREATE OR REPLACE FUNCTION public.increment_invite_uses(invite_code TEXT)
+RETURNS VOID AS $$ UPDATE public.invite_links SET uses = uses + 1 WHERE code = invite_code; $$ LANGUAGE SQL SECURITY DEFINER;
+
+-- Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_log;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.contract_comments;

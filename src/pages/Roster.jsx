@@ -5,6 +5,15 @@ import { RANKS, canPromote } from '../lib/ranks'
 import RankBadge from '../components/RankBadge'
 import Modal from '../components/Modal'
 
+function lastSeen(ts) {
+  if (!ts) return '—'
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
+  if (diff < 300) return 'ONLINE'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
 export default function Roster() {
   const { profile: me } = useAuth()
   const [members, setMembers] = useState([])
@@ -27,7 +36,7 @@ export default function Roster() {
 
   useEffect(() => { load() }, [])
 
-  const canEdit = me.tier <= 5
+  const canEdit = me.tier <= 3 || (me.tier <= 5)
   const filtered = members.filter(m =>
     m.handle.toLowerCase().includes(filter.toLowerCase()) ||
     m.rank.toLowerCase().includes(filter.toLowerCase())
@@ -56,6 +65,13 @@ export default function Roster() {
       })
       .eq('id', editing.id)
     if (error) { setError(error.message); setSaving(false); return }
+    // Log promotion/rank change activity
+    if (parseInt(editData.tier) !== editing.tier) {
+      const newRankInfo = RANKS.find(r => r.tier === parseInt(editData.tier))
+      await supabase.from('activity_log').insert({ actor_id: me.id, action: 'member_promoted', target_type: 'profile', target_id: editing.id, details: { title: editing.handle, new_rank: newRankInfo?.label || editData.rank } })
+      // Notify the promoted member
+      await supabase.from('notifications').insert({ recipient_id: editing.id, type: 'promotion', title: 'Rank Updated', message: `You have been assigned ${newRankInfo?.label || editData.rank} by ${me.handle}.`, link: '/roster' })
+    }
     setEditing(null)
     setSaving(false)
     load()
@@ -99,6 +115,7 @@ export default function Roster() {
                     <th>DIVISION</th>
                     <th>SPECIALITY</th>
                     <th>STATUS</th>
+                    <th>LAST SEEN</th>
                     {canEdit && <th></th>}
                   </tr>
                 </thead>
@@ -122,6 +139,11 @@ export default function Roster() {
                       <td>
                         <span className={`badge ${m.status === 'ACTIVE' ? 'badge-green' : m.status === 'SUSPENDED' ? 'badge-red' : 'badge-muted'}`}>
                           {m.status}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="mono text-muted" style={{ fontSize: 11, color: lastSeen(m.last_seen_at) === 'ONLINE' ? 'var(--green)' : undefined }}>
+                          {lastSeen(m.last_seen_at)}
                         </span>
                       </td>
                       {canEdit && (

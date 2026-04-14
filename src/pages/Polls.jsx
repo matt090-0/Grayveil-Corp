@@ -91,14 +91,15 @@ export default function Polls() {
     const opts = form.options.map(o => o.trim()).filter(Boolean)
     if (opts.length < 2) { setError('At least 2 options required.'); return }
     setSaving(true)
-    const { error } = await supabase.from('polls').insert({
+    const { data, error } = await supabase.from('polls').insert({
       question: form.question.trim(),
       options: opts,
       min_tier: parseInt(form.min_tier),
       created_by: me.id,
       ends_at: form.ends_at || null,
-    })
+    }).select().single()
     if (error) { setError(error.message); setSaving(false); return }
+    await supabase.from('activity_log').insert({ actor_id: me.id, action: 'poll_created', target_type: 'poll', target_id: data.id, details: { title: form.question.trim() } })
     setModal(false)
     setForm({ question: '', options: ['', ''], min_tier: 9, ends_at: '' })
     setSaving(false)

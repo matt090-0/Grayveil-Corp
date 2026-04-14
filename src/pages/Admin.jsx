@@ -64,7 +64,7 @@ export default function Admin() {
       supabase.from('recruitment').select('*').order('created_at', { ascending: false }),
       supabase.from('polls').select('*, created_by:profiles(handle)').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*, posted_by:profiles(handle)').order('created_at', { ascending: false }),
-      supabase.from('activity_log').select('*, actor:profiles!activity_log_actor_id_fkey(handle), target:profiles!activity_log_target_id_fkey(handle)').order('created_at', { ascending: false }).limit(100),
+      supabase.from('activity_log').select('*, actor:profiles!activity_log_actor_id_fkey(handle)').order('created_at', { ascending: false }).limit(100),
     ])
     setData({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[] })
     setLoading(false)
@@ -554,9 +554,9 @@ export default function Admin() {
                         </td>
                         <td className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{l.action}</td>
                         <td className="text-muted">{l.actor?.handle || '—'}</td>
-                        <td className="text-muted">{l.target?.handle || '—'}</td>
+                        <td className="text-muted">{l.target_type || '—'}</td>
                         <td style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', maxWidth: 200 }} className="truncate">
-                          {l.details ? JSON.stringify(l.details) : '—'}
+                          {l.details?.title || (l.details ? JSON.stringify(l.details) : '—')}
                         </td>
                       </tr>
                     ))}

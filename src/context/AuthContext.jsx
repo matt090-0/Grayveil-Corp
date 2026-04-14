@@ -70,6 +70,10 @@ export function AuthProvider({ children }) {
           setProfile(null)
         } else {
           setProfile(data) // null if no profile row yet (new user)
+          // Update last_seen_at silently (fire and forget)
+          if (data) {
+            supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id).then(() => {})
+          }
         }
       } catch (err) {
         console.error('[Auth] profile fetch exception:', err)

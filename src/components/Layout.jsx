@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getRankByTier } from '../lib/ranks'
+import NotificationBell from './NotificationBell'
 
 const NAV = [
   { to: '/',            icon: '◈', label: 'SITREP'        },
@@ -11,7 +12,7 @@ const NAV = [
   { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
   { to: '/recruitment', icon: '◐', label: 'RECRUITMENT', minTier: 6 },
   { to: '/polls',       icon: '◑', label: 'POLLS'         },
-  { to: '/admin',       icon: '⬡', label: 'ADMIN',        minTier: 1 },
+  { to: '/admin',       icon: '⚙', label: 'ADMIN', minTier: 1 },
 ]
 
 export default function Layout({ children }) {
@@ -46,15 +47,18 @@ export default function Layout({ children }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-pill" onClick={() => navigate('/profile')}>
-            <div className="avatar">{initials}</div>
-            <div className="user-info">
-              <div className="user-handle truncate">{profile?.handle || '—'}</div>
-              <div className="user-rank">{rankInfo?.label || '—'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div className="user-pill" onClick={() => navigate('/profile')} style={{ flex: 1 }}>
+              <div className="avatar">{initials}</div>
+              <div className="user-info">
+                <div className="user-handle truncate">{profile?.handle || '—'}</div>
+                <div className="user-rank">{rankInfo?.label || '—'}</div>
+              </div>
             </div>
+            <NotificationBell />
           </div>
           <button
-            className="btn btn-ghost btn-sm w-full mt-8"
+            className="btn btn-ghost btn-sm w-full"
             style={{ justifyContent: 'center' }}
             onClick={signOut}
           >

@@ -34,8 +34,7 @@ export default function Intelligence() {
   async function load() {
     const { data } = await supabase
       .from('intelligence')
-      // include id in posted_by so delete check works
-      .select('*, posted_by:profiles(id, handle, tier)')
+      .select('*, posted_by:profiles(handle, tier)')
       .order('created_at', { ascending: false })
     setFiles(data || [])
     setLoading(false)
@@ -46,9 +45,7 @@ export default function Intelligence() {
   const filtered = files.filter(f => filter === 'ALL' || f.classification === filter)
 
   function openPost() {
-    // Default to HIGHEST classification the user is cleared for
-    const available = INTEL_CLASSES.filter(c => me.tier <= c.min_tier)
-    const defaultClass = available[available.length - 1] || INTEL_CLASSES[0]
+    const defaultClass = INTEL_CLASSES.find(c => c.min_tier >= me.tier) || INTEL_CLASSES[0]
     setForm({ title: '', content: '', classification: defaultClass.label, min_tier: defaultClass.min_tier })
     setError('')
     setModal(true)
@@ -57,14 +54,15 @@ export default function Intelligence() {
   async function save() {
     if (!form.title || !form.content) { setError('Title and content are required.'); return }
     setSaving(true)
-    const { error } = await supabase.from('intelligence').insert({
+    const { data, error } = await supabase.from('intelligence').insert({
       title: form.title,
       content: form.content,
       classification: form.classification,
       min_tier: parseInt(form.min_tier),
       posted_by: me.id,
-    })
+    }).select().single()
     if (error) { setError(error.message); setSaving(false); return }
+    await supabase.from('activity_log').insert({ actor_id: me.id, action: 'intel_filed', target_type: 'intelligence', target_id: data.id, details: { title: form.title, classification: form.classification } })
     setModal(false); setSaving(false); load()
   }
 
@@ -74,8 +72,6 @@ export default function Intelligence() {
     setView(null)
     load()
   }
-
-  const availableClasses = INTEL_CLASSES.filter(c => me.tier <= c.min_tier)
 
   return (
     <>
@@ -113,7 +109,7 @@ export default function Intelligence() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-12">
                     <span className={`badge ${CLASS_BADGE[f.classification]}`}>{f.classification}</span>
-                    <span style={{ fontWeight: 500, fontSize: 14 }}>{f.title}</span>
+                    <span style={{ fontWeight: 500, fontSize: 13 }}>{f.title}</span>
                   </div>
                   <div className="flex items-center gap-12">
                     <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
@@ -144,7 +140,7 @@ export default function Intelligence() {
             padding: '16px',
             fontSize: 13,
             color: 'var(--text-2)',
-            lineHeight: 1.8,
+            lineHeight: 1.75,
             whiteSpace: 'pre-wrap',
             fontFamily: 'var(--font-mono)',
             minHeight: 120,
@@ -152,7 +148,6 @@ export default function Intelligence() {
             {view.content}
           </div>
           <div className="modal-footer">
-            {/* Fix: use view.posted_by?.id (now fetched) for author check, or admin check */}
             {(view.posted_by?.id === me.id || me.tier <= 3) && (
               <button className="btn btn-danger btn-sm" onClick={() => deleteFile(view.id)}>PURGE FILE</button>
             )}
@@ -174,7 +169,7 @@ export default function Intelligence() {
               const cls = INTEL_CLASSES.find(c => c.label === e.target.value)
               setForm(f => ({ ...f, classification: cls.label, min_tier: cls.min_tier }))
             }}>
-              {availableClasses.map(c => (
+              {INTEL_CLASSES.filter(c => c.min_tier >= me.tier).map(c => (
                 <option key={c.label} value={c.label}>{c.label} — visible to Tier {c.min_tier} and above</option>
               ))}
             </select>

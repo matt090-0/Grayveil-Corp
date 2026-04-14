@@ -14,12 +14,14 @@ import Recruitment from './pages/Recruitment'
 import Polls from './pages/Polls'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
+import Apply from './pages/Apply'
 
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth"  element={<Auth />} />
       <Route path="/setup" element={<SetupProfile />} />
+      <Route path="/apply" element={<Apply />} />
 
       <Route path="/" element={
         <ProtectedRoute>
