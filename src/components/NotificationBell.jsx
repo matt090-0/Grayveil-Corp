@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
@@ -12,21 +12,18 @@ function timeAgo(ts) {
 }
 
 const TYPE_ICON = {
-  promotion: '⬆',
-  contract_posted: '◆',
-  poll_created: '◑',
-  intel_filed: '◍',
-  fleet_request: '◎',
-  application: '◐',
-  announcement: '◈',
-  general: '●',
+  promotion: '⬆', contract_posted: '◆', poll_created: '◑',
+  intel_filed: '◍', fleet_request: '◎', application: '◐',
+  announcement: '◈', general: '●',
 }
 
 export default function NotificationBell() {
   const { profile } = useAuth()
   const [notifs, setNotifs] = useState([])
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
   const ref = useRef(null)
+  const btnRef = useRef(null)
   const navigate = useNavigate()
 
   async function load() {
@@ -41,19 +38,15 @@ export default function NotificationBell() {
 
   useEffect(() => {
     load()
-    // Subscribe to new notifications
     const channel = supabase
       .channel('notifs')
       .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
+        event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `recipient_id=eq.${profile.id}`,
       }, (payload) => {
         setNotifs(prev => [payload.new, ...prev])
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [profile.id])
 
@@ -66,14 +59,22 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Calculate fixed position when opening
+  const toggleOpen = useCallback(() => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({
+        bottom: window.innerHeight - rect.top + 8,
+        left: Math.max(8, rect.left - 140),
+      })
+    }
+    setOpen(o => !o)
+  }, [open])
+
   const unread = notifs.filter(n => !n.is_read).length
 
   async function markAllRead() {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('recipient_id', profile.id)
-      .eq('is_read', false)
+    await supabase.from('notifications').update({ is_read: true }).eq('recipient_id', profile.id).eq('is_read', false)
     setNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
   }
 
@@ -91,10 +92,11 @@ export default function NotificationBell() {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref}>
       <button
+        ref={btnRef}
         className="btn btn-ghost btn-sm btn-icon"
-        onClick={() => setOpen(!open)}
+        onClick={toggleOpen}
         style={{ position: 'relative', fontSize: 16, padding: '4px 8px' }}
       >
         ◆
@@ -113,11 +115,13 @@ export default function NotificationBell() {
 
       {open && (
         <div style={{
-          position: 'absolute', bottom: '100%', left: 0,
-          width: 300, maxHeight: 400, overflowY: 'auto',
+          position: 'fixed',
+          bottom: pos.bottom,
+          left: pos.left,
+          width: 320, maxHeight: 420, overflowY: 'auto',
           background: 'var(--bg-raised)', border: '1px solid var(--border-md)',
-          borderRadius: 'var(--radius-lg)', marginBottom: 8,
-          boxShadow: '0 8px 32px rgba(0,0,0,.5)', zIndex: 100,
+          borderRadius: 'var(--radius-lg, 8px)',
+          boxShadow: '0 12px 48px rgba(0,0,0,.6)', zIndex: 9999,
         }}>
           <div style={{
             padding: '10px 14px', borderBottom: '1px solid var(--border)',
