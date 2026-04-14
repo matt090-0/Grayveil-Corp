@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { useAuth } from '../context/AuthContext'
 
 export default function Auth() {
+  const { session, profile, profileLoaded } = useAuth()
   const [tab, setTab]           = useState('login')
   const [email, setEmail]       = useState('')
   const [pass, setPass]         = useState('')
@@ -12,11 +14,22 @@ export default function Auth() {
   const [done, setDone]         = useState(false)
   const navigate = useNavigate()
 
-  // Pre-fill email if remembered
+  // Pre-fill remembered email
   useEffect(() => {
     const saved = localStorage.getItem('gv_remembered_email')
     if (saved) setEmail(saved)
   }, [])
+
+  // Redirect once auth context has session + profile resolved
+  useEffect(() => {
+    if (session && profileLoaded) {
+      if (profile) {
+        navigate('/', { replace: true })
+      } else {
+        navigate('/setup', { replace: true })
+      }
+    }
+  }, [session, profile, profileLoaded, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -29,15 +42,12 @@ export default function Auth() {
 
       if (remember) {
         localStorage.setItem('gv_remembered_email', email)
-        localStorage.setItem('gv_remember', '1')
       } else {
         localStorage.removeItem('gv_remembered_email')
-        localStorage.removeItem('gv_remember')
-        // Sign out when tab closes if not remembering
         window.addEventListener('beforeunload', () => supabase.auth.signOut(), { once: true })
       }
-
-      navigate('/')
+      // Do NOT navigate here — let the useEffect above handle it
+      // once onAuthStateChange fires and profile is loaded
     } else {
       const { error } = await supabase.auth.signUp({ email, password: pass })
       if (error) { setError(error.message); setLoading(false); return }
@@ -145,7 +155,7 @@ export default function Auth() {
 
           <button type="submit" className="btn btn-primary w-full" disabled={loading}
             style={{ justifyContent: 'center', padding: '11px' }}>
-            {loading ? 'PROCESSING...' : tab === 'login' ? 'AUTHENTICATE' : 'SUBMIT REQUEST'}
+            {loading ? 'AUTHENTICATING...' : tab === 'login' ? 'SIGN IN' : 'SUBMIT REQUEST'}
           </button>
         </form>
 
