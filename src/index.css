@@ -626,3 +626,276 @@ table.data-table {
   overflow: hidden;
 }
 .poll-result-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
+
+/* ════════════════════════════════════════
+   ANIMATIONS
+   ════════════════════════════════════════ */
+
+/* ── KEYFRAMES ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: var(--accent-dim); }
+  50%       { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── PAGE ENTER ── */
+.page-body {
+  animation: fadeUp .28s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+.page-header {
+  animation: fadeDown .22s ease both;
+}
+
+/* ── CARD ANIMATIONS ── */
+.card {
+  animation: fadeUp .3s ease both;
+}
+
+/* Staggered children */
+.card:nth-child(1) { animation-delay: .04s; }
+.card:nth-child(2) { animation-delay: .08s; }
+.card:nth-child(3) { animation-delay: .12s; }
+.card:nth-child(4) { animation-delay: .16s; }
+
+.stat-card {
+  animation: fadeUp .3s ease both;
+}
+.stat-card:nth-child(1) { animation-delay: .03s; }
+.stat-card:nth-child(2) { animation-delay: .07s; }
+.stat-card:nth-child(3) { animation-delay: .11s; }
+.stat-card:nth-child(4) { animation-delay: .15s; }
+
+/* ── MODAL ANIMATION ── */
+.modal-backdrop {
+  animation: fadeIn .18s ease both;
+}
+
+.modal {
+  animation: scaleIn .22s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  animation: slideInLeft .3s ease both;
+}
+
+.nav-item {
+  transition: background .15s, color .15s, transform .12s, padding-left .12s;
+}
+
+.nav-item:hover {
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  animation: fadeIn .2s ease both;
+}
+
+/* ── TABLE ROWS ── */
+.data-table tbody tr {
+  transition: background .12s;
+  animation: fadeIn .25s ease both;
+}
+
+.data-table tbody tr:nth-child(1)  { animation-delay: .03s; }
+.data-table tbody tr:nth-child(2)  { animation-delay: .05s; }
+.data-table tbody tr:nth-child(3)  { animation-delay: .07s; }
+.data-table tbody tr:nth-child(4)  { animation-delay: .09s; }
+.data-table tbody tr:nth-child(5)  { animation-delay: .11s; }
+.data-table tbody tr:nth-child(6)  { animation-delay: .13s; }
+.data-table tbody tr:nth-child(7)  { animation-delay: .15s; }
+.data-table tbody tr:nth-child(8)  { animation-delay: .17s; }
+.data-table tbody tr:nth-child(9)  { animation-delay: .19s; }
+.data-table tbody tr:nth-child(10) { animation-delay: .21s; }
+
+/* ── BADGE ANIMATIONS ── */
+.badge-red .priority-dot.critical,
+.priority-dot.critical {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* Critical badge pulse */
+.badge-red {
+  animation: none;
+}
+
+/* ── BUTTON ANIMATIONS ── */
+.btn {
+  transition: background .15s, opacity .15s, transform .1s, box-shadow .15s, border-color .15s;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 16px rgba(196,174,130,0.25);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.97) translateY(0);
+}
+
+.btn-ghost:active {
+  transform: scale(0.97);
+}
+
+/* ── FORM INPUTS ── */
+.form-input, .form-select, .form-textarea {
+  transition: border-color .18s, background .18s, box-shadow .18s;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ── AUTH CARD ── */
+.auth-card {
+  animation: scaleIn .3s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+.auth-logo-name {
+  animation: fadeDown .35s ease both;
+}
+
+.auth-logo-motto {
+  animation: fadeDown .4s ease both;
+}
+
+/* ── LOADING SPINNER ── */
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-md);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block;
+}
+
+/* ── SKELETON LOADER ── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-raised) 25%,
+    var(--bg-hover) 50%,
+    var(--bg-raised) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ── STAT VALUE ── */
+.stat-value {
+  animation: countUp .4s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+/* ── POLL OPTIONS ── */
+.poll-option {
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.poll-option:hover {
+  transform: translateX(3px);
+}
+.poll-option.selected {
+  transform: translateX(3px);
+}
+
+/* ── POLL RESULT BAR ── */
+.poll-result-fill {
+  transition: width .6s cubic-bezier(.22,.68,0,1.2);
+}
+
+/* ── CONTRACT CARD ── */
+.contract-card {
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+  animation: fadeUp .3s ease both;
+}
+.contract-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+
+/* ── USER PILL ── */
+.user-pill {
+  transition: background .15s, transform .12s;
+}
+.user-pill:hover {
+  transform: translateX(2px);
+}
+
+/* ── RANK BADGE HOVER ── */
+.rank-badge {
+  transition: opacity .15s, transform .12s;
+}
+.rank-badge:hover {
+  transform: scale(1.05);
+}
+
+/* ── SIDEBAR LOGO ── */
+.sidebar-logo-mark {
+  animation: fadeIn .5s ease both;
+}
+
+/* ── DISCONNECT BUTTON ── */
+.sidebar-footer .btn {
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+/* ── GLOBAL LINK TRANSITIONS ── */
+a, button { transition-property: background, color, border-color, opacity, transform; transition-duration: .15s; }

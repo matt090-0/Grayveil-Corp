@@ -4,9 +4,9 @@ import { supabase } from '../supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [session, setSession]   = useState(null)
+  const [profile, setProfile]   = useState(null)
+  const [loading, setLoading]   = useState(true)
 
   async function fetchProfile(userId) {
     const { data } = await supabase
@@ -18,16 +18,21 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Initial session check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id).finally(() => setLoading(false))
-      else setLoading(false)
+      if (session) await fetchProfile(session.user.id)
+      setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Auth state changes — re-fetch profile each time
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else setProfile(null)
+      if (session) {
+        await fetchProfile(session.user.id)
+      } else {
+        setProfile(null)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -40,6 +45,7 @@ export function AuthProvider({ children }) {
   async function signOut() {
     await supabase.auth.signOut()
     setProfile(null)
+    setSession(null)
   }
 
   return (
