@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import RankBadge from '../components/RankBadge'
 import { getRankByTier } from '../lib/ranks'
+import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
 
 export default function Profile() {
   const { profile, refreshProfile } = useAuth()
@@ -89,15 +90,19 @@ export default function Profile() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">DIVISION</label>
-                <input className="form-input" value={form.division}
-                  onChange={e => setForm(f => ({ ...f, division: e.target.value }))}
-                  placeholder="e.g. Intelligence" />
+                <select className="form-select" value={form.division}
+                  onChange={e => setForm(f => ({ ...f, division: e.target.value }))}>
+                  <option value="">— Select Division —</option>
+                  {SC_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">SPECIALITY</label>
-                <input className="form-input" value={form.speciality}
-                  onChange={e => setForm(f => ({ ...f, speciality: e.target.value }))}
-                  placeholder="e.g. Recon & Analysis" />
+                <select className="form-select" value={form.speciality}
+                  onChange={e => setForm(f => ({ ...f, speciality: e.target.value }))}>
+                  <option value="">— Select Speciality —</option>
+                  {SC_SPECIALITIES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
             <div className="form-group">

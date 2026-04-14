@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { CONTRACT_TYPES, formatCredits, RANKS } from '../lib/ranks'
+import { SC_CONTRACT_TYPES, SC_LOCATIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 
 const STATUS_ORDER = ['OPEN', 'ACTIVE', 'COMPLETE', 'CANCELLED']
@@ -213,7 +214,7 @@ export default function Contracts() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">TYPE</label>
-              <select className="form-select" value={form.contract_type} onChange={e => setForm(f => ({ ...f, contract_type: e.target.value }))}>{CONTRACT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
+              <select className="form-select" value={form.contract_type} onChange={e => setForm(f => ({ ...f, contract_type: e.target.value }))}>{SC_CONTRACT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
             </div>
             <div className="form-group">
               <label className="form-label">CLEARANCE (TIER)</label>
@@ -223,7 +224,10 @@ export default function Contracts() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">LOCATION</label>
-              <input className="form-input" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Stanton — Hurston" />
+              <select className="form-select" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
+                <option value="">— Select Location —</option>
+                {SC_LOCATIONS.map(l => <option key={l.name} value={l.name}>{l.name} ({l.category})</option>)}
+              </select>
             </div>
             <div className="form-group">
               <label className="form-label">REWARD (aUEC)</label>

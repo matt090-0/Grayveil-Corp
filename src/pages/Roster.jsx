@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { RANKS, canPromote } from '../lib/ranks'
 import RankBadge from '../components/RankBadge'
 import Modal from '../components/Modal'
+import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
 
 function lastSeen(ts) {
   if (!ts) return '—'
@@ -179,11 +180,17 @@ export default function Roster() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">DIVISION</label>
-              <input className="form-input" value={editData.division} onChange={e => setEditData(d => ({ ...d, division: e.target.value }))} placeholder="e.g. Intelligence" />
+              <select className="form-select" value={editData.division} onChange={e => setEditData(d => ({ ...d, division: e.target.value }))}>
+                <option value="">— Select —</option>
+                {SC_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
             </div>
             <div className="form-group">
               <label className="form-label">SPECIALITY</label>
-              <input className="form-input" value={editData.speciality} onChange={e => setEditData(d => ({ ...d, speciality: e.target.value }))} placeholder="e.g. Recon" />
+              <select className="form-select" value={editData.speciality} onChange={e => setEditData(d => ({ ...d, speciality: e.target.value }))}>
+                <option value="">— Select —</option>
+                {SC_SPECIALITIES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
           </div>
           <div className="form-group">
