@@ -5,6 +5,7 @@ import { RANKS, canPromote } from '../lib/ranks'
 import RankBadge from '../components/RankBadge'
 import Modal from '../components/Modal'
 import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
+import MemberDossier from '../components/MemberDossier'
 
 function lastSeen(ts) {
   if (!ts) return '—'
@@ -24,6 +25,7 @@ export default function Roster() {
   const [editData, setEditData] = useState({})
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
+  const [viewing, setViewing] = useState(null)
 
   async function load() {
     const { data } = await supabase
@@ -124,7 +126,8 @@ export default function Roster() {
                   {filtered.length === 0 ? (
                     <tr><td colSpan={6} className="empty-state">NO RESULTS</td></tr>
                   ) : filtered.map(m => (
-                    <tr key={m.id} style={{ background: m.id === me.id ? 'var(--accent-glow)' : undefined }}>
+                    <tr key={m.id} style={{ background: m.id === me.id ? 'var(--accent-glow)' : undefined, cursor: 'pointer' }}
+                      onClick={() => setViewing(m)}>
                       <td>
                         <div className="flex items-center gap-8">
                           <div className="avatar" style={{ width: 26, height: 26, fontSize: 10 }}>
@@ -148,7 +151,7 @@ export default function Roster() {
                         </span>
                       </td>
                       {canEdit && (
-                        <td>
+                        <td onClick={e => e.stopPropagation()}>
                           {m.id !== me.id && me.tier < m.tier && (
                             <button className="btn btn-ghost btn-sm" onClick={() => openEdit(m)}>EDIT</button>
                           )}
@@ -210,6 +213,8 @@ export default function Roster() {
           </div>
         </Modal>
       )}
+
+      {viewing && <MemberDossier member={viewing} onClose={() => setViewing(null)} />}
     </>
   )
 }

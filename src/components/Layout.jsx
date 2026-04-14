@@ -65,7 +65,7 @@ export default function Layout({ children }) {
         <div className="sidebar-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <div className="user-pill" onClick={() => navigate('/profile')} style={{ flex: 1 }}>
-              <div className="avatar">{initials}</div>
+              <div className="avatar" style={{ borderColor: profile?.avatar_color || 'var(--accent)', color: profile?.avatar_color || 'var(--accent)' }}>{initials}</div>
               <div className="user-info">
                 <div className="user-handle truncate">{profile?.handle || '—'}</div>
                 <div className="user-rank">{rankInfo?.label || '—'}</div>
