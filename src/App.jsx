@@ -15,6 +15,7 @@ import Polls from './pages/Polls'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
 import Apply from './pages/Apply'
+import Bank from './pages/Bank'
 
 function AppRoutes() {
   return (
@@ -61,6 +62,11 @@ function AppRoutes() {
       <Route path="/polls" element={
         <ProtectedRoute>
           <Layout><Polls /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/bank" element={
+        <ProtectedRoute>
+          <Layout><Bank /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={

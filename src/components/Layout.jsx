@@ -10,6 +10,7 @@ const NAV = [
   { to: '/contracts',   icon: '◆', label: 'CONTRACTS'     },
   { to: '/intelligence',icon: '◍', label: 'INTELLIGENCE'  },
   { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
+  { to: '/bank',        icon: '⬡', label: 'BANK'          },
   { to: '/recruitment', icon: '◐', label: 'RECRUITMENT', minTier: 6 },
   { to: '/polls',       icon: '◑', label: 'POLLS'         },
   { to: '/admin',       icon: '⚙', label: 'ADMIN', minTier: 1 },

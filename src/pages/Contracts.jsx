@@ -76,7 +76,29 @@ export default function Contracts() {
   async function updateStatus(id, status) {
     const c = contracts.find(x => x.id === id)
     await supabase.from('contracts').update({ status }).eq('id', id)
-    if (status === 'COMPLETE') {
+    if (status === 'COMPLETE' && c?.reward > 0) {
+      // Auto-payout: reward goes to operative wallet, tax to treasury
+      const { data: settings } = await supabase.from('org_settings').select('value').eq('key', 'tax_rate').maybeSingle()
+      const taxPct = settings?.value?.percent || 0
+      const taxAmt = Math.floor(c.reward * (taxPct / 100))
+      const netPay = c.reward - taxAmt
+
+      // Credit operative wallet
+      const { data: myProfile } = await supabase.from('profiles').select('wallet_balance').eq('id', me.id).single()
+      await supabase.from('profiles').update({ wallet_balance: (myProfile?.wallet_balance || 0) + netPay }).eq('id', me.id)
+
+      // Credit treasury with tax
+      if (taxAmt > 0) {
+        const { data: treas } = await supabase.from('treasury').select('balance').eq('id', 1).single()
+        await supabase.from('treasury').update({ balance: (treas?.balance || 0) + taxAmt }).eq('id', 1)
+        await supabase.from('transactions').insert({ type: 'tax', from_type: 'wallet', from_id: me.id, to_type: 'treasury', to_id: null, amount: taxAmt, description: `${taxPct}% tax on: ${c.title}`, contract_id: id, recorded_by: me.id })
+      }
+
+      // Record payout transaction
+      await supabase.from('transactions').insert({ type: 'payout', from_type: 'external', from_id: null, to_type: 'wallet', to_id: me.id, amount: netPay, description: `Contract payout: ${c.title}`, contract_id: id, recorded_by: me.id })
+
+      await supabase.from('activity_log').insert({ actor_id: me.id, action: 'contract_completed', target_type: 'contract', target_id: id, details: { title: c?.title, reward: c.reward, tax: taxAmt, net: netPay } })
+    } else if (status === 'COMPLETE') {
       await supabase.from('activity_log').insert({ actor_id: me.id, action: 'contract_completed', target_type: 'contract', target_id: id, details: { title: c?.title } })
     }
     load()
