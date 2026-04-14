@@ -1,0 +1,82 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import Layout from './components/Layout'
+import Auth from './pages/Auth'
+import SetupProfile from './pages/SetupProfile'
+import Dashboard from './pages/Dashboard'
+import Roster from './pages/Roster'
+import Fleet from './pages/Fleet'
+import Contracts from './pages/Contracts'
+import Intelligence from './pages/Intelligence'
+import Ledger from './pages/Ledger'
+import Recruitment from './pages/Recruitment'
+import Polls from './pages/Polls'
+import Profile from './pages/Profile'
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/auth"  element={<Auth />} />
+      <Route path="/setup" element={<SetupProfile />} />
+
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Layout><Dashboard /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/roster" element={
+        <ProtectedRoute>
+          <Layout><Roster /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/fleet" element={
+        <ProtectedRoute>
+          <Layout><Fleet /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/contracts" element={
+        <ProtectedRoute>
+          <Layout><Contracts /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/intelligence" element={
+        <ProtectedRoute>
+          <Layout><Intelligence /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/ledger" element={
+        <ProtectedRoute>
+          <Layout><Ledger /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/recruitment" element={
+        <ProtectedRoute minTier={6}>
+          <Layout><Recruitment /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/polls" element={
+        <ProtectedRoute>
+          <Layout><Polls /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <Layout><Profile /></Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}
