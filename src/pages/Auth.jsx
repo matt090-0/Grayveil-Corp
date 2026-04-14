@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import GrayveilLogo from '../components/GrayveilLogo'
 
 export default function Auth() {
   const { session, profile, loading: authLoading } = useAuth()
@@ -44,6 +45,7 @@ export default function Auth() {
     <div className="auth-shell">
       <div className="auth-card" style={{ textAlign: 'center' }}>
         <div className="auth-logo">
+          <GrayveilLogo size={48} />
           <div className="auth-logo-name">GRAYVEIL</div>
         </div>
         <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 12 }}>ACCESS REQUEST RECEIVED</div>
@@ -61,6 +63,7 @@ export default function Auth() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-logo">
+          <GrayveilLogo size={48} />
           <div className="auth-logo-name">GRAYVEIL</div>
           <div className="auth-logo-motto">"Profit is neutral. Everything else is negotiable."</div>
         </div>

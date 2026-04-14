@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getRankByTier } from '../lib/ranks'
 import NotificationBell from './NotificationBell'
+import GrayveilLogo from './GrayveilLogo'
 
 const NAV = [
   { to: '/',            icon: '◈', label: 'SITREP'        },
@@ -27,9 +28,12 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-mark">GRAYVEIL</div>
-          <div className="sidebar-logo-sub">CORPORATION</div>
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <GrayveilLogo size={36} />
+          <div>
+            <div className="sidebar-logo-mark">GRAYVEIL</div>
+            <div className="sidebar-logo-sub">CORPORATION</div>
+          </div>
         </div>
 
         <nav className="sidebar-nav">

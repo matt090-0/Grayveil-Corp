@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import GrayveilLogo from '../components/GrayveilLogo'
 
 export default function Apply() {
   const [searchParams] = useSearchParams()
@@ -44,6 +45,7 @@ export default function Apply() {
     <div className="auth-shell">
       <div className="auth-card" style={{ textAlign: 'center' }}>
         <div className="auth-logo">
+          <GrayveilLogo size={48} />
           <div className="auth-logo-name">GRAYVEIL</div>
         </div>
         <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 12, fontFamily: 'var(--font-mono)', letterSpacing: '.08em' }}>
@@ -60,6 +62,7 @@ export default function Apply() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-logo">
+          <GrayveilLogo size={48} />
           <div className="auth-logo-name">GRAYVEIL</div>
           <div className="auth-logo-motto">Apply for membership</div>
         </div>

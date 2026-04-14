@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import GrayveilLogo from '../components/GrayveilLogo'
 
 export default function SetupProfile() {
   const { session, profile, loading: authLoading, refreshProfile } = useAuth()
@@ -50,6 +51,7 @@ export default function SetupProfile() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-logo">
+          <GrayveilLogo size={48} />
           <div className="auth-logo-name">GRAYVEIL</div>
           <div className="auth-logo-motto">Establish your identity</div>
         </div>
