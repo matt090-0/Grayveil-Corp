@@ -2,11 +2,13 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function ProtectedRoute({ children, minTier }) {
-  const { session, profile, ready } = useAuth()
+  const { session, profile, loading } = useAuth()
 
-  if (!ready)    return <Navigate to="/auth" replace />
-  if (!session)  return <Navigate to="/auth" replace />
-  if (!profile)  return <Navigate to="/setup" replace />
+  // Show nothing while auth resolves — avoids redirect loops
+  if (loading) return <div style={{ height: '100vh', background: '#080809' }} />
+
+  if (!session) return <Navigate to="/auth" replace />
+  if (!profile) return <Navigate to="/setup" replace />
   if (minTier && profile.tier > minTier) return <Navigate to="/" replace />
 
   return children
