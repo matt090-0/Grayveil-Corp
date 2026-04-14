@@ -6,9 +6,9 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [ready, setReady]     = useState(false)
 
-  async function fetchProfile(userId) {
+  async function loadProfile(userId) {
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -18,42 +18,45 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    // Check for existing session on mount
+    // Initial session check
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         setSession(session)
-        await fetchProfile(session.user.id)
+        await loadProfile(session.user.id)
       }
-      setLoading(false)
+      setReady(true)
     })
 
-    // Listen for auth changes (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN') {
-        setSession(session)
-        await fetchProfile(session.user.id)
+    // Auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN') {
+          setReady(false)
+          setSession(session)
+          await loadProfile(session.user.id)
+          setReady(true)
+        }
+        if (event === 'SIGNED_OUT') {
+          setSession(null)
+          setProfile(null)
+          setReady(true)
+        }
       }
-      if (event === 'SIGNED_OUT') {
-        setSession(null)
-        setProfile(null)
-      }
-    })
+    )
 
     return () => subscription.unsubscribe()
   }, [])
 
   async function refreshProfile() {
-    if (session) await fetchProfile(session.user.id)
+    if (session) await loadProfile(session.user.id)
   }
 
   async function signOut() {
     await supabase.auth.signOut()
-    setSession(null)
-    setProfile(null)
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ session, profile, ready, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   )

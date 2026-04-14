@@ -4,28 +4,27 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
 export default function Auth() {
-  const { session, profile, loading } = useAuth()
-  const [tab, setTab]         = useState('login')
-  const [email, setEmail]     = useState('')
-  const [pass, setPass]       = useState('')
+  const { session, profile, ready } = useAuth()
+  const [tab, setTab]           = useState('login')
+  const [email, setEmail]       = useState('')
+  const [pass, setPass]         = useState('')
   const [remember, setRemember] = useState(true)
-  const [error, setError]     = useState('')
-  const [busy, setBusy]       = useState(false)
-  const [done, setDone]       = useState(false)
+  const [error, setError]       = useState('')
+  const [busy, setBusy]         = useState(false)
+  const [done, setDone]         = useState(false)
   const navigate = useNavigate()
 
-  // Pre-fill remembered email
   useEffect(() => {
     const saved = localStorage.getItem('gv_remembered_email')
     if (saved) setEmail(saved)
   }, [])
 
-  // Redirect when auth resolves
+  // Once auth is fully resolved, redirect if already logged in
   useEffect(() => {
-    if (!loading && session) {
+    if (ready && session) {
       navigate(profile ? '/' : '/setup', { replace: true })
     }
-  }, [loading, session, profile])
+  }, [ready, session, profile])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -34,17 +33,24 @@ export default function Auth() {
 
     if (tab === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-      if (error) { setError(error.message); setBusy(false); return }
+      if (error) {
+        setError(error.message)
+        setBusy(false)
+        return
+      }
       if (remember) localStorage.setItem('gv_remembered_email', email)
       else localStorage.removeItem('gv_remembered_email')
-      // Navigation handled by useEffect above once session + profile load
+      // useEffect will redirect once ready+session+profile resolve
     } else {
       const { error } = await supabase.auth.signUp({ email, password: pass })
-      if (error) { setError(error.message); setBusy(false); return }
+      if (error) {
+        setError(error.message)
+        setBusy(false)
+        return
+      }
       setDone(true)
+      setBusy(false)
     }
-
-    setBusy(false)
   }
 
   if (done) return (
@@ -106,7 +112,8 @@ export default function Auth() {
                   <path d="M1.5 5L4 7.5L8.5 2.5" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>}
               </div>
-              <span onClick={() => setRemember(r => !r)} style={{ fontSize: 12, color: 'var(--text-2)', cursor: 'pointer', userSelect: 'none' }}>
+              <span onClick={() => setRemember(r => !r)}
+                style={{ fontSize: 12, color: 'var(--text-2)', cursor: 'pointer', userSelect: 'none' }}>
                 Remember me on this device
               </span>
             </div>
@@ -116,7 +123,7 @@ export default function Auth() {
 
           <button type="submit" className="btn btn-primary w-full" disabled={busy}
             style={{ justifyContent: 'center', padding: '11px' }}>
-            {busy ? 'PROCESSING...' : tab === 'login' ? 'SIGN IN' : 'REQUEST ACCESS'}
+            {busy ? 'SIGNING IN...' : tab === 'login' ? 'SIGN IN' : 'REQUEST ACCESS'}
           </button>
         </form>
 
