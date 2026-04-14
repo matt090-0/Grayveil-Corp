@@ -4,49 +4,42 @@ import { supabase } from '../supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession]         = useState(null)
-  const [profile, setProfile]         = useState(null)
-  const [loading, setLoading]         = useState(true)
-  const [profileLoaded, setProfileLoaded] = useState(false)
+  const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   async function fetchProfile(userId) {
-    setProfileLoaded(false)
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle()
     setProfile(data || null)
-    setProfileLoaded(true)
   }
 
   useEffect(() => {
-    let mounted = true
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
-        if (session) {
-          setSession(session)
-          await fetchProfile(session.user.id)
-        } else {
-          setSession(null)
-          setProfile(null)
-          setProfileLoaded(true)
-        }
-        if (mounted) setLoading(false)
+    // Check for existing session on mount
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        setSession(session)
+        await fetchProfile(session.user.id)
       }
-    )
+      setLoading(false)
+    })
 
-    const timeout = setTimeout(() => {
-      if (mounted) { setLoading(false); setProfileLoaded(true) }
-    }, 8000)
+    // Listen for auth changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        setSession(session)
+        await fetchProfile(session.user.id)
+      }
+      if (event === 'SIGNED_OUT') {
+        setSession(null)
+        setProfile(null)
+      }
+    })
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-      clearTimeout(timeout)
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
   async function refreshProfile() {
@@ -55,20 +48,17 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     await supabase.auth.signOut()
-    setProfile(null)
     setSession(null)
-    setProfileLoaded(true)
+    setProfile(null)
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, profileLoaded, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
+  return useContext(AuthContext)
 }

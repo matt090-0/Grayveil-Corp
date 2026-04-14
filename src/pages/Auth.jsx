@@ -4,14 +4,14 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
 export default function Auth() {
-  const { session, profile, profileLoaded } = useAuth()
-  const [tab, setTab]           = useState('login')
-  const [email, setEmail]       = useState('')
-  const [pass, setPass]         = useState('')
+  const { session, profile, loading } = useAuth()
+  const [tab, setTab]         = useState('login')
+  const [email, setEmail]     = useState('')
+  const [pass, setPass]       = useState('')
   const [remember, setRemember] = useState(true)
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [done, setDone]         = useState(false)
+  const [error, setError]     = useState('')
+  const [busy, setBusy]       = useState(false)
+  const [done, setDone]       = useState(false)
   const navigate = useNavigate()
 
   // Pre-fill remembered email
@@ -20,41 +20,31 @@ export default function Auth() {
     if (saved) setEmail(saved)
   }, [])
 
-  // Redirect once auth context has session + profile resolved
+  // Redirect when auth resolves
   useEffect(() => {
-    if (session && profileLoaded) {
-      if (profile) {
-        navigate('/', { replace: true })
-      } else {
-        navigate('/setup', { replace: true })
-      }
+    if (!loading && session) {
+      navigate(profile ? '/' : '/setup', { replace: true })
     }
-  }, [session, profile, profileLoaded, navigate])
+  }, [loading, session, profile])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    setLoading(true)
+    setBusy(true)
 
     if (tab === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-      if (error) { setError(error.message); setLoading(false); return }
-
-      if (remember) {
-        localStorage.setItem('gv_remembered_email', email)
-      } else {
-        localStorage.removeItem('gv_remembered_email')
-        window.addEventListener('beforeunload', () => supabase.auth.signOut(), { once: true })
-      }
-      // Do NOT navigate here — let the useEffect above handle it
-      // once onAuthStateChange fires and profile is loaded
+      if (error) { setError(error.message); setBusy(false); return }
+      if (remember) localStorage.setItem('gv_remembered_email', email)
+      else localStorage.removeItem('gv_remembered_email')
+      // Navigation handled by useEffect above once session + profile load
     } else {
       const { error } = await supabase.auth.signUp({ email, password: pass })
-      if (error) { setError(error.message); setLoading(false); return }
+      if (error) { setError(error.message); setBusy(false); return }
       setDone(true)
     }
 
-    setLoading(false)
+    setBusy(false)
   }
 
   if (done) return (
@@ -67,10 +57,10 @@ export default function Auth() {
           ACCESS REQUEST RECEIVED
         </div>
         <p style={{ color: 'var(--text-2)', fontSize: 13, lineHeight: 1.8 }}>
-          Check your email to confirm your account, then return here to sign in and complete your profile.
+          Check your email to confirm your account, then return here to sign in.
         </p>
         <button className="btn btn-ghost w-full mt-16" style={{ justifyContent: 'center' }} onClick={() => setDone(false)}>
-          RETURN TO LOGIN
+          BACK TO SIGN IN
         </button>
       </div>
     </div>
@@ -85,67 +75,38 @@ export default function Auth() {
         </div>
 
         <div className="auth-tabs">
-          <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>
-            SIGN IN
-          </button>
-          <button className={`auth-tab${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>
-            REQUEST ACCESS
-          </button>
+          <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>SIGN IN</button>
+          <button className={`auth-tab${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>REQUEST ACCESS</button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">EMAIL</label>
-            <input
-              type="email"
-              className="form-input"
-              placeholder="operative@grayveil.net"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
+            <input type="email" className="form-input" placeholder="operative@grayveil.net"
+              value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
           </div>
 
           <div className="form-group">
             <label className="form-label">PASSPHRASE</label>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="••••••••"
-              value={pass}
-              onChange={e => setPass(e.target.value)}
-              required
-              autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-              minLength={8}
-            />
-            {tab === 'signup' && (
-              <div className="form-hint">Minimum 8 characters. You will set your handle after confirming.</div>
-            )}
+            <input type="password" className="form-input" placeholder="••••••••"
+              value={pass} onChange={e => setPass(e.target.value)} required
+              autoComplete={tab === 'login' ? 'current-password' : 'new-password'} minLength={8} />
+            {tab === 'signup' && <div className="form-hint">Minimum 8 characters.</div>}
           </div>
 
           {tab === 'login' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div
-                onClick={() => setRemember(r => !r)}
-                style={{
-                  width: 18, height: 18, borderRadius: 4, flexShrink: 0, cursor: 'pointer',
-                  border: `1.5px solid ${remember ? 'var(--accent)' : 'var(--border-md)'}`,
-                  background: remember ? 'var(--accent-dim)' : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all .15s'
-                }}
-              >
-                {remember && (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M1.5 5L4 7.5L8.5 2.5" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
+              <div onClick={() => setRemember(r => !r)} style={{
+                width: 18, height: 18, borderRadius: 4, flexShrink: 0, cursor: 'pointer',
+                border: `1.5px solid ${remember ? 'var(--accent)' : 'var(--border-md)'}`,
+                background: remember ? 'var(--accent-dim)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s'
+              }}>
+                {remember && <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M1.5 5L4 7.5L8.5 2.5" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>}
               </div>
-              <span
-                onClick={() => setRemember(r => !r)}
-                style={{ fontSize: 12, color: 'var(--text-2)', cursor: 'pointer', userSelect: 'none' }}
-              >
+              <span onClick={() => setRemember(r => !r)} style={{ fontSize: 12, color: 'var(--text-2)', cursor: 'pointer', userSelect: 'none' }}>
                 Remember me on this device
               </span>
             </div>
@@ -153,9 +114,9 @@ export default function Auth() {
 
           {error && <div className="form-error mb-16">{error}</div>}
 
-          <button type="submit" className="btn btn-primary w-full" disabled={loading}
+          <button type="submit" className="btn btn-primary w-full" disabled={busy}
             style={{ justifyContent: 'center', padding: '11px' }}>
-            {loading ? 'AUTHENTICATING...' : tab === 'login' ? 'SIGN IN' : 'SUBMIT REQUEST'}
+            {busy ? 'PROCESSING...' : tab === 'login' ? 'SIGN IN' : 'REQUEST ACCESS'}
           </button>
         </form>
 
