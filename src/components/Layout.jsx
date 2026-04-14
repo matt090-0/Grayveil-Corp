@@ -5,32 +5,33 @@ import { getRankByTier } from '../lib/ranks'
 import NotificationBell from './NotificationBell'
 import GrayveilLogo from './GrayveilLogo'
 import SearchBar from './SearchBar'
+import NavIcon from './NavIcon'
 
 const NAV = [
   { section: 'COMMAND' },
-  { to: '/',            icon: '◈', label: 'SITREP'        },
-  { to: '/events',      icon: '📅', label: 'OPS BOARD'    },
-  { to: '/contracts',   icon: '◆', label: 'CONTRACTS'     },
-  { to: '/killboard',   icon: '⚔', label: 'KILL BOARD'   },
+  { to: '/',            icon: 'sitrep',     label: 'SITREP'        },
+  { to: '/events',      icon: 'ops',        label: 'OPS BOARD'     },
+  { to: '/contracts',   icon: 'contracts',  label: 'CONTRACTS'     },
+  { to: '/killboard',   icon: 'killboard',  label: 'KILL BOARD'    },
 
   { section: 'ORGANISATION' },
-  { to: '/roster',      icon: '◉', label: 'ROSTER'        },
-  { to: '/fleet',       icon: '◎', label: 'FLEET'         },
-  { to: '/loadouts',    icon: '⚙', label: 'LOADOUTS'     },
-  { to: '/medals',      icon: '🏅', label: 'COMMENDATIONS'},
-  { to: '/diplomacy',   icon: '🤝', label: 'DIPLOMACY', minTier: 6 },
+  { to: '/roster',      icon: 'roster',     label: 'ROSTER'        },
+  { to: '/fleet',       icon: 'fleet',      label: 'FLEET'         },
+  { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
+  { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
+  { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
 
   { section: 'OPERATIONS' },
-  { to: '/intelligence',icon: '◍', label: 'INTELLIGENCE'  },
-  { to: '/bank',        icon: '⬡', label: 'BANK'          },
-  { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
-  { to: '/recruitment', icon: '◐', label: 'RECRUITMENT', minTier: 6 },
+  { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
+  { to: '/bank',        icon: 'bank',       label: 'BANK'          },
+  { to: '/ledger',      icon: 'ledger',     label: 'LEDGER'        },
+  { to: '/recruitment', icon: 'recruitment',label: 'RECRUITMENT', minTier: 6 },
 
   { section: 'RESOURCES' },
-  { to: '/wiki',        icon: '📖', label: 'KNOWLEDGE BASE'},
-  { to: '/messages',    icon: '✉', label: 'COMMS'         },
-  { to: '/polls',       icon: '◑', label: 'POLLS'         },
-  { to: '/admin',       icon: '☠', label: 'ADMIN', minTier: 1 },
+  { to: '/wiki',        icon: 'wiki',       label: 'KNOWLEDGE BASE'},
+  { to: '/messages',    icon: 'comms',      label: 'COMMS'         },
+  { to: '/polls',       icon: 'polls',      label: 'POLLS'         },
+  { to: '/admin',       icon: 'admin',      label: 'ADMIN', minTier: 1 },
 ]
 
 export default function Layout({ children }) {
@@ -92,7 +93,7 @@ export default function Layout({ children }) {
             if (!canSee(item)) return null
             return (
               <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} onClick={navClick}>
-                <span className="nav-item-icon">{item.icon}</span>
+                <span className="nav-item-icon"><NavIcon name={item.icon} /></span>
                 {item.label}
               </NavLink>
             )
