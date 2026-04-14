@@ -13,6 +13,7 @@ import Ledger from './pages/Ledger'
 import Recruitment from './pages/Recruitment'
 import Polls from './pages/Polls'
 import Profile from './pages/Profile'
+import Admin from './pages/Admin'
 
 function AppRoutes() {
   return (
@@ -63,6 +64,11 @@ function AppRoutes() {
       <Route path="/profile" element={
         <ProtectedRoute>
           <Layout><Profile /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/admin" element={
+        <ProtectedRoute minTier={1}>
+          <Layout><Admin /></Layout>
         </ProtectedRoute>
       } />
 

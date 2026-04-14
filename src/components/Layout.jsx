@@ -11,6 +11,7 @@ const NAV = [
   { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
   { to: '/recruitment', icon: '◐', label: 'RECRUITMENT', minTier: 6 },
   { to: '/polls',       icon: '◑', label: 'POLLS'         },
+  { to: '/admin',       icon: '⬡', label: 'ADMIN',        minTier: 1 },
 ]
 
 export default function Layout({ children }) {
