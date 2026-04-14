@@ -4,38 +4,51 @@ import { supabase } from '../supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession]   = useState(null)
+  const [session, setSession]   = useState(undefined) // undefined = not yet checked
   const [profile, setProfile]   = useState(null)
   const [loading, setLoading]   = useState(true)
 
   async function fetchProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setProfile(data || null)
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      setProfile(data || null)
+    } catch {
+      setProfile(null)
+    }
   }
 
   useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      if (session) await fetchProfile(session.user.id)
-      setLoading(false)
-    })
+    let mounted = true
 
-    // Auth state changes — re-fetch profile each time
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session)
-      if (session) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
+    // onAuthStateChange fires immediately with INITIAL_SESSION —
+    // use it as the single source of truth, no getSession needed
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return
+        setSession(session)
+        if (session) {
+          await fetchProfile(session.user.id)
+        } else {
+          setProfile(null)
+        }
+        setLoading(false)
       }
-    })
+    )
 
-    return () => subscription.unsubscribe()
+    // Safety timeout — if Supabase hangs for 5s, stop loading
+    const timeout = setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 5000)
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   async function refreshProfile() {

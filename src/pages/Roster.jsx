@@ -27,7 +27,7 @@ export default function Roster() {
 
   useEffect(() => { load() }, [])
 
-  const canEdit = me.tier <= 3 || (me.tier <= 5)
+  const canEdit = me.tier <= 5
   const filtered = members.filter(m =>
     m.handle.toLowerCase().includes(filter.toLowerCase()) ||
     m.rank.toLowerCase().includes(filter.toLowerCase())
