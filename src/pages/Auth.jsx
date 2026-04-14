@@ -14,12 +14,13 @@ export default function Auth() {
   const [done, setDone]         = useState(false)
   const navigate = useNavigate()
 
+  // Pre-fill remembered email
   useEffect(() => {
     const saved = localStorage.getItem('gv_remembered_email')
     if (saved) setEmail(saved)
   }, [])
 
-  // Once auth is fully resolved, redirect if already logged in
+  // Redirect once auth fully resolves
   useEffect(() => {
     if (ready && session) {
       navigate(profile ? '/' : '/setup', { replace: true })
@@ -35,12 +36,13 @@ export default function Auth() {
       const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
       if (error) {
         setError(error.message)
-        setBusy(false)
+        setBusy(false) // reset on error
         return
       }
+      // Success — remember email, then wait for onAuthStateChange + useEffect to navigate
       if (remember) localStorage.setItem('gv_remembered_email', email)
       else localStorage.removeItem('gv_remembered_email')
-      // useEffect will redirect once ready+session+profile resolve
+      setBusy(false) // ← THIS WAS MISSING — reset button immediately on success
     } else {
       const { error } = await supabase.auth.signUp({ email, password: pass })
       if (error) {
@@ -48,8 +50,8 @@ export default function Auth() {
         setBusy(false)
         return
       }
-      setDone(true)
       setBusy(false)
+      setDone(true)
     }
   }
 

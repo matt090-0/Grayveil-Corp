@@ -9,37 +9,36 @@ export function AuthProvider({ children }) {
   const [ready, setReady]     = useState(false)
 
   async function loadProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-    setProfile(data || null)
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+      setProfile(data || null)
+    } catch {
+      setProfile(null)
+    }
   }
 
   useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        setSession(session)
-        await loadProfile(session.user.id)
-      }
-      setReady(true)
-    })
-
-    // Auth state changes
+    // Single source of truth — onAuthStateChange fires INITIAL_SESSION
+    // immediately on mount, covering the "existing session" case too
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN') {
-          setReady(false)
-          setSession(session)
-          await loadProfile(session.user.id)
-          setReady(true)
-        }
-        if (event === 'SIGNED_OUT') {
+        try {
+          if (session) {
+            setSession(session)
+            await loadProfile(session.user.id)
+          } else {
+            setSession(null)
+            setProfile(null)
+          }
+        } catch {
           setSession(null)
           setProfile(null)
-          setReady(true)
+        } finally {
+          setReady(true) // always fires — no more stuck states
         }
       }
     )
