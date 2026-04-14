@@ -9,24 +9,47 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session) {
-          setSession(session)
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle()
-          setProfile(data || null)
-        } else {
-          setSession(null)
-          setProfile(null)
-        }
+    let done = false
+
+    function finish() {
+      if (!done) {
+        done = true
         setLoading(false)
       }
+    }
+
+    // Safety net — never stay blank longer than 5 seconds
+    const timeout = setTimeout(finish, 3000)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        try {
+          if (session) {
+            setSession(session)
+            const { data } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle()
+            setProfile(data || null)
+          } else {
+            setSession(null)
+            setProfile(null)
+          }
+        } catch (e) {
+          console.error('Auth error:', e)
+          setSession(null)
+          setProfile(null)
+        } finally {
+          finish()
+        }
+      }
     )
-    return () => subscription.unsubscribe()
+
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function refreshProfile() {
