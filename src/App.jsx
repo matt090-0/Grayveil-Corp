@@ -16,6 +16,12 @@ import Profile from './pages/Profile'
 import Admin from './pages/Admin'
 import Apply from './pages/Apply'
 import Bank from './pages/Bank'
+import Events from './pages/Events'
+import Diplomacy from './pages/Diplomacy'
+import KillBoard from './pages/KillBoard'
+import Wiki from './pages/Wiki'
+import Loadouts from './pages/Loadouts'
+import Medals from './pages/Medals'
 
 function AppRoutes() {
   return (
@@ -67,6 +73,36 @@ function AppRoutes() {
       <Route path="/bank" element={
         <ProtectedRoute>
           <Layout><Bank /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/events" element={
+        <ProtectedRoute>
+          <Layout><Events /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/diplomacy" element={
+        <ProtectedRoute minTier={6}>
+          <Layout><Diplomacy /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/killboard" element={
+        <ProtectedRoute>
+          <Layout><KillBoard /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/wiki" element={
+        <ProtectedRoute>
+          <Layout><Wiki /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/loadouts" element={
+        <ProtectedRoute>
+          <Layout><Loadouts /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/medals" element={
+        <ProtectedRoute>
+          <Layout><Medals /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={

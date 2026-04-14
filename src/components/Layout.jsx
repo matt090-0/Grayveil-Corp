@@ -5,16 +5,29 @@ import NotificationBell from './NotificationBell'
 import GrayveilLogo from './GrayveilLogo'
 
 const NAV = [
+  { section: 'COMMAND' },
   { to: '/',            icon: '◈', label: 'SITREP'        },
+  { to: '/events',      icon: '📅', label: 'OPS BOARD'    },
+  { to: '/contracts',   icon: '◆', label: 'CONTRACTS'     },
+  { to: '/killboard',   icon: '⚔', label: 'KILL BOARD'   },
+
+  { section: 'ORGANISATION' },
   { to: '/roster',      icon: '◉', label: 'ROSTER'        },
   { to: '/fleet',       icon: '◎', label: 'FLEET'         },
-  { to: '/contracts',   icon: '◆', label: 'CONTRACTS'     },
+  { to: '/loadouts',    icon: '⚙', label: 'LOADOUTS'     },
+  { to: '/medals',      icon: '🏅', label: 'COMMENDATIONS'},
+  { to: '/diplomacy',   icon: '🤝', label: 'DIPLOMACY', minTier: 6 },
+
+  { section: 'OPERATIONS' },
   { to: '/intelligence',icon: '◍', label: 'INTELLIGENCE'  },
-  { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
   { to: '/bank',        icon: '⬡', label: 'BANK'          },
+  { to: '/ledger',      icon: '◇', label: 'LEDGER'        },
   { to: '/recruitment', icon: '◐', label: 'RECRUITMENT', minTier: 6 },
+
+  { section: 'RESOURCES' },
+  { to: '/wiki',        icon: '📖', label: 'KNOWLEDGE BASE'},
   { to: '/polls',       icon: '◑', label: 'POLLS'         },
-  { to: '/admin',       icon: '⚙', label: 'ADMIN', minTier: 1 },
+  { to: '/admin',       icon: '☠', label: 'ADMIN', minTier: 1 },
 ]
 
 export default function Layout({ children }) {
@@ -37,18 +50,16 @@ export default function Layout({ children }) {
         </div>
 
         <nav className="sidebar-nav">
-          <div className="nav-section-label">COMMAND</div>
-          {NAV.filter(canSee).map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <span className="nav-item-icon">{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV.map((item, i) => {
+            if (item.section) return <div key={item.section} className="nav-section-label" style={i > 0 ? { marginTop: 12 } : {}}>{item.section}</div>
+            if (!canSee(item)) return null
+            return (
+              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+                <span className="nav-item-icon">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            )
+          })}
         </nav>
 
         <div className="sidebar-footer">
