@@ -17,7 +17,7 @@ export default function ProtectedRoute({ children, minTier }) {
           }}>
             GRAYVEIL
           </div>
-          <div style={{
+          <div className="loading-pulse" style={{
             fontFamily: 'var(--font-mono, monospace)',
             fontSize: 11, letterSpacing: '.15em',
             color: 'var(--text-3, #666)',
@@ -29,7 +29,7 @@ export default function ProtectedRoute({ children, minTier }) {
     )
   }
 
-  if (!session) return <Navigate to="/auth" replace />
+  if (!session) return <Navigate to="/welcome" replace />
   if (!profile) return <Navigate to="/setup" replace />
   if (minTier && profile.tier > minTier) return <Navigate to="/" replace />
 

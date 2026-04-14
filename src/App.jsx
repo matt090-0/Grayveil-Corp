@@ -22,6 +22,8 @@ import KillBoard from './pages/KillBoard'
 import Wiki from './pages/Wiki'
 import Loadouts from './pages/Loadouts'
 import Medals from './pages/Medals'
+import Landing from './pages/Landing'
+import Messages from './pages/Messages'
 
 function AppRoutes() {
   return (
@@ -29,6 +31,7 @@ function AppRoutes() {
       <Route path="/auth"  element={<Auth />} />
       <Route path="/setup" element={<SetupProfile />} />
       <Route path="/apply" element={<Apply />} />
+      <Route path="/welcome" element={<Landing />} />
 
       <Route path="/" element={
         <ProtectedRoute>
@@ -103,6 +106,11 @@ function AppRoutes() {
       <Route path="/medals" element={
         <ProtectedRoute>
           <Layout><Medals /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/messages" element={
+        <ProtectedRoute>
+          <Layout><Messages /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={

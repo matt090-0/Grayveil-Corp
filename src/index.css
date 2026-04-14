@@ -598,3 +598,99 @@ table.data-table {
   overflow: hidden;
 }
 .poll-result-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
+
+/* ════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ════════════════════════════════════════ */
+
+.mobile-hamburger {
+  display: none;
+  position: fixed; top: 12px; left: 12px; z-index: 1001;
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 10px;
+  color: var(--text-1); cursor: pointer;
+}
+.mobile-overlay {
+  display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 999;
+}
+
+@media (max-width: 768px) {
+  .mobile-hamburger { display: block; }
+  .mobile-overlay { display: block; }
+
+  .sidebar {
+    position: fixed; left: -260px; top: 0; bottom: 0;
+    z-index: 1000; transition: left .25s ease;
+  }
+  .sidebar.sidebar-open { left: 0; }
+
+  .main-content { margin-left: 0 !important; padding-top: 48px; }
+  .app-shell { flex-direction: column; }
+
+  .grid-2 { grid-template-columns: 1fr !important; }
+  .grid-auto { grid-template-columns: 1fr !important; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .form-row { flex-direction: column; }
+
+  .page-header { padding: 16px !important; }
+  .page-body { padding: 16px !important; }
+  .page-title { font-size: 18px !important; }
+
+  .table-wrap { font-size: 11px; }
+  .data-table th, .data-table td { padding: 8px 6px; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+  .auth-card { padding: 24px 18px; }
+}
+
+/* ════════════════════════════════════════
+   TOAST ANIMATION
+   ════════════════════════════════════════ */
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ════════════════════════════════════════
+   LOADING PULSE
+   ════════════════════════════════════════ */
+
+.loading-pulse {
+  animation: gv-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes gv-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* ════════════════════════════════════════
+   SKELETON LOADING
+   ════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-raised) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 12px; margin-bottom: 8px;
+}
+.skeleton-title {
+  height: 18px; width: 60%; margin-bottom: 12px;
+}
+.skeleton-card {
+  height: 80px; margin-bottom: 10px;
+}

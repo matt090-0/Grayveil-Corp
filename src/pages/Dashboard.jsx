@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits, getRankByTier } from '../lib/ranks'
@@ -69,6 +70,8 @@ export default function Dashboard() {
 
   const rankInfo = getRankByTier(profile.tier)
   const initials = profile.handle.slice(0, 2).toUpperCase()
+  const navigate = useNavigate()
+  const isOfficer = profile.tier <= 4
 
   return (
     <>
@@ -105,6 +108,23 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {/* Quick Actions */}
+            {isOfficer && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+                {[
+                  { label: '+ CONTRACT', to: '/contracts', icon: '◆' },
+                  { label: '+ SCHEDULE OP', to: '/events', icon: '📅' },
+                  { label: '+ FILE INTEL', to: '/intelligence', icon: '◍' },
+                  { label: '+ LOG KILL', to: '/killboard', icon: '⚔' },
+                ].map(a => (
+                  <button key={a.label} className="btn btn-ghost btn-sm" onClick={() => navigate(a.to)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{a.icon}</span> {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="grid-2" style={{ gap: 20 }}>
               <div>
