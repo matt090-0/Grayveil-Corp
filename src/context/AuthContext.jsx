@@ -9,15 +9,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]   = useState(true)
 
   async function fetchProfile(userId) {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      setProfile(data || null)
-    } catch {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle() // returns null (not error) when no row found
+
+    if (error) {
+      // Fetch failed — sign out so user lands on /auth not /setup
+      console.error('Profile fetch failed:', error.message)
+      await supabase.auth.signOut()
+      setSession(null)
       setProfile(null)
+    } else {
+      setProfile(data || null)
     }
   }
 
@@ -29,8 +34,6 @@ export function AuthProvider({ children }) {
         if (!mounted) return
 
         if (session) {
-          // Always keep loading=true while we fetch the profile
-          // to prevent ProtectedRoute from briefly redirecting to /setup
           setLoading(true)
           setSession(session)
           await fetchProfile(session.user.id)
@@ -43,7 +46,6 @@ export function AuthProvider({ children }) {
       }
     )
 
-    // Safety timeout in case Supabase never fires
     const timeout = setTimeout(() => {
       if (mounted) setLoading(false)
     }, 8000)
