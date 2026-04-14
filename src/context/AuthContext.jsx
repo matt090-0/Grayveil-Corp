@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession]   = useState(undefined) // undefined = not yet checked
+  const [session, setSession]   = useState(null)
   const [profile, setProfile]   = useState(null)
   const [loading, setLoading]   = useState(true)
 
@@ -24,25 +24,29 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
 
-    // onAuthStateChange fires immediately with INITIAL_SESSION —
-    // use it as the single source of truth, no getSession needed
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        setSession(session)
+
         if (session) {
+          // Always keep loading=true while we fetch the profile
+          // to prevent ProtectedRoute from briefly redirecting to /setup
+          setLoading(true)
+          setSession(session)
           await fetchProfile(session.user.id)
+          if (mounted) setLoading(false)
         } else {
+          setSession(null)
           setProfile(null)
+          setLoading(false)
         }
-        setLoading(false)
       }
     )
 
-    // Safety timeout — if Supabase hangs for 5s, stop loading
+    // Safety timeout in case Supabase never fires
     const timeout = setTimeout(() => {
       if (mounted) setLoading(false)
-    }, 5000)
+    }, 8000)
 
     return () => {
       mounted = false
