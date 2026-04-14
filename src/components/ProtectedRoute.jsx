@@ -2,9 +2,10 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function ProtectedRoute({ children, minTier }) {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, loading, profileLoaded } = useAuth()
 
-  if (loading) return (
+  // Show spinner while initial load or while profile is being fetched
+  if (loading || !profileLoaded) return (
     <div style={{
       height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg-base)', flexDirection: 'column', gap: 16

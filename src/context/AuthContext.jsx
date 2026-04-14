@@ -4,26 +4,20 @@ import { supabase } from '../supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession]   = useState(null)
-  const [profile, setProfile]   = useState(null)
-  const [loading, setLoading]   = useState(true)
+  const [session, setSession]         = useState(null)
+  const [profile, setProfile]         = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [profileLoaded, setProfileLoaded] = useState(false)
 
   async function fetchProfile(userId) {
-    const { data, error } = await supabase
+    setProfileLoaded(false)
+    const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .maybeSingle() // returns null (not error) when no row found
-
-    if (error) {
-      // Fetch failed — sign out so user lands on /auth not /setup
-      console.error('Profile fetch failed:', error.message)
-      await supabase.auth.signOut()
-      setSession(null)
-      setProfile(null)
-    } else {
-      setProfile(data || null)
-    }
+      .maybeSingle()
+    setProfile(data || null)
+    setProfileLoaded(true)
   }
 
   useEffect(() => {
@@ -32,22 +26,20 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-
         if (session) {
-          setLoading(true)
           setSession(session)
           await fetchProfile(session.user.id)
-          if (mounted) setLoading(false)
         } else {
           setSession(null)
           setProfile(null)
-          setLoading(false)
+          setProfileLoaded(true)
         }
+        if (mounted) setLoading(false)
       }
     )
 
     const timeout = setTimeout(() => {
-      if (mounted) setLoading(false)
+      if (mounted) { setLoading(false); setProfileLoaded(true) }
     }, 8000)
 
     return () => {
@@ -65,10 +57,11 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
     setProfile(null)
     setSession(null)
+    setProfileLoaded(true)
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, profileLoaded, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   )
