@@ -152,6 +152,13 @@ const icons = {
     <line x1="5.5" y1="7" x2="10.5" y2="7" />
     <polyline points="5.5,10 7,11.5 10.5,9" strokeWidth="1.5" />
   </I>,
+
+  referrals: () => <I>
+    <circle cx="8" cy="4" r="2.5" />
+    <path d="M3.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" />
+    <line x1="12" y1="5" x2="15" y2="5" strokeWidth="1.5" />
+    <line x1="13.5" y1="3.5" x2="13.5" y2="6.5" strokeWidth="1.5" />
+  </I>,
 }
 
 export default function NavIcon({ name }) {

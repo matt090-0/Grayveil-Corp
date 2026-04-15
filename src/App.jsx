@@ -27,6 +27,7 @@ import Messages from './pages/Messages'
 import Bounties from './pages/Bounties'
 import AARs from './pages/AARs'
 import Reputation from './pages/Reputation'
+import Referrals from './pages/Referrals'
 
 function AppRoutes() {
   return (
@@ -129,6 +130,11 @@ function AppRoutes() {
       <Route path="/reputation" element={
         <ProtectedRoute>
           <Layout><Reputation /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/referrals" element={
+        <ProtectedRoute>
+          <Layout><Referrals /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={
