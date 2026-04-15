@@ -12,6 +12,7 @@ const NAV = [
   { section: 'COMMAND' },
   { to: '/',            icon: 'sitrep',     label: 'SITREP'        },
   { to: '/events',      icon: 'ops',        label: 'OPS BOARD'     },
+  { to: '/templates',   icon: 'templates',  label: 'OP TEMPLATES'  },
   { to: '/contracts',   icon: 'contracts',  label: 'CONTRACTS'     },
   { to: '/killboard',   icon: 'killboard',  label: 'KILL BOARD'    },
   { to: '/bounties',    icon: 'bounties',   label: 'BOUNTIES'      },

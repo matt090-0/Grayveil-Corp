@@ -28,6 +28,7 @@ import Bounties from './pages/Bounties'
 import AARs from './pages/AARs'
 import Reputation from './pages/Reputation'
 import Referrals from './pages/Referrals'
+import OpTemplates from './pages/OpTemplates'
 
 function AppRoutes() {
   return (
@@ -120,6 +121,11 @@ function AppRoutes() {
       <Route path="/bounties" element={
         <ProtectedRoute>
           <Layout><Bounties /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/templates" element={
+        <ProtectedRoute>
+          <Layout><OpTemplates /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/aars" element={

@@ -159,6 +159,13 @@ const icons = {
     <line x1="12" y1="5" x2="15" y2="5" strokeWidth="1.5" />
     <line x1="13.5" y1="3.5" x2="13.5" y2="6.5" strokeWidth="1.5" />
   </I>,
+
+  templates: () => <I>
+    <rect x="2" y="2" width="12" height="12" rx="1.5" />
+    <rect x="4" y="4" width="8" height="2" rx="0.5" fill="currentColor" opacity="0.3" />
+    <line x1="4" y1="8.5" x2="12" y2="8.5" strokeWidth="0.8" />
+    <line x1="4" y1="11" x2="9" y2="11" strokeWidth="0.8" />
+  </I>,
 }
 
 export default function NavIcon({ name }) {
