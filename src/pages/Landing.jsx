@@ -154,7 +154,7 @@ export default function Landing() {
             />
           </div>
           <div style={{ marginTop: 12 }}>
-            <a href="https://discord.gg/Je2Sv7tEa5" target="_blank" rel="noopener noreferrer"
+            <a href="https://discord.gg/YOUR_INVITE_CODE" target="_blank" rel="noopener noreferrer"
               style={{
                 fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
                 color: '#8888a0', textDecoration: 'none', letterSpacing: '.08em',

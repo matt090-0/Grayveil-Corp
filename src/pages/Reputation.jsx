@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { getRankByTier, formatCredits } from '../lib/ranks'
 import { SC_DIVISIONS } from '../lib/scdata'
 import RankBadge from '../components/RankBadge'
+import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 const RepTooltip = ({ active, payload }) => {
@@ -28,23 +30,39 @@ const TRAINING_PATHS = [
 
 export default function Reputation() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [members, setMembers] = useState([])
   const [myCerts, setMyCerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('leaderboard')
+  const [repModal, setRepModal] = useState(null) // { id, handle, rep_score }
+  const [repAmount, setRepAmount] = useState('')
+  const [repReason, setRepReason] = useState('')
+  const [repSaving, setRepSaving] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      const [{ data: mem }, { data: mc }] = await Promise.all([
-        supabase.from('profiles').select('id, handle, tier, rank, division, speciality, rep_score, rep_streak, avatar_color, wallet_balance, status').eq('status', 'ACTIVE').order('rep_score', { ascending: false }),
-        supabase.from('member_certifications').select('cert:certifications(name)').eq('member_id', me.id),
-      ])
-      setMembers(mem || [])
-      setMyCerts((mc || []).map(c => c.cert?.name))
-      setLoading(false)
-    }
+  const canManageRep = me.is_founder || me.tier <= 4
+
+  async function load() {
+    const [{ data: mem }, { data: mc }] = await Promise.all([
+      supabase.from('profiles').select('id, handle, tier, rank, division, speciality, rep_score, rep_streak, avatar_color, wallet_balance, status').eq('status', 'ACTIVE').order('rep_score', { ascending: false }),
+      supabase.from('member_certifications').select('cert:certifications(name)').eq('member_id', me.id),
+    ])
+    setMembers(mem || [])
+    setMyCerts((mc || []).map(c => c.cert?.name))
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [me.id])
+
+  async function adjustRep(memberId, amount, reason) {
+    if (!amount || amount === 0) return
+    setRepSaving(true)
+    const { error } = await supabase.rpc('award_rep', { p_member_id: memberId, p_amount: amount, p_reason: reason || null })
+    if (error) { toast(error.message, 'error'); setRepSaving(false); return }
+    toast(`${amount > 0 ? '+' : ''}${amount} rep to ${repModal?.handle || 'member'}`, amount > 0 ? 'success' : 'info')
+    setRepModal(null); setRepAmount(''); setRepReason(''); setRepSaving(false)
     load()
-  }, [me.id])
+  }
 
   const myRank = members.findIndex(m => m.id === me.id) + 1
 
@@ -107,7 +125,7 @@ export default function Reputation() {
                 )}
 
                 <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
-                  <thead><tr><th style={{ width: 50 }}>#</th><th>OPERATIVE</th><th>RANK</th><th>DIVISION</th><th style={{ textAlign: 'right' }}>REP</th></tr></thead>
+                  <thead><tr><th style={{ width: 50 }}>#</th><th>OPERATIVE</th><th>RANK</th><th>DIVISION</th><th style={{ textAlign: 'right' }}>REP</th>{canManageRep && <th style={{ width: 80 }}></th>}</tr></thead>
                   <tbody>
                     {members.map((m, i) => (
                       <tr key={m.id} style={{ background: m.id === me.id ? 'var(--accent-glow)' : i < 3 ? 'rgba(200,165,90,0.03)' : undefined }}>
@@ -128,6 +146,14 @@ export default function Reputation() {
                         <td><RankBadge tier={m.tier} /></td>
                         <td className="text-muted">{m.division || '—'}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: i < 3 ? 'var(--accent)' : 'var(--text-1)' }}>{m.rep_score || 0}</td>
+                        {canManageRep && (
+                          <td>
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, padding: '3px 8px' }}
+                              onClick={() => { setRepModal({ id: m.id, handle: m.handle, rep_score: m.rep_score || 0 }); setRepAmount(''); setRepReason('') }}>
+                              ±&nbsp;REP
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -235,6 +261,55 @@ export default function Reputation() {
           </>
         )}
       </div>
+
+      {/* ═══ REP ADJUSTMENT MODAL ═══ */}
+      {repModal && (
+        <Modal title={`ADJUST REP — ${repModal.handle}`} onClose={() => setRepModal(null)}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>CURRENT REP</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 36, fontWeight: 700, color: 'var(--accent)' }}>{repModal.rep_score}</div>
+          </div>
+
+          {/* Quick buttons */}
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+            {[-50, -25, -10, -5, 5, 10, 25, 50, 100].map(n => (
+              <button key={n} className="btn btn-ghost btn-sm" style={{
+                fontSize: 11, padding: '4px 10px', minWidth: 44,
+                color: n > 0 ? 'var(--green)' : 'var(--red)',
+                borderColor: n > 0 ? 'rgba(90,184,112,0.3)' : 'rgba(200,48,48,0.3)',
+              }} onClick={() => setRepAmount(String(n))}>
+                {n > 0 ? '+' : ''}{n}
+              </button>
+            ))}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">AMOUNT (positive = give, negative = take)</label>
+            <input className="form-input" type="number" value={repAmount} onChange={e => setRepAmount(e.target.value)} placeholder="e.g. 25 or -10" style={{ textAlign: 'center', fontSize: 18, fontFamily: 'var(--font-display)' }} />
+          </div>
+
+          {repAmount && (
+            <div style={{ textAlign: 'center', marginBottom: 12, fontSize: 13 }}>
+              <span style={{ color: 'var(--text-3)' }}>{repModal.handle}: {repModal.rep_score}</span>
+              <span style={{ color: parseInt(repAmount) > 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}> → {Math.max(0, repModal.rep_score + parseInt(repAmount || 0))}</span>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">REASON (optional)</label>
+            <input className="form-input" value={repReason} onChange={e => setRepReason(e.target.value)} placeholder="e.g. Outstanding op performance" />
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setRepModal(null)}>CANCEL</button>
+            <button className="btn btn-primary" disabled={repSaving || !repAmount || parseInt(repAmount) === 0}
+              onClick={() => adjustRep(repModal.id, parseInt(repAmount), repReason)}
+              style={parseInt(repAmount) < 0 ? { background: 'var(--red)', borderColor: 'var(--red)' } : {}}>
+              {repSaving ? 'SAVING...' : parseInt(repAmount) < 0 ? `DEDUCT ${Math.abs(parseInt(repAmount || 0))} REP` : `GIVE +${repAmount || 0} REP`}
+            </button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
