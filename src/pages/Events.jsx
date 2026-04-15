@@ -5,6 +5,7 @@ import { SC_LOCATIONS } from '../lib/scdata'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { discordNewOp } from '../lib/discord'
 
 const EVENT_TYPES = ['OPERATION', 'MINING', 'TRADE', 'PVP', 'TRAINING', 'SOCIAL', 'MEETING']
 const EVENT_BADGE = { SCHEDULED: 'badge-blue', LIVE: 'badge-green', COMPLETED: 'badge-muted', CANCELLED: 'badge-red' }
@@ -54,6 +55,8 @@ export default function Events() {
     setSaving(true)
     await supabase.from('events').insert({ title: form.title, description: form.description || null, event_type: form.event_type || 'OPERATION', location: form.location || null, starts_at: form.starts_at, ends_at: form.ends_at || null, min_tier: parseInt(form.min_tier) || 9, max_slots: form.max_slots ? parseInt(form.max_slots) : null, created_by: me.id })
     await supabase.from('activity_log').insert({ actor_id: me.id, action: 'event_created', target_type: 'event', details: { title: form.title } })
+    discordNewOp(form.title, form.event_type || 'OPERATION', form.location, form.starts_at ? fmt(form.starts_at) : 'TBD', me.handle)
+    toast('Operation scheduled', 'success')
     setModal(null); setSaving(false); load()
   }
 

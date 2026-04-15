@@ -66,6 +66,8 @@ export default function Contracts() {
     if (error) { setError(error.message); setSaving(false); return }
     // Log activity
     await supabase.from('activity_log').insert({ actor_id: me.id, action: 'contract_posted', target_type: 'contract', target_id: data.id, details: { title: form.title } })
+    discordContract(form.title, form.contract_type, parseInt(form.reward) || 0, 'OPEN', me.handle)
+    toast('Contract posted', 'success')
     setModal(null); setSaving(false); load()
   }
 

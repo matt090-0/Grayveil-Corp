@@ -50,8 +50,10 @@ export default function Medals() {
     setSaving(true)
     await supabase.from('member_medals').insert({ member_id: form.member_id, medal_id: form.medal_id, awarded_by: me.id, reason: form.reason || null })
     const medal = medals.find(m => m.id === form.medal_id)
+    const member = members.find(m => m.id === form.member_id)
     await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Medal: ${medal?.name || 'Award'}`, message: `Awarded by ${me.handle}${form.reason ? ' — ' + form.reason : ''}`, link: '/medals' })
     goldBurst()
+    discordMedal(member?.handle || 'Unknown', medal?.name, medal?.rarity, me.handle)
     toast(`${medal?.name} awarded`, 'success')
     setModal(null); setSaving(false); load()
   }

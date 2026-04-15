@@ -35,6 +35,8 @@ export default function KillBoard() {
     if (!form.target_name) { setError('Target name required.'); return }
     setSaving(true)
     await supabase.from('kill_log').insert({ reporter_id: me.id, target_name: form.target_name, target_org: form.target_org || null, location: form.location || null, ship_used: form.ship_used || null, target_ship: form.target_ship || null, engagement_type: form.engagement_type || 'PVP', outcome: form.outcome || 'KILL', notes: form.notes || null })
+    discordKill(me.handle, form.target_name, form.target_org, form.ship_used, form.location, form.outcome || 'KILL')
+    toast('Engagement logged', 'success')
     setModal(false); setSaving(false); load()
   }
 

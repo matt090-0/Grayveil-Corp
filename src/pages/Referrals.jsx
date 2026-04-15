@@ -147,8 +147,7 @@ export default function Referrals() {
                 background: '#ffffff', borderRadius: 8, padding: 8,
                 boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
               }}>
-                <QRCodeSVG value={`https://grayveil.net/apply?ref=${code}`} size={100} bgColor="#ffffff" fgColor="#0e0e16"
-                  imageSettings={{ src: '', width: 0, height: 0 }} />
+                <QRCodeSVG value={`https://grayveil.net/apply?ref=${code}`} size={100} bgColor="#ffffff" fgColor="#0e0e16" />
               </div>
             </div>
 

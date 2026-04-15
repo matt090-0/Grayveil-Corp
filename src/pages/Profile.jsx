@@ -84,7 +84,7 @@ export default function Profile() {
       {/* ═══ FOUNDER HERO BANNER ═══ */}
       {isFounder ? (
         <div style={{
-          position: 'relative', overflow: 'hidden',
+          position: 'relative', overflow: 'hidden', flexShrink: 0,
           background: 'linear-gradient(160deg, #0e0e16 0%, #1a1520 40%, #0e0e16 100%)',
           borderBottom: '2px solid rgba(200,165,90,0.3)',
           padding: '40px 32px 32px',

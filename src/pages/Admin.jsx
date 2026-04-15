@@ -5,6 +5,7 @@ import { RANKS, formatCredits } from '../lib/ranks'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
+import { discordAnnouncement } from '../lib/discord'
 
 function Section({ title, children }) {
   return (
@@ -144,6 +145,7 @@ export default function Admin() {
     setSaving(true)
     await supabase.from('announcements').insert({ title: form.ann_title, content: form.ann_content, priority: form.ann_priority || 'ROUTINE', posted_by: me.id })
     await logAction('announcement_posted', null, { title: form.ann_title })
+    discordAnnouncement(form.ann_title, form.ann_content, me.handle)
     setModal(null); setSaving(false); flash('Posted.'); load()
   }
   async function deleteAnnouncement(id) {
