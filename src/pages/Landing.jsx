@@ -131,6 +131,43 @@ export default function Landing() {
           </button>
         </div>
 
+        {/* Discord Widget */}
+        <div style={{ marginTop: 60, textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(8px, 1.5vw, 10px)',
+            letterSpacing: '.3em', color: '#44445a', marginBottom: 16,
+          }}>
+            JOIN OUR DISCORD
+          </div>
+          <div style={{
+            display: 'inline-block', borderRadius: 12, overflow: 'hidden',
+            border: '1px solid #222233', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <iframe
+              src="https://discord.com/widget?id=1493915754997878856&theme=dark"
+              width="350"
+              height="400"
+              allowTransparency="true"
+              frameBorder="0"
+              sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+              style={{ display: 'block' }}
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <a href="https://discord.gg/Je2Sv7tEa5" target="_blank" rel="noopener noreferrer"
+              style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                color: '#8888a0', textDecoration: 'none', letterSpacing: '.08em',
+                transition: 'color .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#c8a55a'}
+              onMouseLeave={e => e.currentTarget.style.color = '#8888a0'}
+            >
+              DISCORD.GG/GRAYVEIL →
+            </a>
+          </div>
+        </div>
+
         {/* Footer */}
         <div style={{
           marginTop: 80, fontSize: 10, color: '#333344',
