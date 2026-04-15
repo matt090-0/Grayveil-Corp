@@ -5,11 +5,13 @@ import { getRankByTier, formatCredits } from '../lib/ranks'
 import RankBadge from './RankBadge'
 import MedalPatch from './MedalPatch'
 import Modal from './Modal'
+import { useToast } from '../components/Toast'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 
 export default function MemberDossier({ member, onClose }) {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [medals, setMedals] = useState([])
   const [certs, setCerts] = useState([])
   const [ships, setShips] = useState([])
@@ -17,14 +19,14 @@ export default function MemberDossier({ member, onClose }) {
   const [allMedals, setAllMedals] = useState([])
   const [allCerts, setAllCerts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [awarding, setAwarding] = useState(null) // 'medal' or 'cert'
+  const [awarding, setAwarding] = useState(null)
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
 
   const canAward = me.tier <= 4
   const accentColor = member.avatar_color || '#c8a55a'
-  const rankInfo = getRankByTier(member.tier)
   const initials = member.handle.slice(0, 2).toUpperCase()
+  const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
 
   useEffect(() => {
     async function load() {
@@ -50,8 +52,6 @@ export default function MemberDossier({ member, onClose }) {
     load()
   }, [member.id])
 
-  const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
-
   async function awardMedal() {
     if (!form.medal_id) return
     setSaving(true)
@@ -59,9 +59,10 @@ export default function MemberDossier({ member, onClose }) {
     const medal = allMedals.find(m => m.id === form.medal_id)
     await supabase.from('notifications').insert({ recipient_id: member.id, type: 'promotion', title: `Medal: ${medal?.name}`, message: `Awarded by ${me.handle}${form.reason ? ' — ' + form.reason : ''}`, link: '/medals' })
     await supabase.from('activity_log').insert({ actor_id: me.id, action: 'medal_awarded', target_type: 'profile', target_id: member.id, details: { title: `${medal?.name} → ${member.handle}` } })
-    // Refresh medals
+    await supabase.rpc('award_rep', { p_member_id: member.id, p_amount: 5, p_reason: 'Medal awarded' }).catch(() => {})
     const { data } = await supabase.from('member_medals').select('*, medal:medals(*)').eq('member_id', member.id).order('awarded_at', { ascending: false })
     setMedals(data || [])
+    toast(`${medal?.name} awarded to ${member.handle}`, 'success')
     setAwarding(null); setSaving(false); setForm({})
   }
 
@@ -73,161 +74,255 @@ export default function MemberDossier({ member, onClose }) {
     await supabase.from('notifications').insert({ recipient_id: member.id, type: 'promotion', title: `Certified: ${cert?.name}`, message: `Signed off by ${me.handle}`, link: '/medals' })
     const { data } = await supabase.from('member_certifications').select('*, cert:certifications(*)').eq('member_id', member.id)
     setCerts(data || [])
+    toast(`${cert?.name} granted to ${member.handle}`, 'success')
     setAwarding(null); setSaving(false); setForm({})
   }
 
+  // Section wrapper
+  const Section = ({ label, children, mt }) => (
+    <div style={{ marginTop: mt || 0 }}>
+      <div style={{ fontSize: 9, letterSpacing: '.2em', color: accentColor, fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${accentColor}22` }}>{label}</div>
+      {children}
+    </div>
+  )
+
   return (
-    <Modal title={`OPERATIVE DOSSIER`} onClose={onClose} size="modal-lg">
-      {/* Hero */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+    <Modal title="" onClose={onClose} size="modal-lg">
+      <div style={{ margin: '-20px -24px -16px', overflow: 'hidden' }}>
+
+        {/* ═══ HEADER BANNER ═══ */}
         <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: `linear-gradient(135deg, ${accentColor}22, ${accentColor}44)`,
-          border: `2.5px solid ${accentColor}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: accentColor,
+          background: `linear-gradient(135deg, ${accentColor}08, ${accentColor}15)`,
+          borderBottom: `1px solid ${accentColor}30`,
+          padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20,
         }}>
-          {initials}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
-            {member.handle}
-            {member.is_founder && <span className="badge badge-accent" style={{ marginLeft: 8 }}>FOUNDER</span>}
+          {/* Avatar */}
+          <div style={{
+            width: 72, height: 72, borderRadius: 12,
+            background: `linear-gradient(135deg, ${accentColor}15, ${accentColor}30)`,
+            border: `2px solid ${accentColor}60`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700,
+            color: accentColor, flexShrink: 0,
+          }}>
+            {initials}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <RankBadge tier={member.tier} />
-            {member.division && <span className="badge badge-muted">{member.division}</span>}
+
+          {/* Identity */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700 }}>{member.handle}</span>
+              {member.is_founder && <span style={{ fontSize: 9, letterSpacing: '.15em', color: accentColor, fontFamily: 'var(--font-mono)', background: `${accentColor}15`, border: `1px solid ${accentColor}40`, borderRadius: 4, padding: '2px 8px' }}>FOUNDER</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <RankBadge tier={member.tier} />
+              {member.division && <span style={{ fontSize: 11, color: 'var(--text-2)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px' }}>{member.division}</span>}
+              {member.speciality && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{member.speciality}</span>}
+            </div>
+            {member.motto && <div style={{ fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic' }}>"{member.motto}"</div>}
           </div>
-          {member.motto && <div style={{ fontSize: 11, color: 'var(--text-3)', fontStyle: 'italic', marginTop: 4 }}>"{member.motto}"</div>}
+
+          {/* Action buttons */}
+          {canAward && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+              <button className="btn btn-primary btn-sm" onClick={() => { setForm({}); setAwarding('medal') }}>AWARD MEDAL</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setForm({}); setAwarding('cert') }}>GRANT CERT</button>
+            </div>
+          )}
         </div>
-        {canAward && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => { setForm({}); setAwarding('medal') }}>AWARD MEDAL</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setForm({}); setAwarding('cert') }}>GRANT CERT</button>
+
+        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>Loading dossier...</div> : (
+          <div style={{ padding: '20px 28px 24px' }}>
+
+            {/* ═══ COMBAT STATS ═══ */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0,
+              background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
+              overflow: 'hidden', marginBottom: 20,
+            }}>
+              {[
+                { l: 'KILLS', v: stats.kills, c: 'var(--green)' },
+                { l: 'DEATHS', v: stats.deaths, c: 'var(--red)' },
+                { l: 'K/D RATIO', v: kd, c: accentColor },
+                { l: 'CONTRACTS', v: stats.contracts, c: 'var(--text-1)' },
+              ].map((s, i) => (
+                <div key={s.l} style={{
+                  padding: '12px 0', textAlign: 'center',
+                  borderRight: i < 3 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <div style={{ fontSize: 8, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{s.l}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ═══ SECONDARY STATS BAR ═══ */}
+            <div style={{
+              display: 'flex', gap: 12, marginBottom: 24,
+            }}>
+              {[
+                { l: 'MEDALS', v: medals.length },
+                { l: 'CERTS', v: certs.length },
+                { l: 'REP SCORE', v: member.rep_score || 0, c: accentColor },
+                { l: 'SHIPS', v: ships.length },
+              ].map(s => (
+                <div key={s.l} style={{
+                  flex: 1, padding: '8px 0', textAlign: 'center',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6,
+                }}>
+                  <div style={{ fontSize: 7, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{s.l}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: s.c || 'var(--text-1)', marginTop: 2 }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ═══ TWO COLUMN LAYOUT ═══ */}
+            <div style={{ display: 'grid', gridTemplateColumns: medals.length > 0 || certs.length > 0 ? '1fr 1fr' : '1fr', gap: 24 }}>
+
+              {/* LEFT: Commendations + Certs */}
+              <div>
+                {medals.length > 0 && (
+                  <Section label="COMMENDATIONS">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {medals.map(mm => (
+                        <div key={mm.id} style={{
+                          textAlign: 'center', width: 72, padding: '6px 0',
+                          background: 'var(--bg-surface)', borderRadius: 6,
+                          border: '1px solid var(--border)',
+                        }}>
+                          <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={48} />
+                          <div style={{ fontSize: 8, fontWeight: 600, marginTop: 2, lineHeight: 1.2, padding: '0 4px' }}>{mm.medal?.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {certs.length > 0 && (
+                  <Section label="CERTIFICATIONS" mt={medals.length > 0 ? 16 : 0}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {certs.map(mc => (
+                        <div key={mc.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 10px', background: 'var(--bg-surface)',
+                          border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 500 }}>{mc.cert?.name}</span>
+                          <span style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 'auto' }}>{mc.cert?.category}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {medals.length === 0 && certs.length === 0 && (
+                  <div style={{ padding: '16px 0', fontSize: 12, color: 'var(--text-3)' }}>No commendations or certifications yet.</div>
+                )}
+              </div>
+
+              {/* RIGHT: Ships + Bio + Info */}
+              <div>
+                {ships.length > 0 && (
+                  <Section label="ASSIGNED SHIPS">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {ships.map((s, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 10px', background: 'var(--bg-surface)',
+                          border: '1px solid var(--border)', borderRadius: 6,
+                        }}>
+                          <span style={{ fontWeight: 500, fontSize: 12 }}>{s.vessel_name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.ship_class}</span>
+                            <span style={{
+                              fontSize: 8, letterSpacing: '.05em', fontFamily: 'var(--font-mono)',
+                              padding: '2px 6px', borderRadius: 3,
+                              background: s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.1)' : s.status === 'DEPLOYED' ? 'rgba(200,165,90,0.1)' : 'var(--bg-raised)',
+                              color: s.status === 'AVAILABLE' ? 'var(--green)' : s.status === 'DEPLOYED' ? 'var(--accent)' : 'var(--text-3)',
+                              border: `1px solid ${s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.2)' : s.status === 'DEPLOYED' ? 'rgba(200,165,90,0.2)' : 'var(--border)'}`,
+                            }}>{s.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {member.bio && (
+                  <Section label="BIO" mt={ships.length > 0 ? 16 : 0}>
+                    <div style={{
+                      padding: 12, background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                      borderRadius: 6, fontSize: 12, color: 'var(--text-2)', lineHeight: 1.8,
+                      whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto',
+                    }}>{member.bio}</div>
+                  </Section>
+                )}
+
+                {/* Info footer */}
+                <Section label="SERVICE RECORD" mt={16}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: 11 }}>
+                    <div><span style={{ color: 'var(--text-3)' }}>Joined</span> <span style={{ fontWeight: 500 }}>{fmt(member.joined_at)}</span></div>
+                    {member.last_seen_at && <div><span style={{ color: 'var(--text-3)' }}>Last seen</span> <span style={{ fontWeight: 500 }}>{fmt(member.last_seen_at)}</span></div>}
+                    {member.timezone && <div><span style={{ color: 'var(--text-3)' }}>Timezone</span> <span style={{ fontWeight: 500 }}>{member.timezone}</span></div>}
+                    {member.preferred_ship && <div><span style={{ color: 'var(--text-3)' }}>Main ship</span> <span style={{ fontWeight: 500 }}>{member.preferred_ship}</span></div>}
+                  </div>
+                </Section>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ AWARD PANELS ═══ */}
+        {awarding && (
+          <div style={{ padding: '0 28px 20px' }}>
+            <div style={{
+              background: 'var(--bg-surface)', border: `1px solid ${accentColor}40`,
+              borderRadius: 8, padding: 16,
+            }}>
+              <div style={{ fontSize: 9, letterSpacing: '.15em', color: accentColor, fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+                {awarding === 'medal' ? 'AWARD COMMENDATION' : 'GRANT CERTIFICATION'} — {member.handle.toUpperCase()}
+              </div>
+
+              {awarding === 'medal' ? (
+                <>
+                  <div className="form-group" style={{ marginBottom: 8 }}>
+                    <select className="form-select" value={form.medal_id || ''} onChange={e => setForm(f => ({ ...f, medal_id: e.target.value }))}>
+                      <option value="">— Select Medal —</option>
+                      {allMedals.map(m => <option key={m.id} value={m.id}>[{m.rarity}] {m.name}</option>)}
+                    </select>
+                  </div>
+                  {form.medal_id && (
+                    <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                      <MedalPatch name={allMedals.find(m => m.id === form.medal_id)?.name} rarity={allMedals.find(m => m.id === form.medal_id)?.rarity} size={72} />
+                    </div>
+                  )}
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <input className="form-input" value={form.reason || ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Citation / reason..." style={{ fontSize: 12 }} />
+                  </div>
+                  <div className="flex gap-8">
+                    <button className="btn btn-primary btn-sm" onClick={awardMedal} disabled={saving || !form.medal_id}>{saving ? 'AWARDING...' : 'AWARD'}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setAwarding(null)}>CANCEL</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <select className="form-select" value={form.cert_id || ''} onChange={e => setForm(f => ({ ...f, cert_id: e.target.value }))}>
+                      <option value="">— Select Certification —</option>
+                      {allCerts.map(c => <option key={c.id} value={c.id}>[{c.category}] {c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-8">
+                    <button className="btn btn-primary btn-sm" onClick={grantCert} disabled={saving || !form.cert_id}>{saving ? 'GRANTING...' : 'GRANT'}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setAwarding(null)}>CANCEL</button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
-
-      {loading ? <div className="loading">LOADING...</div> : (
-        <>
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 20 }}>
-            {[
-              { l: 'KILLS', v: stats.kills, c: 'var(--green)' },
-              { l: 'DEATHS', v: stats.deaths, c: 'var(--red)' },
-              { l: 'K/D', v: kd, c: 'var(--accent)' },
-              { l: 'CONTRACTS', v: stats.contracts },
-              { l: 'MEDALS', v: medals.length, c: 'var(--accent)' },
-              { l: 'REP', v: member.rep_score || 0, c: 'var(--accent)' },
-              { l: 'CERTS', v: certs.length },
-            ].map(s => (
-              <div key={s.l} style={{ textAlign: 'center', padding: '8px 0' }}>
-                <div style={{ fontSize: 8, letterSpacing: '.1em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{s.l}</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: s.c || 'var(--text-1)' }}>{s.v}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Medals */}
-          {medals.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>COMMENDATIONS</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {medals.map(mm => (
-                  <div key={mm.id} style={{ textAlign: 'center', width: 70 }}>
-                    <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={56} />
-                    <div style={{ fontSize: 8, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>{mm.medal?.name}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Certs */}
-          {certs.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>CERTIFICATIONS</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {certs.map(mc => (
-                  <span key={mc.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 8px', fontSize: 10 }}>
-                    {mc.cert?.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Ships */}
-          {ships.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>ASSIGNED SHIPS</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {ships.map((s, i) => (
-                  <span key={i} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 10px', fontSize: 11 }}>
-                    <strong>{s.vessel_name}</strong> <span style={{ color: 'var(--text-3)' }}>{s.ship_class}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Bio */}
-          {member.bio && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 12, fontSize: 12, color: 'var(--text-2)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-              {member.bio}
-            </div>
-          )}
-
-          {/* Info row */}
-          <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
-            <span>JOINED: {fmt(member.joined_at)}</span>
-            {member.timezone && <span>TZ: {member.timezone}</span>}
-            {member.preferred_ship && <span>MAIN: {member.preferred_ship}</span>}
-            {member.last_seen_at && <span>LAST SEEN: {fmt(member.last_seen_at)}</span>}
-          </div>
-        </>
-      )}
-
-      {/* Award Medal Panel */}
-      {awarding === 'medal' && (
-        <div style={{ marginTop: 16, background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 10, letterSpacing: '.1em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>AWARD COMMENDATION TO {member.handle.toUpperCase()}</div>
-          <div className="form-group">
-            <select className="form-select" value={form.medal_id || ''} onChange={e => setForm(f => ({ ...f, medal_id: e.target.value }))}>
-              <option value="">— Select Medal —</option>
-              {allMedals.map(m => <option key={m.id} value={m.id}>[{m.rarity}] {m.name}</option>)}
-            </select>
-          </div>
-          {form.medal_id && (
-            <div style={{ textAlign: 'center', margin: '8px 0' }}>
-              <MedalPatch name={allMedals.find(m => m.id === form.medal_id)?.name} rarity={allMedals.find(m => m.id === form.medal_id)?.rarity} size={80} />
-            </div>
-          )}
-          <div className="form-group">
-            <input className="form-input" value={form.reason || ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Citation / reason..." />
-          </div>
-          <div className="flex gap-8">
-            <button className="btn btn-primary btn-sm" onClick={awardMedal} disabled={saving || !form.medal_id}>{saving ? 'AWARDING...' : 'AWARD'}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setAwarding(null)}>CANCEL</button>
-          </div>
-        </div>
-      )}
-
-      {awarding === 'cert' && (
-        <div style={{ marginTop: 16, background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 10, letterSpacing: '.1em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>GRANT CERTIFICATION TO {member.handle.toUpperCase()}</div>
-          <div className="form-group">
-            <select className="form-select" value={form.cert_id || ''} onChange={e => setForm(f => ({ ...f, cert_id: e.target.value }))}>
-              <option value="">— Select Certification —</option>
-              {allCerts.map(c => <option key={c.id} value={c.id}>[{c.category}] {c.name}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-8">
-            <button className="btn btn-primary btn-sm" onClick={grantCert} disabled={saving || !form.cert_id}>{saving ? 'GRANTING...' : 'GRANT'}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setAwarding(null)}>CANCEL</button>
-          </div>
-        </div>
-      )}
     </Modal>
   )
 }
