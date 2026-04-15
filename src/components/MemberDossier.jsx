@@ -92,17 +92,38 @@ export default function MemberDossier({ member, onClose }) {
 
         {/* ═══ HEADER BANNER ═══ */}
         <div style={{
-          background: `linear-gradient(135deg, ${accentColor}08, ${accentColor}15)`,
-          borderBottom: `1px solid ${accentColor}30`,
-          padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20,
+          position: 'relative', overflow: 'hidden',
+          background: member.is_founder
+            ? `linear-gradient(160deg, #0e0e16 0%, #1a1520 40%, #0e0e16 100%)`
+            : `linear-gradient(135deg, ${accentColor}08, ${accentColor}15)`,
+          borderBottom: member.is_founder ? `2px solid ${accentColor}40` : `1px solid ${accentColor}30`,
+          padding: member.is_founder ? '28px 28px' : '24px 28px',
         }}>
+          {/* Founder-only background effects */}
+          {member.is_founder && (
+            <>
+              <div style={{
+                position: 'absolute', top: '-40%', left: '-20%', width: '70%', height: '180%',
+                background: `radial-gradient(ellipse, ${accentColor}08 0%, transparent 70%)`,
+              }} />
+              <div style={{
+                position: 'absolute', inset: 0, opacity: 0.02,
+                backgroundImage: 'linear-gradient(rgba(200,165,90,1) 1px, transparent 1px), linear-gradient(90deg, rgba(200,165,90,1) 1px, transparent 1px)',
+                backgroundSize: '30px 30px',
+              }} />
+            </>
+          )}
+
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
           {/* Avatar */}
           <div style={{
-            width: 72, height: 72, borderRadius: 12,
+            width: member.is_founder ? 80 : 72, height: member.is_founder ? 80 : 72,
+            borderRadius: 12,
             background: `linear-gradient(135deg, ${accentColor}15, ${accentColor}30)`,
-            border: `2px solid ${accentColor}60`,
+            border: `${member.is_founder ? '3px' : '2px'} solid ${accentColor}${member.is_founder ? '' : '60'}`,
+            boxShadow: member.is_founder ? `0 0 30px ${accentColor}20` : 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700,
+            fontFamily: 'var(--font-display)', fontSize: member.is_founder ? 28 : 24, fontWeight: 700,
             color: accentColor, flexShrink: 0,
           }}>
             {initials}
@@ -111,7 +132,7 @@ export default function MemberDossier({ member, onClose }) {
           {/* Identity */}
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700 }}>{member.handle}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: member.is_founder ? 26 : 22, fontWeight: 700, letterSpacing: member.is_founder ? '.04em' : 0 }}>{member.handle}</span>
               {member.is_founder && <span style={{ fontSize: 9, letterSpacing: '.15em', color: accentColor, fontFamily: 'var(--font-mono)', background: `${accentColor}15`, border: `1px solid ${accentColor}40`, borderRadius: 4, padding: '2px 8px' }}>FOUNDER</span>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -129,6 +150,7 @@ export default function MemberDossier({ member, onClose }) {
               <button className="btn btn-ghost btn-sm" onClick={() => { setForm({}); setAwarding('cert') }}>GRANT CERT</button>
             </div>
           )}
+        </div>
         </div>
 
         {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>Loading dossier...</div> : (
