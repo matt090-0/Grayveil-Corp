@@ -43,18 +43,22 @@ export default function Messages() {
   const inputRef = useRef(null)
 
   async function loadConvos() {
-    const [{ data: mem }, { data: msgs }] = await Promise.all([
+    const [{ data: mem }, { data: msgs, error }] = await Promise.all([
       supabase.from('profiles').select('id, handle, avatar_color, tier, last_seen_at, status').eq('status', 'ACTIVE').order('handle'),
-      supabase.from('messages').select('*, sender:profiles!messages_sender_id_fkey(handle, avatar_color, last_seen_at), recipient:profiles!messages_recipient_id_fkey(handle, avatar_color, last_seen_at)')
+      supabase.from('messages').select('id, sender_id, recipient_id, content, is_read, created_at, deleted_at')
         .is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
     ])
-    setMembers((mem || []).filter(m => m.id !== me.id))
+    if (error) console.error('Convo load error:', error.message)
+    const memList = (mem || []).filter(m => m.id !== me.id)
+    setMembers(memList)
+    const memMap = {}
+    ;(mem || []).forEach(m => { memMap[m.id] = m })
     const convMap = {}
     ;(msgs || []).forEach(m => {
       const otherId = m.sender_id === me.id ? m.recipient_id : m.sender_id
-      const other = m.sender_id === me.id ? m.recipient : m.sender
+      const other = memMap[otherId]
       if (!convMap[otherId]) {
-        convMap[otherId] = { id: otherId, handle: other?.handle, avatar_color: other?.avatar_color || '#c8a55a', last_seen_at: other?.last_seen_at, lastMessage: m.content, lastTime: m.created_at, unread: 0 }
+        convMap[otherId] = { id: otherId, handle: other?.handle || 'Unknown', avatar_color: other?.avatar_color || '#c8a55a', last_seen_at: other?.last_seen_at, lastMessage: m.content, lastTime: m.created_at, unread: 0 }
       }
       if (m.recipient_id === me.id && !m.is_read) convMap[otherId].unread++
     })
@@ -65,23 +69,37 @@ export default function Messages() {
   useEffect(() => {
     loadConvos()
     const ch = supabase.channel('dm-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadConvos(); if (activeConv) loadMsgs(activeConv) })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadConvos() })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [me.id])
 
+  // Reload messages when conversation changes or on interval
+  useEffect(() => {
+    if (!activeConv) return
+    loadMsgs(activeConv)
+    const interval = setInterval(() => loadMsgs(activeConv), 4000)
+    return () => clearInterval(interval)
+  }, [activeConv, me.id])
+
   async function loadMsgs(convId) {
-    const { data } = await supabase.from('messages')
-      .select('*, reply:messages!messages_reply_to_id_fkey(id, content, sender_id)')
+    const { data, error } = await supabase.from('messages')
+      .select('*')
       .or(`and(sender_id.eq.${me.id},recipient_id.eq.${convId}),and(sender_id.eq.${convId},recipient_id.eq.${me.id})`)
       .is('deleted_at', null)
       .order('created_at', { ascending: true }).limit(300)
-    setMessages(data || [])
+    if (error) { console.error('Messages load error:', error.message); return }
+    // Resolve replies client-side (reply is always in same conversation)
+    const msgMap = {}
+    ;(data || []).forEach(m => { msgMap[m.id] = m })
+    const resolved = (data || []).map(m => ({
+      ...m,
+      reply: m.reply_to_id ? msgMap[m.reply_to_id] || null : null,
+    }))
+    setMessages(resolved)
     await supabase.from('messages').update({ is_read: true }).eq('sender_id', convId).eq('recipient_id', me.id).eq('is_read', false)
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
-
-  useEffect(() => { if (activeConv) loadMsgs(activeConv) }, [activeConv, me.id])
 
   async function send() {
     if (!text.trim() || !activeConv) return
