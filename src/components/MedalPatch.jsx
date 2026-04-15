@@ -166,6 +166,25 @@ const PATCHES = {
       <text x="50" y="82" textAnchor="middle" fill="#d4af6e" fontSize="5" fontFamily="monospace" letterSpacing="1">ARCHITECT</text>
     </PatchBase>
   ),
+
+  'Sovereign Backer': ({ size, rarity }) => (
+    <PatchBase rarity={rarity} size={size}>
+      {/* Bengal carrier silhouette */}
+      <path d="M30,52 L38,48 L40,42 L46,40 L50,32 L54,40 L60,42 L62,48 L70,52" fill="#d4af6e" opacity="0.15" stroke="#d4af6e" strokeWidth="1.5" strokeLinejoin="round" />
+      {/* Hull body */}
+      <rect x="36" y="52" width="28" height="8" rx="1" fill="#d4af6e" opacity="0.2" stroke="#d4af6e" strokeWidth="1" />
+      {/* Flight deck lines */}
+      <line x1="40" y1="54" x2="60" y2="54" stroke="#d4af6e" strokeWidth="0.5" opacity="0.6" />
+      <line x1="42" y1="57" x2="58" y2="57" stroke="#d4af6e" strokeWidth="0.5" opacity="0.4" />
+      {/* Crown above */}
+      <polygon points="44,28 47,24 50,26 53,24 56,28" fill="#d4af6e" stroke="#d4af6e" strokeWidth="0.8" />
+      {/* Hangar bays */}
+      <rect x="42" y="60" width="4" height="3" rx="0.5" fill="#d4af6e" opacity="0.5" />
+      <rect x="54" y="60" width="4" height="3" rx="0.5" fill="#d4af6e" opacity="0.5" />
+      {/* Text */}
+      <text x="50" y="76" textAnchor="middle" fill="#d4af6e" fontSize="4.5" fontFamily="monospace" letterSpacing="1">SOVEREIGN</text>
+    </PatchBase>
+  ),
 }
 
 // Fallback for medals not in the list
