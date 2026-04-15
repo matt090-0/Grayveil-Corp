@@ -185,6 +185,29 @@ const PATCHES = {
       <text x="50" y="76" textAnchor="middle" fill="#d4af6e" fontSize="4.5" fontFamily="monospace" letterSpacing="1">SOVEREIGN</text>
     </PatchBase>
   ),
+
+  'Citadel Builder': ({ size, rarity }) => (
+    <PatchBase rarity={rarity} size={size}>
+      {/* Station core */}
+      <rect x="40" y="38" width="20" height="20" rx="2" fill="#4a7ad9" opacity="0.15" stroke="#4a7ad9" strokeWidth="1.5" />
+      {/* Modules */}
+      <rect x="32" y="43" width="8" height="10" rx="1" fill="none" stroke="#4a7ad9" strokeWidth="1" />
+      <rect x="60" y="43" width="8" height="10" rx="1" fill="none" stroke="#4a7ad9" strokeWidth="1" />
+      {/* Solar panels */}
+      <line x1="28" y1="48" x2="32" y2="48" stroke="#4a7ad9" strokeWidth="2" />
+      <line x1="68" y1="48" x2="72" y2="48" stroke="#4a7ad9" strokeWidth="2" />
+      {/* Antenna */}
+      <line x1="50" y1="38" x2="50" y2="28" stroke="#4a7ad9" strokeWidth="1" />
+      <circle cx="50" cy="27" r="2" fill="#4a7ad9" opacity="0.5" />
+      {/* Docking port */}
+      <rect x="47" y="58" width="6" height="4" rx="0.5" fill="#4a7ad9" opacity="0.4" />
+      {/* Construction crane */}
+      <line x1="62" y1="32" x2="70" y2="24" stroke="#5ab870" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="70" y1="24" x2="70" y2="32" stroke="#5ab870" strokeWidth="1" strokeDasharray="2,2" />
+      {/* Text */}
+      <text x="50" y="74" textAnchor="middle" fill="#4a7ad9" fontSize="4.5" fontFamily="monospace" letterSpacing="1">CITADEL</text>
+    </PatchBase>
+  ),
 }
 
 // Fallback for medals not in the list
