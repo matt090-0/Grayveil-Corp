@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { greenBurst } from '../lib/confetti'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 function timeLeft(ts) {
@@ -56,6 +57,7 @@ export default function Bounties() {
     if (!confirm(`Claim bounty on ${b.target_name} for ${formatCredits(b.reward)}?`)) return
     const { error: err } = await supabase.rpc('claim_bounty', { p_bounty_id: b.id })
     if (err) { toast(err.message, 'error'); return }
+    greenBurst()
     toast(`Bounty claimed — ${formatCredits(b.reward)} deposited`, 'success')
     load()
   }

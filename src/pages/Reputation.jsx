@@ -4,6 +4,16 @@ import { useAuth } from '../context/AuthContext'
 import { getRankByTier, formatCredits } from '../lib/ranks'
 import { SC_DIVISIONS } from '../lib/scdata'
 import RankBadge from '../components/RankBadge'
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+const RepTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+      <div style={{ color: '#c8a55a', fontWeight: 600 }}>{payload[0].payload.handle}: {payload[0].value} rep</div>
+    </div>
+  )
+}
 
 const TRAINING_PATHS = [
   { role: 'Bengal Bridge Crew', certs: ['Capital Ship Crew', 'Fleet Navigation', 'Electronic Warfare'], minTier: 5, repReq: 200 },
@@ -82,6 +92,20 @@ export default function Reputation() {
                 <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 20, lineHeight: 1.8 }}>
                   Complete contracts (+10) · Claim bounties (+15) · Attend operations (+5 per AAR) · Get awarded medals · Contribute to org operations
                 </div>
+
+                {/* Rep Chart */}
+                {members.filter(m => (m.rep_score || 0) > 0).length > 1 && (
+                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 8px 8px', marginBottom: 16 }}>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={members.slice(0, 10).map(m => ({ handle: m.handle?.length > 10 ? m.handle.slice(0, 8) + '…' : m.handle, rep: m.rep_score || 0 }))} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                        <XAxis dataKey="handle" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<RepTooltip />} />
+                        <Bar dataKey="rep" fill="#c8a55a" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
                   <thead><tr><th style={{ width: 50 }}>#</th><th>OPERATIVE</th><th>RANK</th><th>DIVISION</th><th style={{ textAlign: 'right' }}>REP</th></tr></thead>
                   <tbody>

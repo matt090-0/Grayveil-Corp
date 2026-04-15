@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getRankByTier } from '../lib/ranks'
 import NotificationBell from './NotificationBell'
 import GrayveilLogo from './GrayveilLogo'
 import SearchBar from './SearchBar'
 import NavIcon from './NavIcon'
+import PageTransition from './PageTransition'
 
 const NAV = [
   { section: 'COMMAND' },
@@ -41,6 +42,7 @@ const NAV = [
 export default function Layout({ children }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const rankInfo = profile ? getRankByTier(profile.tier) : null
   const initials = profile?.handle?.slice(0, 2).toUpperCase() || 'GV'
   const accentColor = profile?.avatar_color || 'var(--accent)'
@@ -122,7 +124,9 @@ export default function Layout({ children }) {
       </aside>
 
       <div className="main-content">
-        {children}
+        <PageTransition key={location.pathname}>
+          {children}
+        </PageTransition>
       </div>
 
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}

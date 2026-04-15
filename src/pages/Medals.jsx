@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
+import { goldBurst } from '../lib/confetti'
 
 const RARITY_BADGE = { COMMON: 'badge-muted', UNCOMMON: 'badge-green', RARE: 'badge-blue', LEGENDARY: 'badge-accent' }
 const CERT_CAT_BADGE = { GENERAL: 'badge-muted', COMBAT: 'badge-red', MINING: 'badge-amber', MEDICAL: 'badge-green', CAPITAL: 'badge-purple', RECON: 'badge-blue', TRADE: 'badge-accent' }
@@ -49,6 +50,7 @@ export default function Medals() {
     await supabase.from('member_medals').insert({ member_id: form.member_id, medal_id: form.medal_id, awarded_by: me.id, reason: form.reason || null })
     const medal = medals.find(m => m.id === form.medal_id)
     await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Medal: ${medal?.name || 'Award'}`, message: `Awarded by ${me.handle}${form.reason ? ' — ' + form.reason : ''}`, link: '/medals' })
+    goldBurst()
     toast(`${medal?.name} awarded`, 'success')
     setModal(null); setSaving(false); load()
   }

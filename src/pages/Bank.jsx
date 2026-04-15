@@ -5,16 +5,10 @@ import { formatCredits } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
-
-function timeAgo(ts) {
-  const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`
-  return `${Math.floor(diff/86400)}d ago`
-}
-function fmt(ts) {
-  return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { greenBurst } from '../lib/confetti'
+import { useToast } from '../components/Toast'
+import { timeAgo, fmtDate as fmt } from '../lib/dates'
 
 const TXN_ICONS = {
   deposit: '↓', withdrawal: '↑', transfer: '⇄', payout: '◆',
@@ -29,6 +23,7 @@ const LOAN_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', DENIED: 'b
 
 export default function Bank() {
   const { profile: me, refreshProfile } = useAuth()
+  const toast = useToast()
   const [tab, setTab] = useState('overview')
   const [treasury, setTreasury] = useState(0)
   const [txns, setTxns] = useState([])
@@ -82,6 +77,7 @@ export default function Bank() {
     setSaving(true)
     const { error } = await supabase.rpc('transfer_funds', { p_recipient_id: form.recipient, p_amount: amt, p_description: form.desc || null })
     if (error) { setError(error.message); setSaving(false); return }
+    greenBurst(); toast('Transfer complete', 'success')
     await refreshProfile()
     setModal(null); setSaving(false); load()
   }
@@ -252,6 +248,38 @@ export default function Bank() {
                     {txns.length === 0 && <div className="empty-state" style={{ padding: '24px 0' }}>NO TRANSACTIONS YET</div>}
                   </div>
                   <div>
+                    {/* Wealth Distribution Chart */}
+                    {topEarners.length > 1 && (() => {
+                      const PIE_COLORS = ['#c8a55a', '#4a7ad9', '#5ab870', '#d94a7a', '#9060c8', '#d9904a', '#4ad9d9', '#c86060']
+                      const chartData = [
+                        { name: 'Treasury', value: treasury },
+                        ...topEarners.slice(0, 6).map(m => ({ name: m.handle, value: m.wallet_balance || 0 })),
+                      ].filter(d => d.value > 0)
+                      return (
+                        <div style={{ marginBottom: 16 }}>
+                          <div className="section-header"><div className="section-title">WEALTH DISTRIBUTION</div></div>
+                          <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 0' }}>
+                            <ResponsiveContainer width="100%" height={160}>
+                              <PieChart>
+                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" paddingAngle={2} strokeWidth={0}>
+                                  {chartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip formatter={(v) => formatCredits(v)} contentStyle={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, fontSize: 11 }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: '0 12px', justifyContent: 'center' }}>
+                              {chartData.map((d, i) => (
+                                <span key={d.name} style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                  <span style={{ color: 'var(--text-3)' }}>{d.name}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     <div className="section-header"><div className="section-title">TOP EARNERS</div></div>
                     {topEarners.map((m, i) => (
                       <div key={m.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>

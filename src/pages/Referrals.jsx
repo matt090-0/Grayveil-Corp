@@ -3,6 +3,8 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
 import { useToast } from '../components/Toast'
+import { goldBurst, epicBurst } from '../lib/confetti'
+import { QRCodeSVG } from 'qrcode.react'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 
@@ -77,6 +79,7 @@ export default function Referrals() {
     const { error } = await supabase.rpc('claim_referral_reward', { p_level: level })
     if (error) { toast(error.message, 'error'); setClaiming(null); return }
     const rw = rewards.find(r => r.level === level)
+    if (rw.level >= 20) epicBurst(); else goldBurst()
     toast(`Claimed: ${rw?.reward_name}`, 'success')
     await refreshProfile()
     const { data: cl } = await supabase.from('referral_claims').select('*').eq('member_id', me.id)
@@ -134,11 +137,18 @@ export default function Referrals() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>YOUR REFERRAL CODE</div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--accent)', letterSpacing: '.1em' }}>{code}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>Share this code with potential recruits. When they join and get confirmed, you earn rewards.</div>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>Share this code or scan the QR. When recruits join and get confirmed, you earn rewards.</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="btn btn-primary btn-sm" onClick={copyCode}>{copied ? 'COPIED' : 'COPY CODE'}</button>
+                  <button className="btn btn-ghost btn-sm" onClick={copyLink}>COPY LINK</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary btn-sm" onClick={copyCode}>{copied ? 'COPIED' : 'COPY CODE'}</button>
-                <button className="btn btn-ghost btn-sm" onClick={copyLink}>COPY LINK</button>
+              <div style={{
+                background: '#ffffff', borderRadius: 8, padding: 8,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+              }}>
+                <QRCodeSVG value={`https://grayveil.net/apply?ref=${code}`} size={100} bgColor="#ffffff" fgColor="#0e0e16"
+                  imageSettings={{ src: '', width: 0, height: 0 }} />
               </div>
             </div>
 

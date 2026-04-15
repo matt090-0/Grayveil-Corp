@@ -3,15 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits, getRankByTier } from '../lib/ranks'
+import { timeAgo } from '../lib/dates'
 import RankBadge from '../components/RankBadge'
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
-function timeAgo(ts) {
-  const d = new Date(ts)
-  const diff = Math.floor((Date.now() - d) / 1000)
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`
-  return `${Math.floor(diff/86400)}d ago`
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+      <div style={{ color: '#8888a0' }}>{label}</div>
+      <div style={{ color: '#c8a55a', fontWeight: 600 }}>{payload[0].value}</div>
+    </div>
+  )
 }
 
 const ACTION_LABELS = {
@@ -195,6 +198,30 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
+
+            {/* Activity Chart */}
+            {activity.length > 3 && (() => {
+              const typeCounts = {}
+              activity.forEach(a => {
+                const label = (a.action || 'other').replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+                typeCounts[label] = (typeCounts[label] || 0) + 1
+              })
+              const chartData = Object.entries(typeCounts).map(([name, count]) => ({ name: name.length > 16 ? name.slice(0, 14) + '…' : name, count })).sort((a, b) => b.count - a.count).slice(0, 8)
+              return (
+                <div style={{ marginTop: 20 }}>
+                  <div className="section-header"><div className="section-title">ACTIVITY BREAKDOWN</div></div>
+                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 8px 8px' }}>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={chartData} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                        <XAxis dataKey="name" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Bar dataKey="count" fill="#c8a55a" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Rep Leaderboard */}
             {topRep.length > 0 && (

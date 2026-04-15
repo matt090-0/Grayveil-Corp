@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
+import ReactMarkdown from 'react-markdown'
 
 const CATEGORIES = ['GENERAL', 'SOP', 'COMBAT', 'TRADE', 'MINING', 'FITTING', 'RULES']
 const CAT_BADGE = { GENERAL: 'badge-muted', SOP: 'badge-accent', COMBAT: 'badge-red', TRADE: 'badge-green', MINING: 'badge-amber', FITTING: 'badge-blue', RULES: 'badge-purple' }
@@ -96,8 +97,8 @@ export default function Wiki() {
             <span className={`badge ${CAT_BADGE[viewing.category]}`}>{viewing.category}</span>
             <span style={{ fontSize: 11, color: 'var(--text-3)' }}>by {viewing.author?.handle} · updated {fmt(viewing.updated_at)}</span>
           </div>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', minHeight: 150, maxHeight: 500, overflowY: 'auto' }}>
-            {viewing.content}
+          <div className="wiki-content" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8, fontFamily: 'var(--font-mono)', minHeight: 150, maxHeight: 500, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+            <ReactMarkdown>{viewing.content}</ReactMarkdown>
           </div>
           <div className="modal-footer">
             {(viewing.created_by === me.id || me.tier <= 3) && <button className="btn btn-danger btn-sm" onClick={() => deleteArticle(viewing.id)}>DELETE</button>}
