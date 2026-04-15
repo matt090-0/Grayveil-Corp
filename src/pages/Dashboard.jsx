@@ -174,7 +174,17 @@ export default function Dashboard() {
               <div>
                 <div className="section-header">
                   <div className="section-title">ACTIVITY FEED</div>
-                  <span style={{ fontSize: 10, color: 'var(--green)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>● LIVE</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {activity.length > 0 && profile.is_founder && (
+                      <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, padding: '2px 8px', color: 'var(--text-3)' }}
+                        onClick={async () => {
+                          if (!confirm('Clear entire activity feed?')) return
+                          await supabase.from('activity_log').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+                          setActivity([])
+                        }}>CLEAR</button>
+                    )}
+                    <span style={{ fontSize: 10, color: 'var(--green)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>● LIVE</span>
+                  </div>
                 </div>
                 {activity.length === 0 ? (
                   <div className="empty-state" style={{ padding: '24px 0' }}>NO RECENT ACTIVITY</div>
