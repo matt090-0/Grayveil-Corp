@@ -74,24 +74,14 @@ export default function Bank() {
 
   useEffect(() => { load() }, [])
 
-  // Helpers
-  async function recordTxn(type, fromType, fromId, toType, toId, amount, desc) {
-    await supabase.from('transactions').insert({ type, from_type: fromType, from_id: fromId, to_type: toType, to_id: toId, amount, description: desc, recorded_by: me.id })
-  }
-
   // ── TRANSFER ──
   async function doTransfer() {
     const amt = parseInt(form.amount)
     if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
     if (!form.recipient) { setError('Select a recipient.'); return }
-    if (amt > me.wallet_balance) { setError('Insufficient balance.'); return }
     setSaving(true)
-    // Debit sender
-    await supabase.from('profiles').update({ wallet_balance: me.wallet_balance - amt }).eq('id', me.id)
-    // Credit receiver
-    const recipient = members.find(m => m.id === form.recipient)
-    await supabase.from('profiles').update({ wallet_balance: (recipient?.wallet_balance || 0) + amt }).eq('id', form.recipient)
-    await recordTxn('transfer', 'wallet', me.id, 'wallet', form.recipient, amt, form.desc || `Transfer to ${recipient?.handle}`)
+    const { error } = await supabase.rpc('transfer_funds', { p_recipient_id: form.recipient, p_amount: amt, p_description: form.desc || null })
+    if (error) { setError(error.message); setSaving(false); return }
     await refreshProfile()
     setModal(null); setSaving(false); load()
   }
@@ -101,24 +91,21 @@ export default function Bank() {
     const amt = parseInt(form.amount)
     if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
     setSaving(true)
+    let err = null
     if (form.op === 'deposit_to_treasury') {
-      if (amt > me.wallet_balance) { setError('Insufficient wallet balance.'); setSaving(false); return }
-      await supabase.from('profiles').update({ wallet_balance: me.wallet_balance - amt }).eq('id', me.id)
-      await supabase.from('treasury').update({ balance: treasury + amt }).eq('id', 1)
-      await recordTxn('deposit', 'wallet', me.id, 'treasury', null, amt, form.desc || 'Deposit to treasury')
+      const { error } = await supabase.rpc('treasury_deposit', { p_amount: amt, p_description: form.desc || null })
+      err = error
     } else if (form.op === 'pay_from_treasury') {
       if (!form.recipient) { setError('Select recipient.'); setSaving(false); return }
-      if (amt > treasury) { setError('Insufficient treasury funds.'); setSaving(false); return }
-      const recipient = members.find(m => m.id === form.recipient)
-      await supabase.from('treasury').update({ balance: treasury - amt }).eq('id', 1)
-      await supabase.from('profiles').update({ wallet_balance: (recipient?.wallet_balance || 0) + amt }).eq('id', form.recipient)
-      await recordTxn('payout', 'treasury', null, 'wallet', form.recipient, amt, form.desc || `Payout to ${recipient?.handle}`)
+      const { error } = await supabase.rpc('treasury_payout', { p_recipient_id: form.recipient, p_amount: amt, p_description: form.desc || null })
+      err = error
     } else if (form.op === 'add_external') {
       if (!form.recipient) { setError('Select recipient.'); setSaving(false); return }
-      const recipient = members.find(m => m.id === form.recipient)
-      await supabase.from('profiles').update({ wallet_balance: (recipient?.wallet_balance || 0) + amt }).eq('id', form.recipient)
-      await recordTxn('deposit', 'external', null, 'wallet', form.recipient, amt, form.desc || `External deposit for ${recipient?.handle}`)
+      // External deposits still need admin — only tier <= 2 can update other profiles
+      const { error } = await supabase.rpc('treasury_payout', { p_recipient_id: form.recipient, p_amount: amt, p_description: form.desc || 'External deposit' })
+      err = error
     }
+    if (err) { setError(err.message); setSaving(false); return }
     await refreshProfile()
     setModal(null); setSaving(false); load()
   }
@@ -134,13 +121,10 @@ export default function Bank() {
   }
 
   async function approveLoan(loan) {
-    if (loan.amount > treasury) { alert('Insufficient treasury funds.'); return }
     await supabase.from('loans').update({ status: 'ACTIVE', approved_by: me.id }).eq('id', loan.id)
-    // Disburse from treasury to borrower wallet
-    const borrower = members.find(m => m.id === loan.borrower_id)
-    await supabase.from('treasury').update({ balance: treasury - loan.amount }).eq('id', 1)
-    await supabase.from('profiles').update({ wallet_balance: (borrower?.wallet_balance || 0) + loan.amount }).eq('id', loan.borrower_id)
-    await recordTxn('loan_out', 'treasury', null, 'wallet', loan.borrower_id, loan.amount, `Loan approved: ${loan.reason}`)
+    // Disburse from treasury via server-side function
+    const { error } = await supabase.rpc('treasury_payout', { p_recipient_id: loan.borrower_id, p_amount: loan.amount, p_description: `Loan approved: ${loan.reason}` })
+    if (error) { alert(error.message); return }
     load()
   }
 
@@ -151,16 +135,9 @@ export default function Bank() {
   async function repayLoan(loan) {
     const amt = parseInt(form.repayAmount)
     if (!amt || amt <= 0) return
-    const remaining = loan.amount - loan.repaid
-    const actual = Math.min(amt, remaining, me.wallet_balance)
-    if (actual <= 0) { setError('Insufficient balance.'); return }
     setSaving(true)
-    const newRepaid = loan.repaid + actual
-    const newStatus = newRepaid >= loan.amount ? 'REPAID' : 'ACTIVE'
-    await supabase.from('loans').update({ repaid: newRepaid, status: newStatus }).eq('id', loan.id)
-    await supabase.from('profiles').update({ wallet_balance: me.wallet_balance - actual }).eq('id', me.id)
-    await supabase.from('treasury').update({ balance: treasury + actual }).eq('id', 1)
-    await recordTxn('loan_repay', 'wallet', me.id, 'treasury', null, actual, `Loan repayment`)
+    const { error } = await supabase.rpc('repay_loan', { p_loan_id: loan.id, p_amount: amt })
+    if (error) { setError(error.message); setSaving(false); return }
     await refreshProfile()
     setModal(null); setSaving(false); load()
   }
@@ -175,15 +152,10 @@ export default function Bank() {
 
   async function contributeFund(fund) {
     const amt = parseInt(form.contribAmount)
-    if (!amt || amt <= 0 || amt > me.wallet_balance) { setError('Invalid amount or insufficient balance.'); return }
+    if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
     setSaving(true)
-    await supabase.from('profiles').update({ wallet_balance: me.wallet_balance - amt }).eq('id', me.id)
-    await supabase.from('ship_funds').update({ current_amount: fund.current_amount + amt }).eq('id', fund.id)
-    await supabase.from('ship_fund_contributions').insert({ fund_id: fund.id, contributor_id: me.id, amount: amt })
-    if (fund.current_amount + amt >= fund.target_amount) {
-      await supabase.from('ship_funds').update({ status: 'COMPLETED' }).eq('id', fund.id)
-    }
-    await recordTxn('fund_contrib', 'wallet', me.id, 'fund', fund.id, amt, `Contribution to ${fund.name}`)
+    const { error } = await supabase.rpc('contribute_to_fund', { p_fund_id: fund.id, p_amount: amt })
+    if (error) { setError(error.message); setSaving(false); return }
     await refreshProfile()
     setModal(null); setSaving(false); load()
   }
