@@ -137,8 +137,8 @@ export default function MemberDossier({ member, onClose }) {
             {/* ═══ COMBAT STATS ═══ */}
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0,
-              background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
-              overflow: 'hidden', marginBottom: 20,
+              background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10,
+              overflow: 'hidden', marginBottom: 16,
             }}>
               {[
                 { l: 'KILLS', v: stats.kills, c: 'var(--green)' },
@@ -147,31 +147,31 @@ export default function MemberDossier({ member, onClose }) {
                 { l: 'CONTRACTS', v: stats.contracts, c: 'var(--text-1)' },
               ].map((s, i) => (
                 <div key={s.l} style={{
-                  padding: '12px 0', textAlign: 'center',
+                  padding: '18px 0', textAlign: 'center',
                   borderRight: i < 3 ? '1px solid var(--border)' : 'none',
                 }}>
-                  <div style={{ fontSize: 8, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{s.l}</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, color: s.c, lineHeight: 1 }}>{s.v}</div>
+                  <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 6 }}>{s.l}</div>
                 </div>
               ))}
             </div>
 
-            {/* ═══ SECONDARY STATS BAR ═══ */}
+            {/* ═══ SECONDARY STATS ═══ */}
             <div style={{
-              display: 'flex', gap: 12, marginBottom: 24,
+              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24,
             }}>
               {[
-                { l: 'MEDALS', v: medals.length },
-                { l: 'CERTS', v: certs.length },
-                { l: 'REP SCORE', v: member.rep_score || 0, c: accentColor },
-                { l: 'SHIPS', v: ships.length },
+                { l: 'MEDALS', v: medals.length, c: accentColor },
+                { l: 'CERTS', v: certs.length, c: 'var(--green)' },
+                { l: 'REP', v: member.rep_score || 0, c: accentColor },
+                { l: 'SHIPS', v: ships.length, c: 'var(--text-1)' },
               ].map(s => (
                 <div key={s.l} style={{
-                  flex: 1, padding: '8px 0', textAlign: 'center',
-                  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '14px 0', textAlign: 'center',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
                 }}>
-                  <div style={{ fontSize: 7, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{s.l}</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: s.c || 'var(--text-1)', marginTop: 2 }}>{s.v}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: s.c, lineHeight: 1 }}>{s.v}</div>
+                  <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 6 }}>{s.l}</div>
                 </div>
               ))}
             </div>
