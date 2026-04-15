@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { SC_LOCATIONS } from '../lib/scdata'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
+import { exportCSV } from '../lib/csv'
 
 const TYPES = ['PVP', 'PVE', 'BOUNTY', 'DEFENSE']
 const OUTCOMES = ['KILL', 'ASSIST', 'DEATH']
@@ -13,6 +15,7 @@ function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-dig
 
 export default function KillBoard() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [kills, setKills] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('feed')

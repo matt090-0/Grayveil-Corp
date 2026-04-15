@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { CONTRACT_TYPES, formatCredits, RANKS } from '../lib/ranks'
 import { SC_CONTRACT_TYPES, SC_LOCATIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
 
 const STATUS_ORDER = ['OPEN', 'ACTIVE', 'COMPLETE', 'CANCELLED']
 const STATUS_BADGE = { OPEN: 'badge-green', ACTIVE: 'badge-amber', COMPLETE: 'badge-blue', CANCELLED: 'badge-muted' }
@@ -17,6 +18,7 @@ function timeAgo(ts) {
 
 export default function Contracts() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [contracts, setContracts] = useState([])
   const [claims, setClaims]       = useState([])
   const [loading, setLoading]     = useState(true)

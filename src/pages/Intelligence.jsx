@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { INTEL_CLASSES } from '../lib/ranks'
 import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
 
 function timeAgo(ts) {
   const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
@@ -20,6 +21,7 @@ const CLASS_BADGE = {
 
 export default function Intelligence() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [files, setFiles]   = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')

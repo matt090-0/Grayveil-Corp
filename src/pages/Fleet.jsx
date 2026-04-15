@@ -4,12 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import { SHIP_STATUSES } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
+import { exportCSV } from '../lib/csv'
 
 const STATUS_BADGE = { AVAILABLE: 'badge-green', DEPLOYED: 'badge-amber', MAINTENANCE: 'badge-red', RESERVED: 'badge-blue' }
 const REQ_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', DENIED: 'badge-red' }
 
 export default function Fleet() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [ships, setShips]       = useState([])
   const [members, setMembers]   = useState([])
   const [requests, setRequests] = useState([])
@@ -105,7 +108,13 @@ export default function Fleet() {
             <div className="page-title">FLEET REGISTRY</div>
             <div className="page-subtitle">{ships.length} vessels on record</div>
           </div>
-          {canManage && <button className="btn btn-primary" onClick={openAdd}>+ ADD VESSEL</button>}
+          <div className="flex gap-8">
+            {canManage && <button className="btn btn-primary" onClick={openAdd}>+ ADD VESSEL</button>}
+            <button className="btn btn-ghost btn-sm" onClick={() => {
+              exportCSV(ships.map(s => ({ vessel: s.vessel_name, class: s.ship_class, status: s.status, manufacturer: s.manufacturer || '', role: s.role || '' })), 'grayveil_fleet')
+              toast('Fleet exported', 'info')
+            }}>EXPORT</button>
+          </div>
         </div>
         <div className="flex gap-8">
           <button className="btn btn-ghost btn-sm" style={tab === 'registry' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('registry')}>REGISTRY</button>

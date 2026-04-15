@@ -24,6 +24,9 @@ import Loadouts from './pages/Loadouts'
 import Medals from './pages/Medals'
 import Landing from './pages/Landing'
 import Messages from './pages/Messages'
+import Bounties from './pages/Bounties'
+import AARs from './pages/AARs'
+import Reputation from './pages/Reputation'
 
 function AppRoutes() {
   return (
@@ -111,6 +114,21 @@ function AppRoutes() {
       <Route path="/messages" element={
         <ProtectedRoute>
           <Layout><Messages /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/bounties" element={
+        <ProtectedRoute>
+          <Layout><Bounties /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/aars" element={
+        <ProtectedRoute>
+          <Layout><AARs /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/reputation" element={
+        <ProtectedRoute>
+          <Layout><Reputation /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={

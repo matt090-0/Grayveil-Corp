@@ -118,6 +118,7 @@ export default function MemberDossier({ member, onClose }) {
               { l: 'K/D', v: kd, c: 'var(--accent)' },
               { l: 'CONTRACTS', v: stats.contracts },
               { l: 'MEDALS', v: medals.length, c: 'var(--accent)' },
+              { l: 'REP', v: member.rep_score || 0, c: 'var(--accent)' },
               { l: 'CERTS', v: certs.length },
             ].map(s => (
               <div key={s.l} style={{ textAlign: 'center', padding: '8px 0' }}>

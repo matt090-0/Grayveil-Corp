@@ -23,12 +23,13 @@ export default function SearchBar({ onClose }) {
     const timeout = setTimeout(async () => {
       setLoading(true)
       const q = `%${query}%`
-      const [{ data: members }, { data: contracts }, { data: intel }, { data: wiki }, { data: kills }] = await Promise.all([
+      const [{ data: members }, { data: contracts }, { data: intel }, { data: wiki }, { data: kills }, { data: bounties }] = await Promise.all([
         supabase.from('profiles').select('id, handle, rank, division').ilike('handle', q).limit(5),
         supabase.from('contracts').select('id, title, status, contract_type').ilike('title', q).limit(5),
         supabase.from('intelligence').select('id, title, classification').ilike('title', q).limit(5),
         supabase.from('wiki_articles').select('id, title, category').ilike('title', q).limit(5),
         supabase.from('kill_log').select('id, target_name, target_org, outcome').ilike('target_name', q).limit(5),
+        supabase.from('bounties').select('id, target_name, target_org, status, reward').ilike('target_name', q).limit(5),
       ])
 
       const r = []
@@ -37,6 +38,7 @@ export default function SearchBar({ onClose }) {
       ;(intel || []).forEach(i => r.push({ type: 'INTEL', label: i.title, sub: i.classification, link: '/intelligence' }))
       ;(wiki || []).forEach(w => r.push({ type: 'ARTICLE', label: w.title, sub: w.category, link: '/wiki' }))
       ;(kills || []).forEach(k => r.push({ type: 'KILL', label: k.target_name, sub: `${k.outcome} · ${k.target_org || '—'}`, link: '/killboard' }))
+      ;(bounties || []).forEach(b => r.push({ type: 'BOUNTY', label: b.target_name, sub: `${b.status} · ${b.reward?.toLocaleString() || 0} aUEC`, link: '/bounties' }))
 
       setResults(r)
       setLoading(false)
@@ -46,7 +48,7 @@ export default function SearchBar({ onClose }) {
 
   function go(link) { navigate(link); onClose() }
 
-  const TYPE_COLOR = { MEMBER: 'var(--accent)', CONTRACT: 'var(--green)', INTEL: 'var(--red)', ARTICLE: 'var(--blue)', KILL: 'var(--amber)' }
+  const TYPE_COLOR = { MEMBER: 'var(--accent)', CONTRACT: 'var(--green)', INTEL: 'var(--red)', ARTICLE: 'var(--blue)', KILL: 'var(--amber)', BOUNTY: 'var(--red)' }
 
   return (
     <div style={{

@@ -13,18 +13,21 @@ const NAV = [
   { to: '/events',      icon: 'ops',        label: 'OPS BOARD'     },
   { to: '/contracts',   icon: 'contracts',  label: 'CONTRACTS'     },
   { to: '/killboard',   icon: 'killboard',  label: 'KILL BOARD'    },
+  { to: '/bounties',    icon: 'bounties',   label: 'BOUNTIES'      },
 
   { section: 'ORGANISATION' },
   { to: '/roster',      icon: 'roster',     label: 'ROSTER'        },
   { to: '/fleet',       icon: 'fleet',      label: 'FLEET'         },
   { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
   { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
+  { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
   { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
 
   { section: 'OPERATIONS' },
   { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
   { to: '/bank',        icon: 'bank',       label: 'BANK'          },
   { to: '/ledger',      icon: 'ledger',     label: 'LEDGER'        },
+  { to: '/aars',        icon: 'aar',        label: 'AFTER ACTION'  },
   { to: '/recruitment', icon: 'recruitment',label: 'RECRUITMENT', minTier: 6 },
 
   { section: 'RESOURCES' },

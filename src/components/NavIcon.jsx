@@ -130,6 +130,28 @@ const icons = {
     <polygon points="8,1 10,6 15,6 11,9.5 12.5,14.5 8,11.5 3.5,14.5 5,9.5 1,6 6,6" fill="currentColor" opacity="0.15" />
     <polygon points="8,1 10,6 15,6 11,9.5 12.5,14.5 8,11.5 3.5,14.5 5,9.5 1,6 6,6" />
   </I>,
+
+  bounties: () => <I>
+    <circle cx="8" cy="6" r="4" />
+    <line x1="8" y1="2" x2="8" y2="10" strokeWidth="0.8" />
+    <line x1="4" y1="6" x2="12" y2="6" strokeWidth="0.8" />
+    <path d="M6 10L8 14L10 10" fill="currentColor" opacity="0.3" />
+    <path d="M6 10L8 14L10 10" />
+  </I>,
+
+  reputation: () => <I>
+    <path d="M2 14L8 2L14 14" fill="currentColor" opacity="0.1" />
+    <path d="M2 14L8 2L14 14" />
+    <line x1="4.5" y1="10" x2="11.5" y2="10" />
+    <line x1="6" y1="7" x2="10" y2="7" strokeWidth="0.8" />
+  </I>,
+
+  aar: () => <I>
+    <rect x="3" y="1.5" width="10" height="13" rx="1" />
+    <line x1="5.5" y1="4.5" x2="10.5" y2="4.5" />
+    <line x1="5.5" y1="7" x2="10.5" y2="7" />
+    <polyline points="5.5,10 7,11.5 10.5,9" strokeWidth="1.5" />
+  </I>,
 }
 
 export default function NavIcon({ name }) {

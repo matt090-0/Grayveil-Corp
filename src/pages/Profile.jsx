@@ -147,6 +147,7 @@ export default function Profile() {
                 { label: 'CONTRACTS', value: stats.contracts },
                 { label: 'INTEL FILED', value: stats.intel },
                 { label: 'MEDALS', value: medals.length, color: 'var(--accent)' },
+                { label: 'REP', value: profile.rep_score || 0, color: 'var(--accent)' },
                 { label: 'CERTS', value: certs.length },
                 { label: 'MEMBER SINCE', value: fmt(profile.joined_at), small: true },
               ].map(s => (

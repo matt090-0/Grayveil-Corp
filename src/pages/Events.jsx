@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { SC_LOCATIONS } from '../lib/scdata'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
+import { useToast } from '../components/Toast'
 
 const EVENT_TYPES = ['OPERATION', 'MINING', 'TRADE', 'PVP', 'TRAINING', 'SOCIAL', 'MEETING']
 const EVENT_BADGE = { SCHEDULED: 'badge-blue', LIVE: 'badge-green', COMPLETED: 'badge-muted', CANCELLED: 'badge-red' }
@@ -20,6 +21,7 @@ function timeUntil(ts) {
 
 export default function Events() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [events, setEvents] = useState([])
   const [signups, setSignups] = useState([])
   const [loading, setLoading] = useState(true)

@@ -6,6 +6,8 @@ import RankBadge from '../components/RankBadge'
 import Modal from '../components/Modal'
 import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
 import MemberDossier from '../components/MemberDossier'
+import { useToast } from '../components/Toast'
+import { exportCSV } from '../lib/csv'
 
 function lastSeen(ts) {
   if (!ts) return '—'
@@ -18,6 +20,7 @@ function lastSeen(ts) {
 
 export default function Roster() {
   const { profile: me } = useAuth()
+  const toast = useToast()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState('')
@@ -77,6 +80,7 @@ export default function Roster() {
     }
     setEditing(null)
     setSaving(false)
+    toast(`${editing.handle} updated`, 'success')
     load()
   }
 
@@ -89,8 +93,16 @@ export default function Roster() {
   return (
     <>
       <div className="page-header">
-        <div className="page-title">ROSTER</div>
-        <div className="page-subtitle">Division membership — {members.length} operatives</div>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="page-title">ROSTER</div>
+            <div className="page-subtitle">Division membership — {members.length} operatives</div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => {
+            exportCSV(members.map(m => ({ handle: m.handle, rank: m.rank, tier: m.tier, division: m.division || '', speciality: m.speciality || '', status: m.status, rep: m.rep_score || 0, joined: m.joined_at?.slice(0,10) })), 'grayveil_roster')
+            toast('Roster exported', 'info')
+          }}>EXPORT CSV</button>
+        </div>
       </div>
 
       <div className="page-body">

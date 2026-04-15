@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [announcements, setAnn] = useState([])
   const [myClaims, setMyClaims] = useState([])
   const [activity, setActivity] = useState([])
+  const [topRep, setTopRep]     = useState([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
@@ -52,6 +53,9 @@ export default function Dashboard() {
       setAnn(ann || [])
       setMyClaims(claims?.filter(c => c.contract?.status !== 'COMPLETE') || [])
       setActivity(act || [])
+      // Fetch top rep separately
+      const { data: rep } = await supabase.from('profiles').select('handle, rep_score, avatar_color').eq('status', 'ACTIVE').order('rep_score', { ascending: false }).limit(5)
+      setTopRep(rep || [])
       setLoading(false)
     }
     load()
@@ -117,6 +121,8 @@ export default function Dashboard() {
                   { label: '+ SCHEDULE OP', to: '/events', icon: '📅' },
                   { label: '+ FILE INTEL', to: '/intelligence', icon: '◍' },
                   { label: '+ LOG KILL', to: '/killboard', icon: '⚔' },
+                  { label: '+ POST BOUNTY', to: '/bounties', icon: '✕' },
+                  { label: '+ FILE AAR', to: '/aars', icon: '✓' },
                 ].map(a => (
                   <button key={a.label} className="btn btn-ghost btn-sm" onClick={() => navigate(a.to)}
                     style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -189,6 +195,35 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
+
+            {/* Rep Leaderboard */}
+            {topRep.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div className="section-header"><div className="section-title">TOP REPUTATION</div></div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {topRep.map((m, i) => (
+                    <div key={m.handle} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: 'var(--bg-raised)', border: '1px solid var(--border)',
+                      borderRadius: 8, padding: '8px 14px', flex: '1 1 auto', minWidth: 140,
+                    }}>
+                      <span style={{
+                        fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700,
+                        color: i === 0 ? 'var(--accent)' : 'var(--text-3)', width: 24,
+                      }}>{i + 1}</span>
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        border: `1.5px solid ${m.avatar_color || '#c8a55a'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 700, color: m.avatar_color || '#c8a55a',
+                      }}>{m.handle?.slice(0, 2).toUpperCase()}</div>
+                      <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{m.handle}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--accent)' }}>{m.rep_score || 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
