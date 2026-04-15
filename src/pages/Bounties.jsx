@@ -5,6 +5,7 @@ import { formatCredits } from '../lib/ranks'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { greenBurst } from '../lib/confetti'
+import { discordBounty, discordBountyClaimed } from '../lib/discord'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 function timeLeft(ts) {
@@ -50,6 +51,7 @@ export default function Bounties() {
       posted_by: me.id, expires_at: form.expires_at || null,
     })
     if (err) { setError(err.message); setSaving(false); return }
+    discordBounty(form.target_name, formatCredits(parseInt(form.reward) || 0), me.handle)
     toast('Bounty posted', 'success'); setModal(null); setSaving(false); setForm({}); load()
   }
 
@@ -58,6 +60,7 @@ export default function Bounties() {
     const { error: err } = await supabase.rpc('claim_bounty', { p_bounty_id: b.id })
     if (err) { toast(err.message, 'error'); return }
     greenBurst()
+    discordBountyClaimed(b.target_name, formatCredits(b.reward), me.handle)
     toast(`Bounty claimed — ${formatCredits(b.reward)} deposited`, 'success')
     load()
   }

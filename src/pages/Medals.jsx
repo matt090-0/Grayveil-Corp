@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
+import { discordMedal } from '../lib/discord'
 
 const RARITY_BADGE = { COMMON: 'badge-muted', UNCOMMON: 'badge-green', RARE: 'badge-blue', LEGENDARY: 'badge-accent' }
 const CERT_CAT_BADGE = { GENERAL: 'badge-muted', COMBAT: 'badge-red', MINING: 'badge-amber', MEDICAL: 'badge-green', CAPITAL: 'badge-purple', RECON: 'badge-blue', TRADE: 'badge-accent' }

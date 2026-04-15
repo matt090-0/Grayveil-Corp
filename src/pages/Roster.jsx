@@ -7,6 +7,7 @@ import Modal from '../components/Modal'
 import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
 import MemberDossier from '../components/MemberDossier'
 import { useToast } from '../components/Toast'
+import { discordPromotion } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 
 function lastSeen(ts) {
@@ -77,6 +78,7 @@ export default function Roster() {
       await supabase.from('activity_log').insert({ actor_id: me.id, action: 'member_promoted', target_type: 'profile', target_id: editing.id, details: { title: editing.handle, new_rank: newRankInfo?.label || editData.rank } })
       // Notify the promoted member
       await supabase.from('notifications').insert({ recipient_id: editing.id, type: 'promotion', title: 'Rank Updated', message: `You have been assigned ${newRankInfo?.label || editData.rank} by ${me.handle}.`, link: '/roster' })
+      discordPromotion(editing.handle, newRankInfo?.label || editData.rank, me.handle)
     }
     setEditing(null)
     setSaving(false)

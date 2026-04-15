@@ -6,6 +6,7 @@ import { SC_CONTRACT_TYPES, SC_LOCATIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { greenBurst } from '../lib/confetti'
+import { discordContract } from '../lib/discord'
 
 const STATUS_ORDER = ['OPEN', 'ACTIVE', 'COMPLETE', 'CANCELLED']
 const STATUS_BADGE = { OPEN: 'badge-green', ACTIVE: 'badge-amber', COMPLETE: 'badge-blue', CANCELLED: 'badge-muted' }
@@ -77,11 +78,12 @@ export default function Contracts() {
   }
 
   async function updateStatus(id, status) {
+    const c = contracts.find(x => x.id === id)
     if (status === 'COMPLETE') {
-      // Server-side function handles payout, tax, activity log, and status update
       const { error } = await supabase.rpc('complete_contract', { p_contract_id: id })
       if (error) { console.error('Contract completion error:', error.message); return }
       greenBurst()
+      discordContract(c?.title, c?.contract_type, c?.reward, 'COMPLETE', me.handle)
     } else {
       await supabase.from('contracts').update({ status }).eq('id', id)
     }

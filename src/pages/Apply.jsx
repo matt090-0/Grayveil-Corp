@@ -1,3 +1,4 @@
+import { discordApplication } from '../lib/discord'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
@@ -39,6 +40,7 @@ export default function Apply() {
 
     setDone(true)
     setLoading(false)
+    discordApplication(form.handle.trim(), form.experience || '')
   }
 
   if (done) return (

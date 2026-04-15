@@ -7,6 +7,7 @@ import MedalPatch from './MedalPatch'
 import Modal from './Modal'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
+import { discordMedal } from '../lib/discord'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 
@@ -64,6 +65,7 @@ export default function MemberDossier({ member, onClose }) {
     const { data } = await supabase.from('member_medals').select('*, medal:medals(*)').eq('member_id', member.id).order('awarded_at', { ascending: false })
     setMedals(data || [])
     goldBurst()
+    discordMedal(member.handle, medal?.name, medal?.rarity, me.handle)
     toast(`${medal?.name} awarded to ${member.handle}`, 'success')
     setAwarding(null); setSaving(false); setForm({})
   }

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
+import { discordNewOp } from '../lib/discord'
 import ReactMarkdown from 'react-markdown'
 
 const CATEGORIES = ['ALL', 'COMBAT', 'MINING', 'TRADE', 'ESCORT', 'RECON', 'SALVAGE', 'RACING', 'GENERAL']
@@ -75,6 +76,7 @@ export default function OpTemplates() {
     if (err) { toast(err.message, 'error'); return }
     await supabase.from('op_templates').update({ use_count: (tpl.use_count || 0) + 1 }).eq('id', tpl.id)
     goldBurst()
+    discordNewOp(tpl.name, tpl.event_type, tpl.location, 'In 1 hour', me.handle)
     toast(`Op "${tpl.name}" scheduled — starts in 1 hour`, 'success')
     navigate('/events')
   }

@@ -5,6 +5,7 @@ import { SC_LOCATIONS } from '../lib/scdata'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { discordKill } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 
 const TYPES = ['PVP', 'PVE', 'BOUNTY', 'DEFENSE']

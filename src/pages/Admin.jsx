@@ -37,6 +37,8 @@ export default function Admin() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [webhooks, setWebhooks] = useState({})
+  const [webhookSaving, setWebhookSaving] = useState(false)
 
   // ── FOUNDER CHECK — only SearthNox (is_founder) gets this page ──
   if (!me.is_founder) {
@@ -75,6 +77,11 @@ export default function Admin() {
     setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[] })
     setTreasury(tres?.balance || 0)
     if (settings?.value?.percent !== undefined) setTaxRate(settings.value.percent)
+    // Load Discord webhooks
+    const { data: wh } = await supabase.from('org_settings').select('key, value').ilike('key', 'discord_%')
+    const whMap = {}
+    ;(wh || []).forEach(w => { whMap[w.key] = w.value?.url || '' })
+    setWebhooks(whMap)
     setLoading(false)
   }, [])
 
@@ -175,7 +182,7 @@ export default function Admin() {
   const activeLoans = d.loans.filter(l => l.status === 'ACTIVE')
   const outstandingDebt = activeLoans.reduce((s, l) => s + (l.amount - l.repaid), 0)
 
-  const TABS = ['overview', 'members', 'bank', 'loans', 'funds', 'comms', 'contracts', 'log', 'danger']
+  const TABS = ['overview', 'members', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'log', 'danger']
   const fmt = ts => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (loading) return <div className="page-body"><div className="loading">LOADING ADMIN...</div></div>
@@ -404,6 +411,76 @@ export default function Admin() {
                 ))}
               </tbody>
             </table></div></div>
+          </Section>
+        )}
+
+        {/* ── DISCORD WEBHOOKS ── */}
+        {tab === 'discord' && (
+          <Section title="DISCORD WEBHOOK CONFIGURATION">
+            <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16, lineHeight: 1.8 }}>
+              Paste webhook URLs from your Discord server. Each channel gets its own webhook. Go to Discord → Channel → Edit → Integrations → Webhooks → New Webhook → Copy URL.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { key: 'discord_webhook_announcements', label: 'ANNOUNCEMENTS', desc: 'Org announcements and critical updates' },
+                { key: 'discord_webhook_operations', label: 'OPERATIONS FEED', desc: 'New operations scheduled from templates' },
+                { key: 'discord_webhook_kills', label: 'KILL FEED / BOUNTIES', desc: 'Kill board entries, bounty posts and claims' },
+                { key: 'discord_webhook_contracts', label: 'CONTRACTS', desc: 'Contract posts and completions' },
+                { key: 'discord_webhook_recruitment', label: 'RECRUITMENT', desc: 'New applications from the apply page' },
+                { key: 'discord_webhook_promotions', label: 'PROMOTIONS / MEDALS', desc: 'Rank changes and medal awards' },
+                { key: 'discord_invite_url', label: 'DISCORD INVITE LINK', desc: 'Shown to new members (not a webhook)' },
+              ].map(wh => (
+                <div key={wh.key} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{wh.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{wh.desc}</div>
+                    </div>
+                    {webhooks[wh.key] && <span style={{ fontSize: 9, color: 'var(--green)', fontFamily: 'var(--font-mono)', background: 'rgba(90,184,112,0.1)', border: '1px solid rgba(90,184,112,0.2)', borderRadius: 4, padding: '2px 6px' }}>CONNECTED</span>}
+                  </div>
+                  <input className="form-input" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}
+                    value={webhooks[wh.key] || ''}
+                    onChange={e => setWebhooks(w => ({ ...w, [wh.key]: e.target.value }))}
+                    placeholder={wh.key === 'discord_invite_url' ? 'https://discord.gg/...' : 'https://discord.com/api/webhooks/...'}
+                  />
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={webhookSaving}
+              onClick={async () => {
+                setWebhookSaving(true)
+                for (const [key, url] of Object.entries(webhooks)) {
+                  await supabase.from('org_settings').upsert({ key, value: { url }, updated_by: me.id }, { onConflict: 'key' })
+                }
+                setWebhookSaving(false)
+                flash('Discord webhooks saved')
+              }}>
+              {webhookSaving ? 'SAVING...' : 'SAVE ALL WEBHOOKS'}
+            </button>
+
+            {/* Test webhook */}
+            <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TEST WEBHOOK</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {['announcements', 'operations', 'kills', 'contracts', 'recruitment', 'promotions'].map(ch => (
+                  <button key={ch} className="btn btn-ghost btn-sm" onClick={async () => {
+                    const url = webhooks[`discord_webhook_${ch}`]
+                    if (!url) { flash(`No webhook URL set for ${ch}`); return }
+                    try {
+                      await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          username: 'Grayveil Corporation',
+                          embeds: [{ title: `✅ Webhook Test: ${ch}`, description: 'This channel is connected to grayveil.net', color: 0xc8a55a, timestamp: new Date().toISOString() }],
+                        }),
+                      })
+                      flash(`Test sent to #${ch}`)
+                    } catch (e) { flash(`Failed: ${e.message}`) }
+                  }}>TEST #{ch.toUpperCase()}</button>
+                ))}
+              </div>
+            </div>
           </Section>
         )}
 
