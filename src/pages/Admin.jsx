@@ -31,7 +31,7 @@ function Stat({ label, value, color }) {
 export default function Admin() {
   const { profile: me } = useAuth()
   const [tab, setTab] = useState('overview')
-  const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [] })
+  const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [], blacklist: [] })
   const [treasury, setTreasury] = useState(0)
   const [taxRate, setTaxRate] = useState(10)
   const [loading, setLoading] = useState(true)
@@ -59,6 +59,7 @@ export default function Admin() {
       { data: members }, { data: contracts }, { data: intelligence }, { data: ledger },
       { data: recruitment }, { data: polls }, { data: announcements }, { data: log },
       { data: txns }, { data: loans }, { data: funds }, { data: budgets },
+      { data: blacklist },
       { data: tres }, { data: settings },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('tier').order('handle'),
@@ -73,10 +74,11 @@ export default function Admin() {
       supabase.from('loans').select('*, borrower:profiles!loans_borrower_id_fkey(handle), approver:profiles!loans_approved_by_fkey(handle)').order('created_at', { ascending: false }),
       supabase.from('ship_funds').select('*').order('created_at', { ascending: false }),
       supabase.from('division_budgets').select('*').order('division'),
+      supabase.from('blacklist').select('id, target_handle, status, created_at').order('created_at', { ascending: false }),
       supabase.from('treasury').select('balance').eq('id', 1).single(),
       supabase.from('org_settings').select('value').eq('key', 'tax_rate').maybeSingle(),
     ])
-    setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[] })
+    setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[], blacklist: blacklist||[] })
     setTreasury(tres?.balance || 0)
     if (settings?.value?.percent !== undefined) setTaxRate(settings.value.percent)
     // Load Discord webhooks
@@ -93,6 +95,130 @@ export default function Admin() {
   async function logAction(action, targetId, details) {
     await supabase.from('activity_log').insert({ action, actor_id: me.id, target_id: targetId || null, details })
   }
+
+  async function sendModerationAlert(action, member, reason, details = {}) {
+    const url = webhooks.discord_webhook_moderation || webhooks.discord_webhook_announcements
+    if (!url) return
+    try {
+      const extra = []
+      if (details.days) extra.push(`Duration: ${details.days}d`)
+      if (details.suspended_until) extra.push(`Until: ${new Date(details.suspended_until).toLocaleString()}`)
+      if (details.strike_count !== undefined) extra.push(`Strikes: ${details.strike_count}`)
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'Grayveil Moderation',
+          embeds: [{
+            title: `⚖ ${action}`,
+            description: `Member: **${member.handle}**\nReason: ${reason}${extra.length ? `\n${extra.join('\n')}` : ''}`,
+            color: action === 'BAN' ? 0xd64545 : action === 'SUSPEND' ? 0xd48b3a : 0x4aa3d4,
+            footer: { text: `By ${me.handle}` },
+            timestamp: new Date().toISOString(),
+          }],
+        }),
+      })
+    } catch {
+      // Silent: moderation action should not fail if Discord webhook fails
+    }
+  }
+
+  // ── DISCIPLINARY ACTIONS ──
+  async function disciplineMember(member, action) {
+    if (!member?.id) return
+    if (member.is_founder && action !== 'WARN') { flash('Founder account cannot be disciplined from this panel.'); return }
+    const reason = prompt(`${action} reason for ${member.handle}:`)
+    if (!reason?.trim()) return
+
+    if (action === 'WARN') {
+      const newStrikeCount = (member.strike_count || 0) + 1
+      const updates = { strike_count: newStrikeCount }
+      let followupAction = 'discipline_warn'
+      if (newStrikeCount >= 5) {
+        updates.status = 'BANNED'
+        followupAction = 'discipline_auto_ban'
+      } else if (newStrikeCount >= 3) {
+        const suspendUntil = new Date(Date.now() + 7 * 86400000).toISOString()
+        updates.status = 'SUSPENDED'
+        updates.suspended_until = suspendUntil
+        followupAction = 'discipline_auto_suspend'
+      }
+      const { error } = await supabase.from('profiles').update(updates).eq('id', member.id)
+      if (error) { flash(`Warn failed: ${error.message}`); return }
+      await logAction(followupAction, member.id, { handle: member.handle, reason: reason.trim(), strike_count: newStrikeCount })
+      if (followupAction === 'discipline_auto_ban') {
+        await supabase.from('blacklist').insert({
+          target_handle: member.handle,
+          category: 'KOS',
+          threat_level: 'CRITICAL',
+          reason: `AUTO BAN (STRIKES) — ${reason.trim()}`,
+          status: 'ACTIVE',
+          added_by: me.id,
+        })
+        await sendModerationAlert('AUTO BAN', member, reason.trim(), { strike_count: newStrikeCount })
+        flash(`${member.handle} warned and auto-banned at ${newStrikeCount} strikes.`)
+      } else if (followupAction === 'discipline_auto_suspend') {
+        await sendModerationAlert('AUTO SUSPEND', member, reason.trim(), { strike_count: newStrikeCount, days: 7, suspended_until: updates.suspended_until })
+        flash(`${member.handle} warned and auto-suspended at ${newStrikeCount} strikes.`)
+      } else {
+        await sendModerationAlert('WARN', member, reason.trim(), { strike_count: newStrikeCount })
+        flash(`${member.handle} warned (strikes: ${newStrikeCount}).`)
+      }
+      load()
+      return
+    }
+
+    if (action === 'SUSPEND') {
+      const daysRaw = prompt('Suspend for how many days? (blank = indefinite)', '7')
+      const days = parseInt(daysRaw)
+      const suspendedUntil = Number.isFinite(days) && days > 0 ? new Date(Date.now() + (days * 86400000)).toISOString() : null
+      const { error } = await supabase.from('profiles').update({ status: 'SUSPENDED', suspended_until: suspendedUntil }).eq('id', member.id)
+      if (error) { flash(`Suspend failed: ${error.message}`); return }
+      await logAction('discipline_suspend', member.id, { handle: member.handle, reason: reason.trim(), days: Number.isFinite(days) ? days : null, suspended_until: suspendedUntil })
+      await sendModerationAlert('SUSPEND', member, reason.trim(), { days: Number.isFinite(days) ? days : null, suspended_until: suspendedUntil, strike_count: member.strike_count || 0 })
+      flash(`${member.handle} suspended.`)
+      load()
+      return
+    }
+
+    if (action === 'BAN') {
+      if (!confirm(`Ban ${member.handle}? This will remove access.`)) return
+      await supabase.from('profiles').update({ status: 'BANNED' }).eq('id', member.id)
+      await supabase.from('blacklist').insert({
+        target_handle: member.handle,
+        category: 'KOS',
+        threat_level: 'HIGH',
+        reason: `ORG BAN — ${reason.trim()}`,
+        status: 'ACTIVE',
+        added_by: me.id,
+      })
+      await logAction('discipline_ban', member.id, { handle: member.handle, reason: reason.trim() })
+      await sendModerationAlert('BAN', member, reason.trim(), { strike_count: member.strike_count || 0 })
+      flash(`${member.handle} banned and added to blacklist.`)
+      load()
+      return
+    }
+
+    if (action === 'CLEAR') {
+      await supabase.from('profiles').update({ status: 'ACTIVE', suspended_until: null }).eq('id', member.id)
+      await logAction('discipline_clear', member.id, { handle: member.handle, reason: reason.trim() })
+      await sendModerationAlert('CLEAR', member, reason.trim(), { strike_count: member.strike_count || 0 })
+      flash(`${member.handle} restored to ACTIVE.`)
+      load()
+    }
+  }
+
+  async function resetStrikes(member) {
+    const reason = prompt(`Reason to reset strike count for ${member.handle}:`)
+    if (!reason?.trim()) return
+    const { error } = await supabase.from('profiles').update({ strike_count: 0 }).eq('id', member.id)
+    if (error) { flash(`Reset failed: ${error.message}`); return }
+    await logAction('discipline_reset_strikes', member.id, { handle: member.handle, reason: reason.trim() })
+    await sendModerationAlert('RESET STRIKES', member, reason.trim(), { strike_count: 0 })
+    flash(`${member.handle} strike count reset.`)
+    load()
+  }
+
 
   // ── MEMBER ACTIONS ──
   async function updateMember(id, updates) {
@@ -184,8 +310,11 @@ export default function Admin() {
   const pendingLoans = d.loans.filter(l => l.status === 'PENDING').length
   const activeLoans = d.loans.filter(l => l.status === 'ACTIVE')
   const outstandingDebt = activeLoans.reduce((s, l) => s + (l.amount - l.repaid), 0)
+  const suspendedMembers = d.members.filter(m => m.status === 'SUSPENDED').length
+  const bannedMembers = d.members.filter(m => m.status === 'BANNED').length
+  const warningCount = d.log.filter(l => l.action.includes('discipline_') && l.action.includes('warn')).length
 
-  const TABS = ['overview', 'members', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'log', 'danger']
+  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'log', 'danger']
   const fmt = ts => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (loading) return <div className="page-body"><div className="loading">LOADING ADMIN...</div></div>
@@ -228,6 +357,9 @@ export default function Admin() {
                 <Stat label="INTEL FILES" value={d.intelligence.length} />
                 <Stat label="PENDING LOANS" value={pendingLoans} color={pendingLoans > 0 ? 'var(--red)' : undefined} />
                 <Stat label="OUTSTANDING DEBT" value={formatCredits(outstandingDebt)} color="var(--amber)" />
+                <Stat label="SUSPENDED" value={suspendedMembers} color={suspendedMembers > 0 ? 'var(--amber)' : undefined} />
+                <Stat label="BANNED" value={bannedMembers} color={bannedMembers > 0 ? 'var(--red)' : undefined} />
+                <Stat label="WARNINGS LOGGED" value={warningCount} />
                 <Stat label="TAX RATE" value={`${taxRate}%`} />
                 <Stat label="ACTIVITY LOG" value={`${d.log.length} entries`} />
               </div>
@@ -278,6 +410,78 @@ export default function Admin() {
             </table></div></div>
           </Section>
         )}
+
+
+        {/* ── DISCIPLINE ── */}
+        {tab === 'discipline' && (
+          <>
+            <Section title="DISCIPLINARY CONTROL">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
+                <Stat label="ACTIVE WARNINGS" value={warningCount} color={warningCount > 0 ? 'var(--amber)' : undefined} />
+                <Stat label="SUSPENDED MEMBERS" value={suspendedMembers} color={suspendedMembers > 0 ? 'var(--amber)' : undefined} />
+                <Stat label="BANNED MEMBERS" value={bannedMembers} color={bannedMembers > 0 ? 'var(--red)' : undefined} />
+                <Stat label="BLACKLIST ENTRIES" value={d.blacklist.filter(b => b.status === 'ACTIVE').length} />
+              </div>
+              <div className="card" style={{ padding: 12, fontSize: 12, color: 'var(--text-2)', marginBottom: 16 }}>
+                Use <b>WARN</b> for documented behavior flags, <b>SUSPEND</b> for temporary lockout, and <b>BAN</b> for permanent removal. Every action is written to the audit log with a reason.
+              </div>
+            </Section>
+
+            <Section title={`MEMBER ENFORCEMENT — ${d.members.length}`}>
+              <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                <thead><tr><th>HANDLE</th><th>RANK</th><th>STATUS</th><th>STRIKES</th><th>SUSPENDED UNTIL</th><th>LAST SEEN</th><th>ACTIONS</th></tr></thead>
+                <tbody>
+                  {d.members.map(m => (
+                    <tr key={m.id} style={{ opacity: m.status === 'BANNED' ? 0.65 : 1 }}>
+                      <td style={{ fontWeight: 500 }}>{m.handle} {m.is_founder && <span className="badge badge-accent" style={{ fontSize: 8 }}>F</span>}</td>
+                      <td><RankBadge tier={m.tier} /></td>
+                      <td><span className={`badge ${m.status === 'ACTIVE' ? 'badge-green' : m.status === 'SUSPENDED' ? 'badge-amber' : 'badge-red'}`}>{m.status}</span></td>
+                      <td><span className={`badge ${(m.strike_count || 0) >= 3 ? 'badge-red' : (m.strike_count || 0) > 0 ? 'badge-amber' : 'badge-muted'}`}>{m.strike_count || 0}</span></td>
+                      <td className="mono text-muted" style={{ fontSize: 11 }}>{m.suspended_until ? fmt(m.suspended_until) : '—'}</td>
+                      <td className="mono text-muted" style={{ fontSize: 11 }}>{m.last_seen_at ? fmt(m.last_seen_at) : '—'}</td>
+                      <td>
+                        {!m.is_founder ? (
+                          <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => disciplineMember(m, 'WARN')}>WARN</button>
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--amber)' }} onClick={() => disciplineMember(m, 'SUSPEND')}>SUSPEND</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => disciplineMember(m, 'BAN')}>BAN</button>
+                            {(m.strike_count || 0) > 0 && <button className="btn btn-ghost btn-sm" onClick={() => resetStrikes(m)}>RESET STRIKES</button>}
+                            {m.status !== 'ACTIVE' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => disciplineMember(m, 'CLEAR')}>CLEAR</button>}
+                          </div>
+                        ) : <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Founder protected</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div></div>
+            </Section>
+
+            <Section title="RECENT DISCIPLINARY ACTIONS">
+              <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                <thead><tr><th>TIME</th><th>ACTION</th><th>ACTOR</th><th>TARGET</th><th>REASON</th></tr></thead>
+                <tbody>
+                  {d.log.filter(l => l.action.startsWith('discipline_')).slice(0, 40).map(l => (
+                    <tr key={l.id}>
+                      <td className="mono text-muted" style={{ fontSize: 11 }}>{fmt(l.created_at)}</td>
+                      <td className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{l.action.replace('discipline_', '').toUpperCase()}</td>
+                      <td>{l.actor?.handle || '—'}</td>
+                      <td>{l.details?.handle || l.target_id || '—'}</td>
+                      <td style={{ fontSize: 12, color: 'var(--text-2)' }}>
+                        {l.details?.reason || '—'}
+                        {l.details?.strike_count !== undefined ? ` • strikes ${l.details.strike_count}` : ''}
+                        {l.details?.days ? ` • ${l.details.days}d` : ''}
+                      </td>
+                    </tr>
+                  ))}
+                  {d.log.filter(l => l.action.startsWith('discipline_')).length === 0 && (
+                    <tr><td colSpan={5} className="empty-state">NO DISCIPLINARY ACTIONS LOGGED</td></tr>
+                  )}
+                </tbody>
+              </table></div></div>
+            </Section>
+          </>
+        )}
+
 
         {/* ── BANK ── */}
         {tab === 'bank' && (
@@ -426,6 +630,7 @@ export default function Admin() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
                 { key: 'discord_webhook_announcements', label: 'ANNOUNCEMENTS', desc: 'Org announcements and critical updates' },
+                { key: 'discord_webhook_moderation', label: 'MODERATION LOG', desc: 'Warn/suspend/ban actions and strike resets' },
                 { key: 'discord_webhook_operations', label: 'OPERATIONS FEED', desc: 'New operations scheduled from templates' },
                 { key: 'discord_webhook_kills', label: 'KILL FEED / BOUNTIES', desc: 'Kill board entries, bounty posts and claims' },
                 { key: 'discord_webhook_contracts', label: 'CONTRACTS', desc: 'Contract posts and completions' },
@@ -556,7 +761,7 @@ export default function Admin() {
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">DIVISION</label><select className="form-select" value={form.division || ''} onChange={e => setForm(f => ({ ...f, division: e.target.value }))}><option value="">—</option>{SC_DIVISIONS.map(d => <option key={d}>{d}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">STATUS</label><select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>ACTIVE</option><option>INACTIVE</option><option>SUSPENDED</option></select></div>
+            <div className="form-group"><label className="form-label">STATUS</label><select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>ACTIVE</option><option>INACTIVE</option><option>SUSPENDED</option><option>BANNED</option></select></div>
           </div>
           <div className="form-group">
             <label className="form-label">WALLET BALANCE (aUEC)</label>
