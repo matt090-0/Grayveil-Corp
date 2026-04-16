@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /auth
+Disallow: /setup
+Disallow: /dashboard
+Disallow: /admin
+
+Sitemap: https://grayveil.net/sitemap.xml

@@ -8,6 +8,7 @@ import Modal from './Modal'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordMedal } from '../lib/discord'
+import MemberNotes from './MemberNotes'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 
@@ -294,6 +295,13 @@ export default function MemberDossier({ member, onClose }) {
                     {member.preferred_ship && <div><span style={{ color: 'var(--text-3)' }}>Main ship</span> <span style={{ fontWeight: 500 }}>{member.preferred_ship}</span></div>}
                   </div>
                 </Section>
+
+                {/* Officer Notes */}
+                {canAward && (
+                  <div style={{ marginTop: 16 }}>
+                    <MemberNotes memberId={member.id} canManage={canAward} />
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
 import { discordAnnouncement } from '../lib/discord'
+import { exportCSV } from '../lib/csv'
 
 function Section({ title, children }) {
   return (
@@ -489,6 +490,19 @@ export default function Admin() {
         {/* ── ACTIVITY LOG ── */}
         {tab === 'log' && (
           <Section title={`AUDIT LOG — LAST ${d.log.length} ENTRIES`}>
+            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => {
+                const rows = d.log.map(l => ({
+                  timestamp: l.created_at,
+                  action: l.action,
+                  actor: l.actor?.handle || '',
+                  target_type: l.target_type || '',
+                  target_id: l.target_id || '',
+                  details: l.details ? JSON.stringify(l.details) : '',
+                }))
+                exportCSV('audit-log.csv', rows)
+              }}>⬇ EXPORT CSV</button>
+            </div>
             <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
               <thead><tr><th>TIMESTAMP</th><th>ACTION</th><th>ACTOR</th><th>TARGET TYPE</th><th>DETAILS</th></tr></thead>
               <tbody>

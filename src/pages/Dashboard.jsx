@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [myClaims, setMyClaims] = useState([])
   const [activity, setActivity] = useState([])
   const [topRep, setTopRep]     = useState([])
+  const [anniversaries, setAnniversaries] = useState([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
@@ -59,6 +60,23 @@ export default function Dashboard() {
       // Fetch top rep separately
       const { data: rep } = await supabase.from('profiles').select('handle, rep_score, avatar_color').eq('status', 'ACTIVE').order('rep_score', { ascending: false }).limit(5)
       setTopRep(rep || [])
+
+      // Anniversaries — members hitting milestone days
+      const { data: allMembers } = await supabase.from('profiles').select('id, handle, joined_at, avatar_color').eq('status', 'ACTIVE')
+      const today = new Date()
+      const milestones = [30, 90, 180, 365, 730]
+      const anniv = []
+      ;(allMembers || []).forEach(m => {
+        const joined = new Date(m.joined_at)
+        const daysAgo = Math.floor((today - joined) / 86400000)
+        milestones.forEach(ms => {
+          // Within last 7 days of hitting this milestone
+          if (daysAgo >= ms && daysAgo < ms + 7) {
+            anniv.push({ ...m, milestone: ms, daysAgo })
+          }
+        })
+      })
+      setAnniversaries(anniv.slice(0, 6))
       setLoading(false)
     }
     load()
@@ -232,6 +250,37 @@ export default function Dashboard() {
                 </div>
               )
             })()}
+
+            {/* Anniversaries */}
+            {anniversaries.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div className="section-header"><div className="section-title">MILESTONES THIS WEEK</div></div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {anniversaries.map(a => (
+                    <div key={`${a.id}-${a.milestone}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: 'linear-gradient(135deg, rgba(212,216,224,0.08), rgba(212,216,224,0.03))',
+                      border: '1px solid rgba(212,216,224,0.2)',
+                      borderRadius: 8, padding: '8px 14px', flex: '1 1 auto', minWidth: 160,
+                    }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        border: `1.5px solid ${a.avatar_color || '#d4d8e0'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 700, color: a.avatar_color || '#d4d8e0',
+                      }}>{a.handle?.slice(0, 2).toUpperCase()}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500 }}>{a.handle}</div>
+                        <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>
+                          {a.milestone === 30 ? '1 MONTH' : a.milestone === 90 ? '3 MONTHS' : a.milestone === 180 ? '6 MONTHS' : a.milestone === 365 ? '1 YEAR' : '2 YEARS'}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 18 }}>🎖</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Rep Leaderboard */}
             {topRep.length > 0 && (

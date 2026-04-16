@@ -1,129 +1,103 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { useAuth } from '../context/AuthContext'
 import GrayveilLogo from '../components/GrayveilLogo'
 
 export default function Auth() {
-  const { session, profile, loading: authLoading } = useAuth()
-  const [tab, setTab]       = useState('login')
-  const [email, setEmail]   = useState('')
-  const [pass, setPass]     = useState('')
-  const [error, setError]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [done, setDone]     = useState(false)
   const navigate = useNavigate()
-
-  // Redirect away from auth page if already logged in
-  // This is THE mechanism that handles post-login navigation
-  useEffect(() => {
-    if (!authLoading && session) {
-      navigate(profile ? '/' : '/setup', { replace: true })
-    }
-  }, [authLoading, session, profile, navigate])
+  const [mode, setMode] = useState('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    if (tab === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-      if (error) { setError(error.message); setLoading(false); return }
-      // Do NOT navigate here — onAuthStateChange will update the context,
-      // then the useEffect above will navigate once session+profile are ready
-      setLoading(false)
-    } else {
-      const { error } = await supabase.auth.signUp({ email, password: pass })
-      if (error) { setError(error.message); setLoading(false); return }
-      setDone(true)
-      setLoading(false)
-    }
+    setError(''); setLoading(true)
+    try {
+      if (mode === 'signin') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        navigate('/dashboard')
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) throw error
+        setError('Check your email to confirm your account.')
+      }
+    } catch (err) { setError(err.message) }
+    setLoading(false)
   }
 
-  if (done) return (
-    <div className="auth-shell">
-      <div className="auth-card" style={{ textAlign: 'center' }}>
-        <div className="auth-logo">
-          <GrayveilLogo size={48} />
-          <div className="auth-logo-name">GRAYVEIL</div>
-        </div>
-        <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 12 }}>ACCESS REQUEST RECEIVED</div>
-        <p style={{ color: 'var(--text-2)', fontSize: 13, lineHeight: 1.7 }}>
-          Check your email to confirm your account, then return here to sign in and complete your profile.
-        </p>
-        <button className="btn btn-ghost w-full mt-16" onClick={() => setDone(false)}>
-          RETURN TO LOGIN
-        </button>
-      </div>
-    </div>
-  )
-
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <GrayveilLogo size={48} />
-          <div className="auth-logo-name">GRAYVEIL</div>
-          <div className="auth-logo-motto">"Profit is neutral. Everything else is negotiable."</div>
-        </div>
+    <div style={{
+      minHeight: '100vh', background: '#0a0b0f', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', padding: 20, position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Circuit background */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'url(/brand/background.png)',
+        backgroundSize: 'cover', backgroundPosition: 'center',
+        opacity: 0.35,
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(ellipse at center, rgba(212,216,224,0.04) 0%, transparent 70%)',
+      }} />
 
-        <div className="auth-tabs">
-          <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>
-            SIGN IN
-          </button>
-          <button className={`auth-tab${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>
-            REQUEST ACCESS
-          </button>
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 420,
+        background: 'rgba(15,16,21,0.85)', backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(212,216,224,0.15)', borderRadius: 14,
+        padding: '36px 32px', boxShadow: '0 16px 64px rgba(0,0,0,0.5)',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ filter: 'drop-shadow(0 0 16px rgba(212,216,224,0.2))' }}>
+            <GrayveilLogo size={64} />
+          </div>
+          <h1 style={{
+            fontFamily: 'Syne, sans-serif', fontSize: 24, fontWeight: 700, letterSpacing: '.15em',
+            background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            margin: '16px 0 4px',
+          }}>GRAYVEIL</h1>
+          <div style={{ fontSize: 10, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace' }}>
+            {mode === 'signin' ? 'OPERATIVE ACCESS' : 'APPLICANT CREDENTIALS'}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">EMAIL</label>
-            <input
-              type="email"
-              className="form-input"
-              placeholder="operative@grayveil.corp"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
+            <input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
-
           <div className="form-group">
-            <label className="form-label">PASSPHRASE</label>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="••••••••"
-              value={pass}
-              onChange={e => setPass(e.target.value)}
-              required
-              autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-              minLength={8}
-            />
-            {tab === 'signup' && (
-              <div className="form-hint">Minimum 8 characters. You will set your handle after confirming.</div>
-            )}
+            <label className="form-label">PASSWORD</label>
+            <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
           </div>
-
-          {error && <div className="form-error mb-16">{error}</div>}
-
-          <button type="submit" className="btn btn-primary w-full" disabled={loading}
-            style={{ justifyContent: 'center', padding: '10px' }}>
-            {loading ? 'PROCESSING...' : tab === 'login' ? 'AUTHENTICATE' : 'SUBMIT REQUEST'}
+          {error && <div className="form-error mb-8">{error}</div>}
+          <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ justifyContent: 'center', marginTop: 8 }}>
+            {loading ? 'AUTHENTICATING...' : mode === 'signin' ? 'ENTER GRAYVEIL' : 'REGISTER'}
           </button>
         </form>
 
-        {tab === 'login' && (
-          <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--text-3)' }}>
-            No account?{' '}
-            <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => setTab('signup')}>
-              Request access
-            </span>
-          </p>
-        )}
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError('') }}
+            style={{ background: 'none', border: 'none', color: '#8a8f9c', fontSize: 11, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }}>
+            {mode === 'signin' ? 'NO ACCESS? REQUEST CREDENTIALS' : 'ALREADY AN OPERATIVE? SIGN IN'}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(212,216,224,0.08)', textAlign: 'center' }}>
+          <Link to="/apply" style={{ fontSize: 10, color: '#6a7280', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
+            OR APPLY FOR MEMBERSHIP →
+          </Link>
+        </div>
+
+        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 9, color: '#4a4f5c', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.2em' }}>
+          PROFIT IS NEUTRAL · EVERYTHING ELSE IS NEGOTIABLE
+        </div>
       </div>
     </div>
   )
