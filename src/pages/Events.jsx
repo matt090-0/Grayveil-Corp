@@ -10,6 +10,10 @@ import { discordNewOp } from '../lib/discord'
 const EVENT_TYPES = ['OPERATION', 'MINING', 'TRADE', 'PVP', 'TRAINING', 'SOCIAL', 'MEETING']
 const EVENT_BADGE = { SCHEDULED: 'badge-blue', LIVE: 'badge-green', COMPLETED: 'badge-muted', CANCELLED: 'badge-red' }
 const ROLES = ['Pilot', 'Gunner', 'Turret Operator', 'Medic', 'Ground Infantry', 'Engineer', 'Navigator', 'Recon', 'Command', 'Support', 'Miner', 'Hauler']
+const RSVP_STATUS = [
+  { value: 'CONFIRMED', label: 'Going' },
+  { value: 'TENTATIVE', label: 'Maybe' }
+]
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }
 function timeUntil(ts) {
@@ -33,6 +37,7 @@ export default function Events() {
   const [error, setError] = useState('')
   const [detail, setDetail] = useState(null)
   const [detailSignups, setDetailSignups] = useState([])
+  const [showMineOnly, setShowMineOnly] = useState(false)
 
   const canCreate = me.tier <= 4
 
@@ -60,8 +65,14 @@ export default function Events() {
     setModal(null); setSaving(false); load()
   }
 
-  async function signup(eventId, role, ship) {
-    await supabase.from('event_signups').insert({ event_id: eventId, member_id: me.id, role: role || null, ship_class: ship || null })
+  async function signup(eventId, role, ship, status) {
+    await supabase.from('event_signups').insert({
+      event_id: eventId,
+      member_id: me.id,
+      role: role || null,
+      ship_class: ship || null,
+      status: status || 'CONFIRMED'
+    })
     load(); if (detail) openDetail(events.find(e => e.id === eventId))
   }
 
@@ -77,8 +88,16 @@ export default function Events() {
   function openDetail(e) {
     setDetail(e)
     setDetailSignups(signups.filter(s => s.event_id === e.id))
-    setForm({ signupRole: '', signupShip: '' })
+    setForm({ signupRole: '', signupShip: '', signupStatus: 'CONFIRMED' })
   }
+
+  function badgeForSignupStatus(status) {
+    if (status === 'CONFIRMED') return 'badge-green'
+    if (status === 'TENTATIVE') return 'badge-amber'
+    return 'badge-muted'
+  }
+
+  const listedEvents = (tab === 'upcoming' ? upcoming : past).filter(e => !showMineOnly || mySignups.has(e.id))
 
   return (
     <>
@@ -93,16 +112,22 @@ export default function Events() {
         <div className="flex gap-8">
           <button className="btn btn-ghost btn-sm" style={tab === 'upcoming' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('upcoming')}>UPCOMING ({upcoming.length})</button>
           <button className="btn btn-ghost btn-sm" style={tab === 'past' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('past')}>PAST</button>
+          <button className="btn btn-ghost btn-sm" style={showMineOnly ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setShowMineOnly(v => !v)}>
+            MY RSVP ({mySignups.size})
+          </button>
         </div>
       </div>
 
       <div className="page-body">
         {loading ? <div className="loading">LOADING OPS...</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {(tab === 'upcoming' ? upcoming : past).length === 0 ? <div className="empty-state">NO {tab === 'upcoming' ? 'UPCOMING' : 'PAST'} OPERATIONS</div> :
-            (tab === 'upcoming' ? upcoming : past).map(e => {
+            {listedEvents.length === 0 ? <div className="empty-state">NO {showMineOnly ? 'MATCHING' : tab === 'upcoming' ? 'UPCOMING' : 'PAST'} OPERATIONS</div> :
+            listedEvents.map(e => {
               const evSignups = signups.filter(s => s.event_id === e.id)
+              const confirmedCount = evSignups.filter(s => s.status === 'CONFIRMED').length
+              const tentativeCount = evSignups.filter(s => s.status === 'TENTATIVE').length
               const isSigned = mySignups.has(e.id)
+              const remaining = e.max_slots ? Math.max(e.max_slots - confirmedCount, 0) : null
               return (
                 <div key={e.id} className="card" style={{ cursor: 'pointer' }} onClick={() => openDetail(e)}>
                   <div className="flex items-center justify-between mb-8">
@@ -117,7 +142,8 @@ export default function Events() {
                   <div style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                     <span>📅 {fmt(e.starts_at)}</span>
                     {e.location && <span>📍 {e.location}</span>}
-                    <span>👥 {evSignups.length}{e.max_slots ? `/${e.max_slots}` : ''} signed up</span>
+                    <span>👥 {confirmedCount}{e.max_slots ? `/${e.max_slots}` : ''} going{tentativeCount > 0 ? ` • ${tentativeCount} maybe` : ''}</span>
+                    {remaining !== null && <span style={{ color: remaining === 0 ? 'var(--red)' : 'var(--text-3)' }}>{remaining === 0 ? 'FULL' : `${remaining} slots left`}</span>}
                   </div>
                 </div>
               )
@@ -138,18 +164,25 @@ export default function Events() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div><div className="stat-label">STARTS</div><div style={{ fontSize: 12 }}>{fmt(detail.starts_at)}</div></div>
             <div><div className="stat-label">LOCATION</div><div style={{ fontSize: 12 }}>{detail.location || '—'}</div></div>
-            <div><div className="stat-label">SLOTS</div><div style={{ fontSize: 12 }}>{signups.filter(s => s.event_id === detail.id).length}{detail.max_slots ? ` / ${detail.max_slots}` : ''}</div></div>
+            <div>
+              <div className="stat-label">SLOTS</div>
+              <div style={{ fontSize: 12 }}>
+                {detailSignups.filter(s => s.status === 'CONFIRMED').length}
+                {detail.max_slots ? ` / ${detail.max_slots}` : ''}
+                {detailSignups.filter(s => s.status === 'TENTATIVE').length > 0 ? ` • ${detailSignups.filter(s => s.status === 'TENTATIVE').length} maybe` : ''}
+              </div>
+            </div>
           </div>
 
           <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>◆ ROSTER</div>
-          {signups.filter(s => s.event_id === detail.id).length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 16 }}>No signups yet</div> : (
+          {detailSignups.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 16 }}>No signups yet</div> : (
             <div style={{ marginBottom: 16 }}>
-              {signups.filter(s => s.event_id === detail.id).map(s => (
+              {detailSignups.map(s => (
                 <div key={s.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
                   <span style={{ fontWeight: 500, width: 100 }}>{s.member?.handle}</span>
                   <span className="badge badge-muted" style={{ fontSize: 9 }}>{s.role || 'ANY'}</span>
                   {s.ship_class && <span style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{s.ship_class}</span>}
-                  <span className={`badge ${s.status === 'CONFIRMED' ? 'badge-green' : s.status === 'TENTATIVE' ? 'badge-amber' : 'badge-red'}`} style={{ fontSize: 9, marginLeft: 'auto' }}>{s.status}</span>
+                  <span className={`badge ${badgeForSignupStatus(s.status)}`} style={{ fontSize: 9, marginLeft: 'auto' }}>{s.status || 'PENDING'}</span>
                 </div>
               ))}
             </div>
@@ -171,7 +204,13 @@ export default function Events() {
                   <label className="form-label">SHIP</label>
                   <input className="form-input" value={form.signupShip || ''} onChange={e => setForm(f => ({ ...f, signupShip: e.target.value }))} placeholder="Ship class" />
                 </div>
-                <button className="btn btn-primary" onClick={() => signup(detail.id, form.signupRole, form.signupShip)}>SIGN UP</button>
+                <div className="form-group" style={{ width: 120, marginBottom: 0 }}>
+                  <label className="form-label">RSVP</label>
+                  <select className="form-select" value={form.signupStatus || 'CONFIRMED'} onChange={e => setForm(f => ({ ...f, signupStatus: e.target.value }))}>
+                    {RSVP_STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <button className="btn btn-primary" onClick={() => signup(detail.id, form.signupRole, form.signupShip, form.signupStatus)}>SIGN UP</button>
               </div>
             )
           ) : null}

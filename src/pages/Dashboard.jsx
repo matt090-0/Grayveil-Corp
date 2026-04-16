@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import { formatCredits, getRankByTier } from '../lib/ranks'
+import { formatCredits } from '../lib/ranks'
 import { timeAgo } from '../lib/dates'
 import RankBadge from '../components/RankBadge'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
@@ -34,6 +34,8 @@ export default function Dashboard() {
   const [stats, setStats]       = useState({ members: 0, contracts: 0, fleet: 0, intel: 0 })
   const [announcements, setAnn] = useState([])
   const [myClaims, setMyClaims] = useState([])
+  const [upcomingOps, setUpcomingOps] = useState([])
+  const [eventSignups, setEventSignups] = useState([])
   const [activity, setActivity] = useState([])
   const [topRep, setTopRep]     = useState([])
   const [anniversaries, setAnniversaries] = useState([])
@@ -43,7 +45,7 @@ export default function Dashboard() {
     async function load() {
       const [
         { count: members }, { count: contracts }, { count: fleet }, { count: intel },
-        { data: ann }, { data: claims }, { data: act },
+        { data: ann }, { data: claims }, { data: act }, { data: ops }, { data: signups },
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
         supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'OPEN'),
@@ -52,11 +54,15 @@ export default function Dashboard() {
         supabase.from('announcements').select('*, posted_by:profiles(handle, tier)').order('created_at', { ascending: false }).limit(5),
         supabase.from('contract_claims').select('*, contract:contracts(id, title, contract_type, status, reward, location)').eq('member_id', profile.id).limit(5),
         supabase.from('activity_log').select('*, actor:profiles(handle)').order('created_at', { ascending: false }).limit(15),
+        supabase.from('events').select('id, title, starts_at, location, status, event_type, max_slots').in('status', ['SCHEDULED', 'LIVE']).order('starts_at', { ascending: true }).limit(6),
+        supabase.from('event_signups').select('event_id, member_id, status'),
       ])
       setStats({ members: members||0, contracts: contracts||0, fleet: fleet||0, intel: intel||0 })
       setAnn(ann || [])
       setMyClaims(claims?.filter(c => c.contract?.status !== 'COMPLETE') || [])
       setActivity(act || [])
+      setUpcomingOps((ops || []).filter(op => new Date(op.starts_at) >= new Date()))
+      setEventSignups(signups || [])
       // Fetch top rep separately
       const { data: rep } = await supabase.from('profiles').select('handle, rep_score, avatar_color').eq('status', 'ACTIVE').order('rep_score', { ascending: false }).limit(5)
       setTopRep(rep || [])
@@ -93,10 +99,28 @@ export default function Dashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [profile.id])
 
-  const rankInfo = getRankByTier(profile.tier)
   const initials = profile.handle.slice(0, 2).toUpperCase()
   const navigate = useNavigate()
   const isOfficer = profile.tier <= 4
+  const mySignups = new Set(eventSignups.filter(s => s.member_id === profile.id).map(s => s.event_id))
+  const opsIn72h = upcomingOps.filter(op => (new Date(op.starts_at) - Date.now()) <= 72 * 3600000).length
+
+  function opBadge(status) {
+    if (status === 'LIVE') return 'badge-green'
+    if (status === 'SCHEDULED') return 'badge-blue'
+    return 'badge-muted'
+  }
+
+  function opTiming(startsAt) {
+    const diff = new Date(startsAt) - Date.now()
+    if (diff <= 0) return 'NOW'
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+    if (days > 0) return `${days}d ${hours % 24}h`
+    if (hours > 0) return `${hours}h ${minutes % 60}m`
+    return `${minutes}m`
+  }
 
   return (
     <>
@@ -124,7 +148,7 @@ export default function Dashboard() {
                 { label: 'ACTIVE MEMBERS', value: stats.members, sub: 'operatives registered' },
                 { label: 'OPEN CONTRACTS', value: stats.contracts, sub: 'available for assignment', color: 'var(--accent)' },
                 { label: 'FLEET STRENGTH', value: stats.fleet, sub: 'vessels on record' },
-                { label: 'INTELLIGENCE FILES', value: stats.intel, sub: 'cleared for your access' },
+                { label: 'OPS NEXT 72H', value: opsIn72h, sub: 'scheduled mission tempo', color: opsIn72h > 0 ? 'var(--green)' : undefined },
               ].map(s => (
                 <div key={s.label} className="stat-card">
                   <div className="stat-label">{s.label}</div>
@@ -132,6 +156,45 @@ export default function Dashboard() {
                   <div className="stat-sub">{s.sub}</div>
                 </div>
               ))}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div className="section-header">
+                <div className="section-title">OPERATIONAL READINESS</div>
+                <button className="btn btn-ghost btn-sm" onClick={() => navigate('/events')}>OPEN BOARD</button>
+              </div>
+              {upcomingOps.length === 0 ? (
+                <div className="empty-state" style={{ padding: '16px 0' }}>NO UPCOMING OPERATIONS</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {upcomingOps.slice(0, 3).map(op => {
+                    const signups = eventSignups.filter(s => s.event_id === op.id)
+                    const confirmed = signups.filter(s => s.status === 'CONFIRMED').length
+                    const tentative = signups.filter(s => s.status === 'TENTATIVE').length
+                    const remaining = op.max_slots ? Math.max(op.max_slots - confirmed, 0) : null
+                    const needsCrew = remaining !== null && remaining > 0
+                    return (
+                      <div key={op.id} className="card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => navigate('/events')}>
+                        <div className="flex items-center gap-8 mb-4">
+                          <span className={`badge ${opBadge(op.status)}`}>{op.status}</span>
+                          <span className="badge badge-muted" style={{ fontSize: 9 }}>{op.event_type}</span>
+                          {mySignups.has(op.id) && <span className="badge badge-accent" style={{ fontSize: 9 }}>RSVP&apos;D</span>}
+                          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>{opTiming(op.starts_at)}</span>
+                        </div>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{op.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 4 }}>
+                          {new Date(op.starts_at).toLocaleString()} {op.location ? `• ${op.location}` : ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
+                          {confirmed} going{tentative > 0 ? ` • ${tentative} maybe` : ''}
+                          {remaining !== null ? ` • ${remaining} slots open` : ''}
+                          {needsCrew ? ' • NEED CREW' : ''}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Quick Actions */}
