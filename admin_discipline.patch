@@ -62,9 +62,6 @@ index 0119061..0e71c8b 100644
 +      // Silent: moderation action should not fail if Discord webhook fails
 +    }
 +  }
- 
-   // ── MEMBER ACTIONS ──
-   async function updateMember(id, updates) {
 @@ -113,6 +141,101 @@ export default function Admin() {
      flash('Wallet adjusted.'); load()
    }
@@ -181,9 +178,6 @@ index 0119061..0e71c8b 100644
 +                <Stat label="SUSPENDED" value={suspendedMembers} color={suspendedMembers > 0 ? 'var(--amber)' : undefined} />
 +                <Stat label="BANNED" value={bannedMembers} color={bannedMembers > 0 ? 'var(--red)' : undefined} />
 +                <Stat label="WARNINGS LOGGED" value={warningCount} />
-                 <Stat label="TAX RATE" value={`${taxRate}%`} />
-                 <Stat label="ACTIVITY LOG" value={`${d.log.length} entries`} />
-               </div>
 @@ -279,6 +408,76 @@ export default function Admin() {
          )}
  
@@ -258,23 +252,11 @@ index 0119061..0e71c8b 100644
 +        )}
 +
 @@ -424,7 +623,8 @@ export default function Admin() {
-               Paste webhook URLs from your Discord server. Each channel gets its own webhook. Go to Discord → Channel → Edit → Integrations → Webhooks → New Webhook → Copy URL.
-             </div>
-             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 -              {[
 +              {[
                  { key: 'discord_webhook_announcements', label: 'ANNOUNCEMENTS', desc: 'Org announcements and critical updates' },
 +                { key: 'discord_webhook_moderation', label: 'MODERATION LOG', desc: 'Warn/suspend/ban actions and strike resets' },
                  { key: 'discord_webhook_operations', label: 'OPERATIONS FEED', desc: 'New operations scheduled from templates' },
-                 { key: 'discord_webhook_kills', label: 'KILL FEED / BOUNTIES', desc: 'Kill board entries, bounty posts and claims' },
-                 { key: 'discord_webhook_contracts', label: 'CONTRACTS', desc: 'Contract posts and completions' },
 @@ -554,7 +754,7 @@ export default function Admin() {
-               {RANKS.map(r => <option key={r.tier} value={r.tier}>{r.label} (Tier {r.tier})</option>)}
-             </select>
-           </div>
--          <div className="form-row">
-+          <div className="form-row">
-             <div className="form-group"><label className="form-label">DIVISION</label><select className="form-select" value={form.division || ''} onChange={e => setForm(f => ({ ...f, division: e.target.value }))}><option value="">—</option>{SC_DIVISIONS.map(d => <option key={d}>{d}</option>)}</select></div>
 -            <div className="form-group"><label className="form-label">STATUS</label><select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>ACTIVE</option><option>INACTIVE</option><option>SUSPENDED</option></select></div>
 +            <div className="form-group"><label className="form-label">STATUS</label><select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>ACTIVE</option><option>INACTIVE</option><option>SUSPENDED</option><option>BANNED</option></select></div>
-           </div>
