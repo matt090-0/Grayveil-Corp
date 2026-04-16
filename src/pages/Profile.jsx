@@ -8,7 +8,7 @@ import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
 
 const AVATAR_COLORS = [
-  '#c8a55a', '#4a90d9', '#d94a4a', '#4ad980', '#d94ad9',
+  '#d4d8e0', '#4a90d9', '#d94a4a', '#4ad980', '#d94ad9',
   '#d9904a', '#4ad9d9', '#9060c8', '#60c860', '#c86060',
   '#8888a0', '#ffffff',
 ]
@@ -21,7 +21,7 @@ export default function Profile() {
   const [form, setForm] = useState({
     division: profile.division || '', speciality: profile.speciality || '',
     bio: profile.bio || '', motto: profile.motto || '',
-    avatar_color: profile.avatar_color || '#c8a55a',
+    avatar_color: profile.avatar_color || '#d4d8e0',
     preferred_ship: profile.preferred_ship || '', timezone: profile.timezone || '',
   })
   const [saving, setSaving] = useState(false)
@@ -59,7 +59,7 @@ export default function Profile() {
     load()
   }, [profile.id])
 
-  const accentColor = profile.avatar_color || '#c8a55a'
+  const accentColor = profile.avatar_color || '#d4d8e0'
   const initials = profile.handle.slice(0, 2).toUpperCase()
   const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
   const isFounder = profile.is_founder
@@ -70,7 +70,7 @@ export default function Profile() {
     const { error } = await supabase.from('profiles').update({
       division: form.division || null, speciality: form.speciality || null,
       bio: form.bio || null, motto: form.motto || null,
-      avatar_color: form.avatar_color || '#c8a55a',
+      avatar_color: form.avatar_color || '#d4d8e0',
       preferred_ship: form.preferred_ship || null, timezone: form.timezone || null,
     }).eq('id', profile.id)
     if (error) { toast(error.message, 'error'); setSaving(false); return }
@@ -86,7 +86,7 @@ export default function Profile() {
         <div style={{
           position: 'relative', overflow: 'hidden', flexShrink: 0,
           background: 'linear-gradient(160deg, #0e0e16 0%, #1a1520 40%, #0e0e16 100%)',
-          borderBottom: '2px solid rgba(200,165,90,0.3)',
+          borderBottom: '2px solid rgba(212,216,224,0.3)',
           padding: '40px 32px 32px',
         }}>
           {/* Background effects */}
@@ -96,12 +96,12 @@ export default function Profile() {
           }} />
           <div style={{
             position: 'absolute', top: 0, right: 0, width: '40%', height: '100%',
-            background: 'linear-gradient(180deg, rgba(200,165,90,0.02) 0%, transparent 50%)',
+            background: 'linear-gradient(180deg, rgba(212,216,224,0.02) 0%, transparent 50%)',
           }} />
           {/* Grid overlay */}
           <div style={{
             position: 'absolute', inset: 0, opacity: 0.015,
-            backgroundImage: 'linear-gradient(rgba(200,165,90,1) 1px, transparent 1px), linear-gradient(90deg, rgba(200,165,90,1) 1px, transparent 1px)',
+            backgroundImage: 'linear-gradient(rgba(212,216,224,1) 1px, transparent 1px), linear-gradient(90deg, rgba(212,216,224,1) 1px, transparent 1px)',
             backgroundSize: '40px 40px',
           }} />
 

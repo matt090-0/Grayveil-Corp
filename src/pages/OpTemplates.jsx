@@ -149,7 +149,7 @@ export default function OpTemplates() {
         <Modal title="" onClose={() => setViewing(null)} size="modal-lg">
           <div style={{ margin: '-20px -24px -16px' }}>
             {/* Header */}
-            <div style={{ background: 'linear-gradient(135deg, rgba(200,165,90,0.06), rgba(200,165,90,0.12))', borderBottom: '1px solid rgba(200,165,90,0.2)', padding: '24px 28px' }}>
+            <div style={{ background: 'linear-gradient(135deg, rgba(212,216,224,0.06), rgba(212,216,224,0.12))', borderBottom: '1px solid rgba(212,216,224,0.2)', padding: '24px 28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700 }}>{viewing.name}</span>
@@ -180,7 +180,7 @@ export default function OpTemplates() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 {(viewing.required_roles || []).length > 0 && (
                   <div>
-                    <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(200,165,90,0.15)' }}>REQUIRED ROLES</div>
+                    <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(212,216,224,0.15)' }}>REQUIRED ROLES</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {viewing.required_roles.map((r, i) => (
                         <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -193,7 +193,7 @@ export default function OpTemplates() {
                 )}
                 {(viewing.required_ships || []).length > 0 && (
                   <div>
-                    <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(200,165,90,0.15)' }}>RECOMMENDED SHIPS</div>
+                    <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(212,216,224,0.15)' }}>RECOMMENDED SHIPS</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {viewing.required_ships.map((s, i) => (
                         <span key={i} style={{ fontSize: 11, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 8px' }}>{s}</span>
@@ -204,7 +204,7 @@ export default function OpTemplates() {
               </div>
 
               {/* Briefing */}
-              <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(200,165,90,0.15)' }}>OPERATION BRIEFING</div>
+              <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(212,216,224,0.15)' }}>OPERATION BRIEFING</div>
               <div className="wiki-content" style={{
                 background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
                 padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8,

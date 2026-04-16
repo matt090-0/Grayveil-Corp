@@ -12,7 +12,7 @@ const TYPE_COLORS = {
   AUEC: { bg: 'rgba(90,184,112,0.08)', border: 'rgba(90,184,112,0.25)', accent: 'var(--green)' },
   AUEC_BONUS: { bg: 'rgba(90,184,112,0.08)', border: 'rgba(90,184,112,0.25)', accent: 'var(--green)' },
   INGAME: { bg: 'rgba(74,122,217,0.08)', border: 'rgba(74,122,217,0.25)', accent: '#4a7ad9' },
-  WEBSITE: { bg: 'rgba(200,165,90,0.08)', border: 'rgba(200,165,90,0.25)', accent: 'var(--accent)' },
+  WEBSITE: { bg: 'rgba(212,216,224,0.08)', border: 'rgba(212,216,224,0.25)', accent: 'var(--accent)' },
   MEDAL: { bg: 'rgba(144,96,200,0.08)', border: 'rgba(144,96,200,0.25)', accent: '#9060c8' },
 }
 
@@ -129,8 +129,8 @@ export default function Referrals() {
 
             {/* ═══ REFERRAL CODE CARD ═══ */}
             <div style={{
-              background: 'linear-gradient(135deg, rgba(200,165,90,0.06), rgba(200,165,90,0.12))',
-              border: '1px solid rgba(200,165,90,0.3)', borderRadius: 10,
+              background: 'linear-gradient(135deg, rgba(212,216,224,0.06), rgba(212,216,224,0.12))',
+              border: '1px solid rgba(212,216,224,0.3)', borderRadius: 10,
               padding: '20px 24px', marginBottom: 24,
               display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
             }}>
@@ -266,9 +266,9 @@ export default function Referrals() {
                         <span style={{
                           fontSize: 10, letterSpacing: '.1em', fontFamily: 'var(--font-mono)',
                           padding: '3px 8px', borderRadius: 4,
-                          background: r.status === 'CONFIRMED' ? 'rgba(90,184,112,0.1)' : 'rgba(200,165,90,0.1)',
+                          background: r.status === 'CONFIRMED' ? 'rgba(90,184,112,0.1)' : 'rgba(212,216,224,0.1)',
                           color: r.status === 'CONFIRMED' ? 'var(--green)' : 'var(--amber)',
-                          border: `1px solid ${r.status === 'CONFIRMED' ? 'rgba(90,184,112,0.2)' : 'rgba(200,165,90,0.2)'}`,
+                          border: `1px solid ${r.status === 'CONFIRMED' ? 'rgba(90,184,112,0.2)' : 'rgba(212,216,224,0.2)'}`,
                         }}>{r.status}</span>
                       </div>
                     ))}

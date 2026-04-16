@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children, minTier }) {
           <div style={{
             fontFamily: 'var(--font-display, monospace)',
             fontSize: 28, fontWeight: 700, letterSpacing: '.25em',
-            color: 'var(--accent, #c8a55a)', margin: '16px 0 12px',
+            color: 'var(--accent, #d4d8e0)', margin: '16px 0 12px',
           }}>
             GRAYVEIL
           </div>

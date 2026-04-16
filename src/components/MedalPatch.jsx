@@ -2,7 +2,7 @@ const RARITY_COLORS = {
   COMMON:    { border: '#555566', glow: '#44445a' },
   UNCOMMON:  { border: '#4a9060', glow: '#2a5038' },
   RARE:      { border: '#4a7ad9', glow: '#283f6a' },
-  LEGENDARY: { border: '#d4af6e', glow: '#5a4520' },
+  LEGENDARY: { border: '#d4d8e0', glow: '#3a3e48' },
 }
 
 function PatchBase({ rarity = 'COMMON', children, size = 80 }) {
@@ -10,14 +10,14 @@ function PatchBase({ rarity = 'COMMON', children, size = 80 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <polygon points="50,4 93,27 93,73 50,96 7,73 7,27" fill={c.glow} stroke={c.border} strokeWidth="2.5" />
-      <polygon points="50,12 85,31 85,69 50,88 15,69 15,31" fill="#0e0e16" stroke={c.border} strokeWidth="0.5" opacity="0.6" />
+      <polygon points="50,12 85,31 85,69 50,88 15,69 15,31" fill="#0a0b0f" stroke={c.border} strokeWidth="0.5" opacity="0.6" />
       {children}
     </svg>
   )
 }
 
-// Color shortcuts per rarity for inner designs
-const C = { grey: '#8888a0', grn: '#5ab870', blu: '#4a7ad9', red: '#c83030', gld: '#d4af6e', amb: '#c87030', teal: '#40b0a0', prp: '#9060c8', wht: '#ccccdd' }
+// Color shortcuts per rarity for inner designs — gld is now chrome-silver for Legendary medals
+const C = { grey: '#8888a0', grn: '#5ab870', blu: '#4a7ad9', red: '#c83030', gld: '#d4d8e0', amb: '#c87030', teal: '#40b0a0', prp: '#9060c8', wht: '#ccccdd' }
 
 const PATCHES = {
   // ═══════════════════════════════════════

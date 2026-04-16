@@ -24,7 +24,7 @@ async function send(channel, embed) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'Grayveil Corporation',
-        avatar_url: 'https://grayveil.net/favicon.svg',
+        avatar_url: 'https://grayveil.net/brand/icon.png',
         embeds: [embed],
       }),
     })

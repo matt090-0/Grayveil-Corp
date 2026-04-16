@@ -250,7 +250,7 @@ export default function Bank() {
                   <div>
                     {/* Wealth Distribution Chart */}
                     {topEarners.length > 1 && (() => {
-                      const PIE_COLORS = ['#c8a55a', '#4a7ad9', '#5ab870', '#d94a7a', '#9060c8', '#d9904a', '#4ad9d9', '#c86060']
+                      const PIE_COLORS = ['#d4d8e0', '#4a7ad9', '#5ab870', '#d94a7a', '#9060c8', '#d9904a', '#4ad9d9', '#c86060']
                       const chartData = [
                         { name: 'Treasury', value: treasury },
                         ...topEarners.slice(0, 6).map(m => ({ name: m.handle, value: m.wallet_balance || 0 })),

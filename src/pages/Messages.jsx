@@ -58,7 +58,7 @@ export default function Messages() {
       const otherId = m.sender_id === me.id ? m.recipient_id : m.sender_id
       const other = memMap[otherId]
       if (!convMap[otherId]) {
-        convMap[otherId] = { id: otherId, handle: other?.handle || 'Unknown', avatar_color: other?.avatar_color || '#c8a55a', last_seen_at: other?.last_seen_at, lastMessage: m.content, lastTime: m.created_at, unread: 0 }
+        convMap[otherId] = { id: otherId, handle: other?.handle || 'Unknown', avatar_color: other?.avatar_color || '#d4d8e0', last_seen_at: other?.last_seen_at, lastMessage: m.content, lastTime: m.created_at, unread: 0 }
       }
       if (m.recipient_id === me.id && !m.is_read) convMap[otherId].unread++
     })
@@ -219,7 +219,7 @@ export default function Messages() {
               <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-raised)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ position: 'relative' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${activeProfile?.avatar_color || '#c8a55a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: activeProfile?.avatar_color || '#c8a55a' }}>{activeProfile?.handle?.slice(0, 2).toUpperCase() || '??'}</div>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${activeProfile?.avatar_color || '#d4d8e0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: activeProfile?.avatar_color || '#d4d8e0' }}>{activeProfile?.handle?.slice(0, 2).toUpperCase() || '??'}</div>
                     {isOnline(activeProfile?.last_seen_at) && <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#5ab870', border: '2px solid var(--bg-raised)' }} />}
                   </div>
                   <div>
@@ -236,7 +236,7 @@ export default function Messages() {
               </div>
 
               {showPinned && pinnedMessages.length > 0 && (
-                <div style={{ padding: '8px 16px', background: 'rgba(200,165,90,0.05)', borderBottom: '1px solid rgba(200,165,90,0.15)', maxHeight: 100, overflowY: 'auto', flexShrink: 0 }}>
+                <div style={{ padding: '8px 16px', background: 'rgba(212,216,224,0.05)', borderBottom: '1px solid rgba(212,216,224,0.15)', maxHeight: 100, overflowY: 'auto', flexShrink: 0 }}>
                   <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>📌 PINNED</div>
                   {pinnedMessages.map(m => (
                     <div key={m.id} style={{ fontSize: 11, color: 'var(--text-2)', padding: '2px 0' }}>
@@ -272,8 +272,8 @@ export default function Messages() {
                       )}
 
                       <div style={{
-                        background: isMine ? 'rgba(200,165,90,0.08)' : 'var(--bg-raised)',
-                        border: `1px solid ${isMine ? 'rgba(200,165,90,0.2)' : 'var(--border)'}`,
+                        background: isMine ? 'rgba(212,216,224,0.08)' : 'var(--bg-raised)',
+                        border: `1px solid ${isMine ? 'rgba(212,216,224,0.2)' : 'var(--border)'}`,
                         borderRadius: isGrouped ? (isMine ? '8px 4px 4px 8px' : '4px 8px 8px 4px') : (isMine ? '12px 12px 4px 12px' : '12px 12px 12px 4px'),
                         padding: '8px 12px', fontSize: 13, color: 'var(--text-1)', lineHeight: 1.6, wordBreak: 'break-word',
                       }}>{m.content}</div>
@@ -290,8 +290,8 @@ export default function Messages() {
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
                           {Object.entries(rxns).map(([emoji, users]) => (
                             <button key={emoji} onClick={() => toggleReaction(m, emoji)} style={{
-                              background: users.includes(me.id) ? 'rgba(200,165,90,0.12)' : 'var(--bg-surface)',
-                              border: `1px solid ${users.includes(me.id) ? 'rgba(200,165,90,0.3)' : 'var(--border)'}`,
+                              background: users.includes(me.id) ? 'rgba(212,216,224,0.12)' : 'var(--bg-surface)',
+                              border: `1px solid ${users.includes(me.id) ? 'rgba(212,216,224,0.3)' : 'var(--border)'}`,
                               borderRadius: 10, padding: '1px 6px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
                             }}>{emoji} <span style={{ fontSize: 9, color: 'var(--text-3)' }}>{users.length}</span></button>
                           ))}

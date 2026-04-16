@@ -26,7 +26,7 @@ export default function MemberDossier({ member, onClose }) {
   const [saving, setSaving] = useState(false)
 
   const canAward = me.tier <= 4
-  const accentColor = member.avatar_color || '#c8a55a'
+  const accentColor = member.avatar_color || '#d4d8e0'
   const initials = member.handle.slice(0, 2).toUpperCase()
   const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
 
@@ -112,7 +112,7 @@ export default function MemberDossier({ member, onClose }) {
               }} />
               <div style={{
                 position: 'absolute', inset: 0, opacity: 0.02,
-                backgroundImage: 'linear-gradient(rgba(200,165,90,1) 1px, transparent 1px), linear-gradient(90deg, rgba(200,165,90,1) 1px, transparent 1px)',
+                backgroundImage: 'linear-gradient(rgba(212,216,224,1) 1px, transparent 1px), linear-gradient(90deg, rgba(212,216,224,1) 1px, transparent 1px)',
                 backgroundSize: '30px 30px',
               }} />
             </>
@@ -264,9 +264,9 @@ export default function MemberDossier({ member, onClose }) {
                             <span style={{
                               fontSize: 8, letterSpacing: '.05em', fontFamily: 'var(--font-mono)',
                               padding: '2px 6px', borderRadius: 3,
-                              background: s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.1)' : s.status === 'DEPLOYED' ? 'rgba(200,165,90,0.1)' : 'var(--bg-raised)',
+                              background: s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.1)' : s.status === 'DEPLOYED' ? 'rgba(212,216,224,0.1)' : 'var(--bg-raised)',
                               color: s.status === 'AVAILABLE' ? 'var(--green)' : s.status === 'DEPLOYED' ? 'var(--accent)' : 'var(--text-3)',
-                              border: `1px solid ${s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.2)' : s.status === 'DEPLOYED' ? 'rgba(200,165,90,0.2)' : 'var(--border)'}`,
+                              border: `1px solid ${s.status === 'AVAILABLE' ? 'rgba(90,184,112,0.2)' : s.status === 'DEPLOYED' ? 'rgba(212,216,224,0.2)' : 'var(--border)'}`,
                             }}>{s.status}</span>
                           </div>
                         </div>

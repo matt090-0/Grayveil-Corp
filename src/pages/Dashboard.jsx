@@ -12,7 +12,7 @@ const ChartTooltip = ({ active, payload, label }) => {
   return (
     <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
       <div style={{ color: '#8888a0' }}>{label}</div>
-      <div style={{ color: '#c8a55a', fontWeight: 600 }}>{payload[0].value}</div>
+      <div style={{ color: '#d4d8e0', fontWeight: 600 }}>{payload[0].value}</div>
     </div>
   )
 }
@@ -225,7 +225,7 @@ export default function Dashboard() {
                       <BarChart data={chartData} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
                         <Tooltip content={<ChartTooltip />} />
-                        <Bar dataKey="count" fill="#c8a55a" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="count" fill="#d4d8e0" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -250,9 +250,9 @@ export default function Dashboard() {
                       }}>{i + 1}</span>
                       <div style={{
                         width: 24, height: 24, borderRadius: '50%',
-                        border: `1.5px solid ${m.avatar_color || '#c8a55a'}`,
+                        border: `1.5px solid ${m.avatar_color || '#d4d8e0'}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, fontWeight: 700, color: m.avatar_color || '#c8a55a',
+                        fontSize: 9, fontWeight: 700, color: m.avatar_color || '#d4d8e0',
                       }}>{m.handle?.slice(0, 2).toUpperCase()}</div>
                       <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{m.handle}</span>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--accent)' }}>{m.rep_score || 0}</span>

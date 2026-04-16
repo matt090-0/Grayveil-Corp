@@ -12,7 +12,7 @@ const RepTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null
   return (
     <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
-      <div style={{ color: '#c8a55a', fontWeight: 600 }}>{payload[0].payload.handle}: {payload[0].value} rep</div>
+      <div style={{ color: '#d4d8e0', fontWeight: 600 }}>{payload[0].payload.handle}: {payload[0].value} rep</div>
     </div>
   )
 }
@@ -118,7 +118,7 @@ export default function Reputation() {
                       <BarChart data={members.slice(0, 10).map(m => ({ handle: m.handle?.length > 10 ? m.handle.slice(0, 8) + '…' : m.handle, rep: m.rep_score || 0 }))} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
                         <XAxis dataKey="handle" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
                         <Tooltip content={<RepTooltip />} />
-                        <Bar dataKey="rep" fill="#c8a55a" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="rep" fill="#d4d8e0" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -128,7 +128,7 @@ export default function Reputation() {
                   <thead><tr><th style={{ width: 50 }}>#</th><th>OPERATIVE</th><th>RANK</th><th>DIVISION</th><th style={{ textAlign: 'right' }}>REP</th>{canManageRep && <th style={{ width: 80 }}></th>}</tr></thead>
                   <tbody>
                     {members.map((m, i) => (
-                      <tr key={m.id} style={{ background: m.id === me.id ? 'var(--accent-glow)' : i < 3 ? 'rgba(200,165,90,0.03)' : undefined }}>
+                      <tr key={m.id} style={{ background: m.id === me.id ? 'var(--accent-glow)' : i < 3 ? 'rgba(212,216,224,0.03)' : undefined }}>
                         <td style={{ fontFamily: 'var(--font-display)', fontSize: i < 3 ? 18 : 14, fontWeight: 600, color: i === 0 ? 'var(--accent)' : i < 3 ? 'var(--text-1)' : 'var(--text-3)' }}>
                           {i + 1}
                         </td>
@@ -136,9 +136,9 @@ export default function Reputation() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{
                               width: 24, height: 24, borderRadius: '50%',
-                              border: `1.5px solid ${m.avatar_color || '#c8a55a'}`,
+                              border: `1.5px solid ${m.avatar_color || '#d4d8e0'}`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 9, fontWeight: 700, color: m.avatar_color || '#c8a55a',
+                              fontSize: 9, fontWeight: 700, color: m.avatar_color || '#d4d8e0',
                             }}>{m.handle?.slice(0, 2).toUpperCase()}</div>
                             <span style={{ fontWeight: 500 }}>{m.handle}</span>
                           </div>
