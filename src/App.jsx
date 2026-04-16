@@ -29,6 +29,9 @@ import AARs from './pages/AARs'
 import Reputation from './pages/Reputation'
 import Referrals from './pages/Referrals'
 import OpTemplates from './pages/OpTemplates'
+import ShipCalendar from './pages/ShipCalendar'
+import Blacklist from './pages/Blacklist'
+import PublicOrg from './pages/PublicOrg'
 
 function AppRoutes() {
   return (
@@ -37,6 +40,7 @@ function AppRoutes() {
       <Route path="/setup" element={<SetupProfile />} />
       <Route path="/apply" element={<Apply />} />
       <Route path="/welcome" element={<Landing />} />
+      <Route path="/org" element={<PublicOrg />} />
 
       <Route path="/" element={
         <ProtectedRoute>
@@ -136,6 +140,16 @@ function AppRoutes() {
       <Route path="/reputation" element={
         <ProtectedRoute>
           <Layout><Reputation /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/ships" element={
+        <ProtectedRoute>
+          <Layout><ShipCalendar /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/blacklist" element={
+        <ProtectedRoute>
+          <Layout><Blacklist /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/referrals" element={

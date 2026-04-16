@@ -1,0 +1,32 @@
+{
+  "name": "Grayveil Corporation",
+  "short_name": "Grayveil",
+  "description": "Profit is neutral. Everything else is negotiable.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0b0f",
+  "theme_color": "#0a0b0f",
+  "icons": [
+    {
+      "src": "/brand/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "social", "games"],
+  "screenshots": [
+    {
+      "src": "/brand/banner.png",
+      "sizes": "1200x800",
+      "type": "image/png"
+    }
+  ]
+}

@@ -3,9 +3,120 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { greenBurst } from '../lib/confetti'
+import { formatCredits } from '../lib/ranks'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 const OUTCOME_BADGE = { SUCCESS: 'badge-green', PARTIAL: 'badge-amber', FAILURE: 'badge-red', ABORTED: 'badge-muted' }
+
+// Loot distribution UI
+function LootDistributor({ aar, members, onDone }) {
+  const toast = useToast()
+  const [total, setTotal] = useState(aar.loot_total || 0)
+  const [orgTax, setOrgTax] = useState(10)
+  const [shipOwnerPct, setShipOwnerPct] = useState(0)
+  const [shipOwnerId, setShipOwnerId] = useState('')
+  const [distributing, setDistributing] = useState(false)
+
+  const attendees = aar.attendees || []
+  const orgCut = Math.floor((total * orgTax) / 100)
+  const shipCut = Math.floor((total * shipOwnerPct) / 100)
+  const remaining = total - orgCut - shipCut
+  const perMember = attendees.length > 0 ? Math.floor(remaining / attendees.length) : 0
+
+  async function distribute() {
+    if (!total || total <= 0) { toast('Enter a loot total', 'error'); return }
+    if (orgTax + shipOwnerPct > 100) { toast('Splits exceed 100%', 'error'); return }
+    if (shipOwnerPct > 0 && !shipOwnerId) { toast('Select ship owner', 'error'); return }
+    if (!confirm(`Distribute ${formatCredits(total)} aUEC? This cannot be undone.`)) return
+    setDistributing(true)
+    const { error } = await supabase.rpc('distribute_loot', {
+      p_aar_id: aar.id, p_total: parseInt(total), p_org_tax_pct: orgTax,
+      p_ship_owner_id: shipOwnerId || null, p_ship_owner_pct: shipOwnerPct,
+      p_attendees: attendees,
+    })
+    if (error) { toast(error.message, 'error'); setDistributing(false); return }
+    greenBurst()
+    toast(`Distributed ${formatCredits(total)} aUEC`, 'success')
+    onDone()
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 3 }}>TOTAL LOOT (aUEC)</div>
+          <input className="form-input" type="number" value={total} onChange={e => setTotal(e.target.value)} style={{ fontSize: 14, fontFamily: 'var(--font-mono)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 3 }}>ORG TAX %</div>
+          <input className="form-input" type="number" min="0" max="100" value={orgTax} onChange={e => setOrgTax(parseInt(e.target.value) || 0)} style={{ fontSize: 14 }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 3 }}>SHIP OWNER %</div>
+          <input className="form-input" type="number" min="0" max="100" value={shipOwnerPct} onChange={e => setShipOwnerPct(parseInt(e.target.value) || 0)} style={{ fontSize: 14 }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 3 }}>SHIP OWNER {shipOwnerPct > 0 && '*'}</div>
+          <select className="form-select" value={shipOwnerId} onChange={e => setShipOwnerId(e.target.value)} disabled={shipOwnerPct === 0} style={{ fontSize: 12 }}>
+            <option value="">— None —</option>
+            {attendees.map(aid => {
+              const m = members.find(x => x.id === aid)
+              return <option key={aid} value={aid}>{m?.handle || aid.slice(0, 8)}</option>
+            })}
+          </select>
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div style={{ background: 'var(--bg-surface)', borderRadius: 6, padding: 10, marginBottom: 10, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+          <span style={{ color: 'var(--text-3)' }}>Org Treasury ({orgTax}%)</span>
+          <span style={{ color: 'var(--accent)' }}>+{formatCredits(orgCut)}</span>
+        </div>
+        {shipOwnerPct > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+            <span style={{ color: 'var(--text-3)' }}>Ship Owner ({shipOwnerPct}%)</span>
+            <span style={{ color: 'var(--accent)' }}>+{formatCredits(shipCut)}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+          <span style={{ color: 'var(--text-3)' }}>Per member ({attendees.length} ways)</span>
+          <span style={{ color: 'var(--green)', fontWeight: 600 }}>+{formatCredits(perMember)}</span>
+        </div>
+      </div>
+
+      <button className="btn btn-primary w-full" onClick={distribute} disabled={distributing || !total || total <= 0} style={{ justifyContent: 'center' }}>
+        {distributing ? 'DISTRIBUTING...' : `💰 DISTRIBUTE ${formatCredits(total)} aUEC`}
+      </button>
+    </div>
+  )
+}
+
+function LootSummary({ aarId, members }) {
+  const [splits, setSplits] = useState([])
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('loot_splits').select('*').eq('aar_id', aarId).order('amount', { ascending: false })
+      setSplits(data || [])
+    })()
+  }, [aarId])
+
+  if (splits.length === 0) return <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading splits...</div>
+  return (
+    <div style={{ display: 'grid', gap: 3, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+      {splits.map(s => {
+        const m = members.find(x => x.id === s.member_id)
+        return (
+          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+            <span>{m?.handle || s.member_id.slice(0, 8)} {s.is_ship_owner && <span style={{ color: 'var(--accent)' }}>· SHIP</span>}</span>
+            <span style={{ color: 'var(--green)', fontWeight: 600 }}>+{formatCredits(s.amount)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function AARs() {
   const { profile: me } = useAuth()
@@ -143,6 +254,22 @@ export default function AARs() {
               </div>
             </>
           )}
+
+          {/* ═══ LOOT DISTRIBUTION ═══ */}
+          {canFile && (viewing.attendees || []).length > 0 && (
+            <div style={{ marginTop: 16, padding: 14, background: 'rgba(77,184,112,0.06)', border: '1px solid rgba(77,184,112,0.2)', borderRadius: 8 }}>
+              <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'var(--green)', fontFamily: 'var(--font-mono)', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>💰 LOOT DISTRIBUTION</span>
+                {viewing.loot_distributed && <span style={{ color: 'var(--green)' }}>✓ DISTRIBUTED</span>}
+              </div>
+              {!viewing.loot_distributed ? (
+                <LootDistributor aar={viewing} members={members} onDone={() => { load(); setViewing(null) }} />
+              ) : (
+                <LootSummary aarId={viewing.id} members={members} />
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 12 }}>Filed by {viewing.filer?.handle} · {fmt(viewing.created_at)}</div>
         </Modal>
       )}

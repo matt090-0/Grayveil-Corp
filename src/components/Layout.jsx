@@ -20,6 +20,7 @@ const NAV = [
   { section: 'ORGANISATION' },
   { to: '/roster',      icon: 'roster',     label: 'ROSTER'        },
   { to: '/fleet',       icon: 'fleet',      label: 'FLEET'         },
+  { to: '/ships',       icon: 'fleet',      label: 'SHIP CALENDAR' },
   { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
   { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
   { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
@@ -27,6 +28,7 @@ const NAV = [
 
   { section: 'OPERATIONS' },
   { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
+  { to: '/blacklist',   icon: 'bounties',   label: 'WANTED LIST'   },
   { to: '/bank',        icon: 'bank',       label: 'BANK'          },
   { to: '/ledger',      icon: 'ledger',     label: 'LEDGER'        },
   { to: '/aars',        icon: 'aar',        label: 'AFTER ACTION'  },
