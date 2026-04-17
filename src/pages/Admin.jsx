@@ -141,11 +141,14 @@ export default function Admin() {
       let followupAction = 'discipline_warn'
       if (newStrikeCount >= STRIKE_BAN_THRESHOLD) {
         updates.status = 'BANNED'
+        updates.status_reason = `Auto-ban at ${newStrikeCount} strikes — ${reason.trim()}`
+        updates.suspended_until = null
         followupAction = 'discipline_auto_ban'
       } else if (newStrikeCount >= STRIKE_SUSPEND_THRESHOLD) {
         const suspendUntil = new Date(Date.now() + AUTO_SUSPEND_DAYS * 86400000).toISOString()
         updates.status = 'SUSPENDED'
         updates.suspended_until = suspendUntil
+        updates.status_reason = `Auto-suspension at ${newStrikeCount} strikes — ${reason.trim()}`
         followupAction = 'discipline_auto_suspend'
       }
       const { error } = await supabase.from('profiles').update(updates).eq('id', member.id)
@@ -177,7 +180,7 @@ export default function Admin() {
       const daysRaw = prompt('Suspend for how many days? (blank = indefinite)', '7')
       const days = parseInt(daysRaw)
       const suspendedUntil = Number.isFinite(days) && days > 0 ? new Date(Date.now() + (days * 86400000)).toISOString() : null
-      const { error } = await supabase.from('profiles').update({ status: 'SUSPENDED', suspended_until: suspendedUntil }).eq('id', member.id)
+      const { error } = await supabase.from('profiles').update({ status: 'SUSPENDED', suspended_until: suspendedUntil, status_reason: reason.trim() }).eq('id', member.id)
       if (error) { flash(`Suspend failed: ${error.message}`); return }
       await logAction('discipline_suspend', member.id, { handle: member.handle, reason: reason.trim(), days: Number.isFinite(days) ? days : null, suspended_until: suspendedUntil })
       await sendModerationAlert('SUSPEND', member, reason.trim(), { days: Number.isFinite(days) ? days : null, suspended_until: suspendedUntil, strike_count: member.strike_count || 0 })
@@ -188,7 +191,10 @@ export default function Admin() {
 
     if (action === 'BAN') {
       if (!confirm(`Ban ${member.handle}? This will remove access.`)) return
-      await supabase.from('profiles').update({ status: 'BANNED' }).eq('id', member.id)
+      const daysRaw = prompt('Ban for how many days? (blank = permanent)', '')
+      const days = parseInt(daysRaw)
+      const bannedUntil = Number.isFinite(days) && days > 0 ? new Date(Date.now() + (days * 86400000)).toISOString() : null
+      await supabase.from('profiles').update({ status: 'BANNED', suspended_until: bannedUntil, status_reason: reason.trim() }).eq('id', member.id)
       await supabase.from('blacklist').insert({
         target_handle: member.handle,
         category: 'KOS',
@@ -197,15 +203,15 @@ export default function Admin() {
         status: 'ACTIVE',
         added_by: me.id,
       })
-      await logAction('discipline_ban', member.id, { handle: member.handle, reason: reason.trim() })
-      await sendModerationAlert('BAN', member, reason.trim(), { strike_count: member.strike_count || 0 })
-      flash(`${member.handle} banned and added to blacklist.`)
+      await logAction('discipline_ban', member.id, { handle: member.handle, reason: reason.trim(), days: Number.isFinite(days) ? days : null, suspended_until: bannedUntil })
+      await sendModerationAlert('BAN', member, reason.trim(), { days: Number.isFinite(days) ? days : null, suspended_until: bannedUntil, strike_count: member.strike_count || 0 })
+      flash(`${member.handle} banned${bannedUntil ? ` until ${new Date(bannedUntil).toLocaleDateString()}` : ' permanently'} and added to blacklist.`)
       load()
       return
     }
 
     if (action === 'CLEAR') {
-      await supabase.from('profiles').update({ status: 'ACTIVE', suspended_until: null }).eq('id', member.id)
+      await supabase.from('profiles').update({ status: 'ACTIVE', suspended_until: null, status_reason: null }).eq('id', member.id)
       await logAction('discipline_clear', member.id, { handle: member.handle, reason: reason.trim() })
       await sendModerationAlert('CLEAR', member, reason.trim(), { strike_count: member.strike_count || 0 })
       flash(`${member.handle} restored to ACTIVE.`)
