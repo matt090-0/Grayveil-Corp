@@ -312,3 +312,101 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_log;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.contract_comments;
+
+-- ============================================================
+-- DISCIPLINE + WALLET COLUMNS
+-- Adds columns used by the Admin discipline panel and wallet flows.
+-- ============================================================
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS strike_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS suspended_until TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS wallet_balance BIGINT NOT NULL DEFAULT 0;
+
+-- BLACKLIST (KOS / threat registry)
+CREATE TABLE IF NOT EXISTS public.blacklist (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  target_handle TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'KOS',
+  threat_level TEXT NOT NULL DEFAULT 'HIGH',
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  added_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.blacklist ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "blacklist_select" ON public.blacklist FOR SELECT TO authenticated
+  USING (get_my_tier() <= 6);
+CREATE POLICY "blacklist_insert" ON public.blacklist FOR INSERT TO authenticated
+  WITH CHECK (get_my_tier() <= 2);
+CREATE POLICY "blacklist_update" ON public.blacklist FOR UPDATE TO authenticated
+  USING (get_my_tier() <= 2);
+CREATE POLICY "blacklist_delete" ON public.blacklist FOR DELETE TO authenticated
+  USING (get_my_tier() <= 2);
+
+-- ============================================================
+-- ACTIVE-MEMBER ENFORCEMENT
+-- Write policies now require the caller to be ACTIVE and not mid-suspension.
+-- SUSPENDED/BANNED members retain read access but cannot post/modify anything.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.is_active_member()
+RETURNS BOOLEAN AS $$
+  SELECT COALESCE(
+    (SELECT status = 'ACTIVE' AND (suspended_until IS NULL OR suspended_until < NOW())
+       FROM public.profiles WHERE id = auth.uid()),
+    false
+  );
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+
+DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
+CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE TO authenticated
+  USING (
+    (id = auth.uid() AND is_active_member())
+    OR (get_my_tier() <= 2 AND is_active_member())
+  );
+
+DROP POLICY IF EXISTS "ann_insert" ON public.announcements;
+CREATE POLICY "ann_insert" ON public.announcements FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 4);
+
+DROP POLICY IF EXISTS "fleet_insert" ON public.fleet;
+CREATE POLICY "fleet_insert" ON public.fleet FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 4);
+DROP POLICY IF EXISTS "fleet_update" ON public.fleet;
+CREATE POLICY "fleet_update" ON public.fleet FOR UPDATE TO authenticated
+  USING (is_active_member() AND get_my_tier() <= 4);
+
+DROP POLICY IF EXISTS "contracts_insert" ON public.contracts;
+CREATE POLICY "contracts_insert" ON public.contracts FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 4);
+DROP POLICY IF EXISTS "contracts_update" ON public.contracts;
+CREATE POLICY "contracts_update" ON public.contracts FOR UPDATE TO authenticated
+  USING (is_active_member() AND (posted_by = auth.uid() OR get_my_tier() <= 3));
+
+DROP POLICY IF EXISTS "claims_insert" ON public.contract_claims;
+CREATE POLICY "claims_insert" ON public.contract_claims FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND member_id = auth.uid());
+
+DROP POLICY IF EXISTS "intel_insert" ON public.intelligence;
+CREATE POLICY "intel_insert" ON public.intelligence FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 6);
+
+DROP POLICY IF EXISTS "ledger_insert" ON public.ledger;
+CREATE POLICY "ledger_insert" ON public.ledger FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 4);
+
+DROP POLICY IF EXISTS "recruit_insert" ON public.recruitment;
+CREATE POLICY "recruit_insert" ON public.recruitment FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 6);
+DROP POLICY IF EXISTS "recruit_update" ON public.recruitment;
+CREATE POLICY "recruit_update" ON public.recruitment FOR UPDATE TO authenticated
+  USING (is_active_member() AND get_my_tier() <= 4);
+
+DROP POLICY IF EXISTS "polls_insert" ON public.polls;
+CREATE POLICY "polls_insert" ON public.polls FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 3);
+
+DROP POLICY IF EXISTS "poll_votes_insert" ON public.poll_votes;
+CREATE POLICY "poll_votes_insert" ON public.poll_votes FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND member_id = auth.uid());

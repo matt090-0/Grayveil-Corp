@@ -8,6 +8,10 @@ import RankBadge from '../components/RankBadge'
 import { discordAnnouncement } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 
+const STRIKE_SUSPEND_THRESHOLD = 3
+const STRIKE_BAN_THRESHOLD = 5
+const AUTO_SUSPEND_DAYS = 7
+
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: 32 }}>
@@ -98,13 +102,13 @@ export default function Admin() {
 
   async function sendModerationAlert(action, member, reason, details = {}) {
     const url = webhooks.discord_webhook_moderation || webhooks.discord_webhook_announcements
-    if (!url) return
+    if (!url) { flash(`${action} recorded — no moderation webhook configured, Discord not notified.`); return }
     try {
       const extra = []
       if (details.days) extra.push(`Duration: ${details.days}d`)
       if (details.suspended_until) extra.push(`Until: ${new Date(details.suspended_until).toLocaleString()}`)
       if (details.strike_count !== undefined) extra.push(`Strikes: ${details.strike_count}`)
-      await fetch(url, {
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,8 +122,9 @@ export default function Admin() {
           }],
         }),
       })
-    } catch {
-      // Silent: moderation action should not fail if Discord webhook fails
+      if (!resp.ok) flash(`${action} recorded — Discord webhook returned ${resp.status}.`)
+    } catch (e) {
+      flash(`${action} recorded — Discord alert failed: ${e.message}`)
     }
   }
 
@@ -134,11 +139,11 @@ export default function Admin() {
       const newStrikeCount = (member.strike_count || 0) + 1
       const updates = { strike_count: newStrikeCount }
       let followupAction = 'discipline_warn'
-      if (newStrikeCount >= 5) {
+      if (newStrikeCount >= STRIKE_BAN_THRESHOLD) {
         updates.status = 'BANNED'
         followupAction = 'discipline_auto_ban'
-      } else if (newStrikeCount >= 3) {
-        const suspendUntil = new Date(Date.now() + 7 * 86400000).toISOString()
+      } else if (newStrikeCount >= STRIKE_SUSPEND_THRESHOLD) {
+        const suspendUntil = new Date(Date.now() + AUTO_SUSPEND_DAYS * 86400000).toISOString()
         updates.status = 'SUSPENDED'
         updates.suspended_until = suspendUntil
         followupAction = 'discipline_auto_suspend'
@@ -158,7 +163,7 @@ export default function Admin() {
         await sendModerationAlert('AUTO BAN', member, reason.trim(), { strike_count: newStrikeCount })
         flash(`${member.handle} warned and auto-banned at ${newStrikeCount} strikes.`)
       } else if (followupAction === 'discipline_auto_suspend') {
-        await sendModerationAlert('AUTO SUSPEND', member, reason.trim(), { strike_count: newStrikeCount, days: 7, suspended_until: updates.suspended_until })
+        await sendModerationAlert('AUTO SUSPEND', member, reason.trim(), { strike_count: newStrikeCount, days: AUTO_SUSPEND_DAYS, suspended_until: updates.suspended_until })
         flash(`${member.handle} warned and auto-suspended at ${newStrikeCount} strikes.`)
       } else {
         await sendModerationAlert('WARN', member, reason.trim(), { strike_count: newStrikeCount })
@@ -436,7 +441,7 @@ export default function Admin() {
                       <td style={{ fontWeight: 500 }}>{m.handle} {m.is_founder && <span className="badge badge-accent" style={{ fontSize: 8 }}>F</span>}</td>
                       <td><RankBadge tier={m.tier} /></td>
                       <td><span className={`badge ${m.status === 'ACTIVE' ? 'badge-green' : m.status === 'SUSPENDED' ? 'badge-amber' : 'badge-red'}`}>{m.status}</span></td>
-                      <td><span className={`badge ${(m.strike_count || 0) >= 3 ? 'badge-red' : (m.strike_count || 0) > 0 ? 'badge-amber' : 'badge-muted'}`}>{m.strike_count || 0}</span></td>
+                      <td><span className={`badge ${(m.strike_count || 0) >= STRIKE_SUSPEND_THRESHOLD ? 'badge-red' : (m.strike_count || 0) > 0 ? 'badge-amber' : 'badge-muted'}`}>{m.strike_count || 0}</span></td>
                       <td className="mono text-muted" style={{ fontSize: 11 }}>{m.suspended_until ? fmt(m.suspended_until) : '—'}</td>
                       <td className="mono text-muted" style={{ fontSize: 11 }}>{m.last_seen_at ? fmt(m.last_seen_at) : '—'}</td>
                       <td>
