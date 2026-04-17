@@ -410,3 +410,105 @@ CREATE POLICY "polls_insert" ON public.polls FOR INSERT TO authenticated
 DROP POLICY IF EXISTS "poll_votes_insert" ON public.poll_votes;
 CREATE POLICY "poll_votes_insert" ON public.poll_votes FOR INSERT TO authenticated
   WITH CHECK (is_active_member() AND member_id = auth.uid());
+
+-- ============================================================
+-- BAN SCREEN: status reason + self-serve expiry clearance
+-- ============================================================
+
+-- Human-readable reason shown on the ban/suspension screen.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status_reason TEXT;
+
+-- Members whose timed suspension has elapsed call this from the client on
+-- login; is_active_member() already honors the timestamp at the RLS layer,
+-- but this keeps the displayed status in sync with reality.
+CREATE OR REPLACE FUNCTION public.clear_expired_suspension()
+RETURNS VOID AS $$
+  UPDATE public.profiles
+     SET status = 'ACTIVE', suspended_until = NULL, status_reason = NULL
+   WHERE id = auth.uid()
+     AND status = 'SUSPENDED'
+     AND suspended_until IS NOT NULL
+     AND suspended_until <= NOW();
+$$ LANGUAGE SQL SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.clear_expired_suspension() TO authenticated;
+
+-- ============================================================
+-- ACTIVE-MEMBER GATES FOR REMAINING WRITE PATHS
+-- (policies below were already live in the production DB but were missing
+-- from this file; re-applied here with is_active_member() added so SUSPENDED
+-- and BANNED members are locked out of writes everywhere.)
+-- activity_log inserts and anonymous application submissions are intentionally
+-- left ungated.
+-- ============================================================
+
+DROP POLICY IF EXISTS "notif_select_own" ON public.notifications;
+CREATE POLICY "notif_select_own" ON public.notifications FOR SELECT TO authenticated
+  USING (recipient_id = auth.uid());
+DROP POLICY IF EXISTS "notif_insert_auth" ON public.notifications;
+CREATE POLICY "notif_insert_auth" ON public.notifications FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 6);
+DROP POLICY IF EXISTS "notif_update_own" ON public.notifications;
+CREATE POLICY "notif_update_own" ON public.notifications FOR UPDATE TO authenticated
+  USING (recipient_id = auth.uid());
+DROP POLICY IF EXISTS "notif_delete_own" ON public.notifications;
+CREATE POLICY "notif_delete_own" ON public.notifications FOR DELETE TO authenticated
+  USING (recipient_id = auth.uid());
+
+DROP POLICY IF EXISTS "comments_select" ON public.contract_comments;
+CREATE POLICY "comments_select" ON public.contract_comments FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "comments_insert" ON public.contract_comments;
+CREATE POLICY "comments_insert" ON public.contract_comments FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND author_id = auth.uid());
+DROP POLICY IF EXISTS "comments_delete" ON public.contract_comments;
+CREATE POLICY "comments_delete" ON public.contract_comments FOR DELETE TO authenticated
+  USING (author_id = auth.uid() OR get_my_tier() <= 3);
+
+DROP POLICY IF EXISTS "fleet_req_select" ON public.fleet_requests;
+CREATE POLICY "fleet_req_select" ON public.fleet_requests FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "fleet_req_insert" ON public.fleet_requests;
+CREATE POLICY "fleet_req_insert" ON public.fleet_requests FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND requester_id = auth.uid());
+DROP POLICY IF EXISTS "fleet_req_update" ON public.fleet_requests;
+CREATE POLICY "fleet_req_update" ON public.fleet_requests FOR UPDATE TO authenticated
+  USING (is_active_member() AND get_my_tier() <= 4);
+DROP POLICY IF EXISTS "fleet_req_delete" ON public.fleet_requests;
+CREATE POLICY "fleet_req_delete" ON public.fleet_requests FOR DELETE TO authenticated
+  USING (requester_id = auth.uid() OR get_my_tier() <= 4);
+
+DROP POLICY IF EXISTS "invite_select" ON public.invite_links;
+CREATE POLICY "invite_select" ON public.invite_links FOR SELECT TO authenticated
+  USING (get_my_tier() <= 6);
+DROP POLICY IF EXISTS "invite_anon_select" ON public.invite_links;
+CREATE POLICY "invite_anon_select" ON public.invite_links FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "invite_insert" ON public.invite_links;
+CREATE POLICY "invite_insert" ON public.invite_links FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 4);
+DROP POLICY IF EXISTS "invite_delete" ON public.invite_links;
+CREATE POLICY "invite_delete" ON public.invite_links FOR DELETE TO authenticated
+  USING (created_by = auth.uid() OR get_my_tier() <= 3);
+
+DROP POLICY IF EXISTS "app_select" ON public.applications;
+CREATE POLICY "app_select" ON public.applications FOR SELECT TO authenticated
+  USING (get_my_tier() <= 6);
+DROP POLICY IF EXISTS "app_insert_anon" ON public.applications;
+CREATE POLICY "app_insert_anon" ON public.applications FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS "app_insert_auth" ON public.applications;
+CREATE POLICY "app_insert_auth" ON public.applications FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "app_update" ON public.applications;
+CREATE POLICY "app_update" ON public.applications FOR UPDATE TO authenticated
+  USING (get_my_tier() <= 4);
+DROP POLICY IF EXISTS "app_delete" ON public.applications;
+CREATE POLICY "app_delete" ON public.applications FOR DELETE TO authenticated
+  USING (get_my_tier() <= 3);
+
+DROP POLICY IF EXISTS "settings_select" ON public.org_settings;
+CREATE POLICY "settings_select" ON public.org_settings FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "settings_insert" ON public.org_settings;
+CREATE POLICY "settings_insert" ON public.org_settings FOR INSERT TO authenticated
+  WITH CHECK (is_active_member() AND get_my_tier() <= 2);
+DROP POLICY IF EXISTS "settings_update" ON public.org_settings;
+CREATE POLICY "settings_update" ON public.org_settings FOR UPDATE TO authenticated
+  USING (is_active_member() AND get_my_tier() <= 2);
+DROP POLICY IF EXISTS "settings_delete" ON public.org_settings;
+CREATE POLICY "settings_delete" ON public.org_settings FOR DELETE TO authenticated
+  USING (get_my_tier() <= 1);
