@@ -7,6 +7,8 @@ import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
 import { discordAnnouncement } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
+import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
+import { notifyMaintenanceChange } from '../hooks/useMaintenanceMap'
 
 const STRIKE_SUSPEND_THRESHOLD = 3
 const STRIKE_BAN_THRESHOLD = 5
@@ -45,6 +47,8 @@ export default function Admin() {
   const [msg, setMsg] = useState('')
   const [webhooks, setWebhooks] = useState({})
   const [webhookSaving, setWebhookSaving] = useState(false)
+  const [maintMap, setMaintMap] = useState({})
+  const [maintSaving, setMaintSaving] = useState(false)
 
   // ── FOUNDER CHECK — only SearthNox (is_founder) gets this page ──
   if (!me.is_founder) {
@@ -92,6 +96,9 @@ export default function Admin() {
     const whMap = {}
     ;(wh || []).forEach(w => { whMap[w.key] = w.value?.url || '' })
     setWebhooks(whMap)
+    // Load page maintenance map
+    const { data: maintRow } = await supabase.from('org_settings').select('value').eq('key', 'page_maintenance').maybeSingle()
+    setMaintMap(maintRow?.value || {})
     setLoading(false)
   }, [])
 
@@ -346,7 +353,7 @@ export default function Admin() {
   const bannedMembers = d.members.filter(m => m.status === 'BANNED').length
   const warningCount = d.log.filter(l => l.action.includes('discipline_') && l.action.includes('warn')).length
 
-  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'log', 'danger']
+  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'maintenance', 'log', 'danger']
   const fmt = ts => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (loading) return <div className="page-body"><div className="loading">LOADING ADMIN...</div></div>
@@ -720,6 +727,100 @@ export default function Admin() {
                   }}>TEST #{ch.toUpperCase()}</button>
                 ))}
               </div>
+            </div>
+          </Section>
+        )}
+
+        {/* ── MAINTENANCE ── */}
+        {tab === 'maintenance' && (
+          <Section title="SECTION MAINTENANCE MODE">
+            <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16, lineHeight: 1.7 }}>
+              Toggle any sidebar section into maintenance mode. While a section is in maintenance, only
+              officers <b>Vice Admiral and above</b> (tier ≤ {MAINT_BYPASS_TIER}) can access it —
+              everyone else sees a maintenance screen. Use this when you're rebuilding or debugging a
+              page without taking the whole site down.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {NAV.map((item, i) => {
+                if (item.section) {
+                  return (
+                    <div key={`sec-${item.section}`} style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginTop: i > 0 ? 14 : 0, marginBottom: 2 }}>
+                      {item.section}
+                    </div>
+                  )
+                }
+                const cfg = maintMap[item.to] || { enabled: false, note: '' }
+                const setCfg = (next) => setMaintMap(m => ({ ...m, [item.to]: { ...cfg, ...next } }))
+                return (
+                  <div key={item.to} style={{
+                    background: 'var(--bg-surface)',
+                    border: `1px solid ${cfg.enabled ? 'var(--amber)' : 'var(--border)'}`,
+                    borderRadius: 8, padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 220, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!cfg.enabled}
+                        onChange={e => setCfg({ enabled: e.target.checked })}
+                        style={{ width: 16, height: 16, accentColor: 'var(--amber)' }}
+                      />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: cfg.enabled ? 'var(--amber)' : 'var(--text-1)', fontFamily: 'var(--font-mono)', letterSpacing: '.08em' }}>
+                        {item.label}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{item.to}</span>
+                    </label>
+                    <input
+                      className="form-input"
+                      style={{ flex: 1, minWidth: 200, fontSize: 12 }}
+                      placeholder="Optional note shown to members (e.g. 'Rebuilding ledger filters — back by 18:00 UTC')"
+                      value={cfg.note || ''}
+                      onChange={e => setCfg({ note: e.target.value })}
+                      disabled={!cfg.enabled}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+              <button className="btn btn-primary" disabled={maintSaving}
+                onClick={async () => {
+                  setMaintSaving(true)
+                  const cleaned = {}
+                  for (const [route, cfg] of Object.entries(maintMap)) {
+                    if (cfg?.enabled || cfg?.note) cleaned[route] = { enabled: !!cfg.enabled, note: cfg.note || '' }
+                  }
+                  const { error } = await supabase.from('org_settings').upsert(
+                    { key: 'page_maintenance', value: cleaned, updated_by: me.id },
+                    { onConflict: 'key' },
+                  )
+                  setMaintSaving(false)
+                  if (error) { flash(`Save failed: ${error.message}`); return }
+                  notifyMaintenanceChange(cleaned)
+                  await logAction('maintenance_updated', null, { routes: Object.keys(cleaned).filter(k => cleaned[k].enabled) })
+                  flash('Maintenance settings saved')
+                }}>
+                {maintSaving ? 'SAVING...' : 'SAVE MAINTENANCE SETTINGS'}
+              </button>
+              <button className="btn btn-ghost" disabled={maintSaving}
+                onClick={async () => {
+                  if (!confirm('Clear all maintenance flags? Every section will be accessible again.')) return
+                  setMaintSaving(true)
+                  const { error } = await supabase.from('org_settings').upsert(
+                    { key: 'page_maintenance', value: {}, updated_by: me.id },
+                    { onConflict: 'key' },
+                  )
+                  setMaintSaving(false)
+                  if (error) { flash(`Clear failed: ${error.message}`); return }
+                  setMaintMap({})
+                  notifyMaintenanceChange({})
+                  await logAction('maintenance_cleared', null, {})
+                  flash('All sections back online')
+                }}>
+                CLEAR ALL
+              </button>
             </div>
           </Section>
         )}

@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from './GrayveilLogo'
 import BanScreen from './BanScreen'
+import MaintenanceScreen from './MaintenanceScreen'
+import { findMaintenanceForPath, MAINT_BYPASS_TIER } from '../lib/nav'
+import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
 
 export default function ProtectedRoute({ children }) {
   const { session, profile, loading, refreshProfile } = useAuth()
+  const location = useLocation()
+  const maintenance = useMaintenanceMap()
   const [healing, setHealing] = useState(false)
   const healedRef = useRef(false)
 
@@ -56,6 +61,11 @@ export default function ProtectedRoute({ children }) {
 
   if (profile.status === 'BANNED') return <BanScreen profile={profile} />
   if (profile.status === 'SUSPENDED' && !needsExpiryHeal) return <BanScreen profile={profile} />
+
+  const maint = findMaintenanceForPath(location.pathname, maintenance)
+  if (maint && profile.tier > MAINT_BYPASS_TIER) {
+    return <MaintenanceScreen label={maint.label} note={maint.note} />
+  }
 
   return children
 }

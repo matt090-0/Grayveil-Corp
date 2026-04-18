@@ -7,40 +7,8 @@ import GrayveilLogo from './GrayveilLogo'
 import SearchBar from './SearchBar'
 import NavIcon from './NavIcon'
 import PageTransition from './PageTransition'
-
-const NAV = [
-  { section: 'COMMAND' },
-  { to: '/',            icon: 'sitrep',     label: 'SITREP'        },
-  { to: '/events',      icon: 'ops',        label: 'OPS BOARD'     },
-  { to: '/templates',   icon: 'templates',  label: 'OP TEMPLATES'  },
-  { to: '/contracts',   icon: 'contracts',  label: 'CONTRACTS'     },
-  { to: '/killboard',   icon: 'killboard',  label: 'KILL BOARD'    },
-  { to: '/bounties',    icon: 'bounties',   label: 'BOUNTIES'      },
-
-  { section: 'ORGANISATION' },
-  { to: '/roster',      icon: 'roster',     label: 'ROSTER'        },
-  { to: '/fleet',       icon: 'fleet',      label: 'FLEET'         },
-  { to: '/ships',       icon: 'fleet',      label: 'SHIP CALENDAR' },
-  { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
-  { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
-  { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
-  { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
-
-  { section: 'OPERATIONS' },
-  { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
-  { to: '/blacklist',   icon: 'bounties',   label: 'WANTED LIST'   },
-  { to: '/bank',        icon: 'bank',       label: 'BANK'          },
-  { to: '/ledger',      icon: 'ledger',     label: 'LEDGER'        },
-  { to: '/aars',        icon: 'aar',        label: 'AFTER ACTION'  },
-  { to: '/recruitment', icon: 'recruitment',label: 'RECRUITMENT', minTier: 6 },
-
-  { section: 'RESOURCES' },
-  { to: '/wiki',        icon: 'wiki',       label: 'KNOWLEDGE BASE'},
-  { to: '/messages',    icon: 'comms',      label: 'COMMS'         },
-  { to: '/polls',       icon: 'polls',      label: 'POLLS'         },
-  { to: '/referrals',   icon: 'referrals',  label: 'REFERRALS'     },
-  { to: '/admin',       icon: 'admin',      label: 'ADMIN', minTier: 1 },
-]
+import { NAV, MAINT_BYPASS_TIER } from '../lib/nav'
+import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
 
 export default function Layout({ children }) {
   const { profile, signOut } = useAuth()
@@ -53,6 +21,8 @@ export default function Layout({ children }) {
   const [searchOpen, setSearchOpen] = useState(false)
 
   const canSee = (item) => !item.minTier || (profile?.tier <= item.minTier)
+  const maintenance = useMaintenanceMap()
+  const canBypassMaint = profile?.tier <= MAINT_BYPASS_TIER
 
   // Global keyboard shortcut for search
   useEffect(() => {
@@ -100,10 +70,15 @@ export default function Layout({ children }) {
           {NAV.map((item, i) => {
             if (item.section) return <div key={item.section} className="nav-section-label" style={i > 0 ? { marginTop: 12 } : {}}>{item.section}</div>
             if (!canSee(item)) return null
+            const isMaint = !!maintenance?.[item.to]?.enabled
+            if (isMaint && !canBypassMaint) return null
             return (
               <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} onClick={navClick}>
                 <span className="nav-item-icon"><NavIcon name={item.icon} /></span>
-                {item.label}
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {isMaint && canBypassMaint && (
+                  <span style={{ fontSize: 8, letterSpacing: '.15em', fontFamily: 'var(--font-mono)', color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: 3, padding: '1px 4px', marginLeft: 6 }}>MAINT</span>
+                )}
               </NavLink>
             )
           })}
