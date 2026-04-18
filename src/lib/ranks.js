@@ -1,13 +1,13 @@
 export const RANKS = [
-  { tier: 1, rank: 'ARCHITECT',         label: 'Architect',         color: '#d4af6e' },
-  { tier: 2, rank: 'SHADOW DIRECTOR',   label: 'Shadow Director',   color: '#9090a8' },
-  { tier: 3, rank: 'EXECUTIVE VEIL',    label: 'Executive Veil',    color: '#9090a8' },
-  { tier: 4, rank: 'BLACKLINE OPERATOR',label: 'Blackline Operator',color: '#4a90d9' },
-  { tier: 5, rank: 'STRATEGOS',         label: 'Strategos',         color: '#4a90d9' },
-  { tier: 6, rank: 'VEIL AGENT',        label: 'Veil Agent',        color: '#8888a0' },
-  { tier: 7, rank: 'CORPORATE ASSOCIATE',label:'Corporate Associate',color: '#8888a0' },
-  { tier: 8, rank: 'INITIATE',          label: 'Initiate',          color: '#44445a' },
-  { tier: 9, rank: 'GREY CONTRACT',     label: 'Grey Contract',     color: '#44445a' },
+  { tier: 1, rank: 'HIGH ADMIRAL',  label: 'High Admiral',  color: '#d4af6e' },
+  { tier: 2, rank: 'ADMIRAL',       label: 'Admiral',       color: '#9090a8' },
+  { tier: 3, rank: 'VICE ADMIRAL',  label: 'Vice Admiral',  color: '#9090a8' },
+  { tier: 4, rank: 'COMMODORE',     label: 'Commodore',     color: '#4a90d9' },
+  { tier: 5, rank: 'CAPTAIN',       label: 'Captain',       color: '#4a90d9' },
+  { tier: 6, rank: 'COMMANDER',     label: 'Commander',     color: '#8888a0' },
+  { tier: 7, rank: 'LIEUTENANT',    label: 'Lieutenant',    color: '#8888a0' },
+  { tier: 8, rank: 'ENSIGN',        label: 'Ensign',        color: '#44445a' },
+  { tier: 9, rank: 'RECRUIT',       label: 'Recruit',       color: '#44445a' },
 ]
 
 export const RANK_BADGES = {

@@ -238,7 +238,7 @@ export default function Referrals() {
                 {referrals.length === 0 ? (
                   <div className="empty-state" style={{ padding: '40px 0' }}>
                     <div style={{ fontSize: 15, marginBottom: 8 }}>No referrals yet</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-3)' }}>Share your code with potential recruits. When they join using your code and get promoted past Grey Contract, they count as confirmed.</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-3)' }}>Share your code with potential recruits. When they join using your code and get promoted past Recruit, they count as confirmed.</div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

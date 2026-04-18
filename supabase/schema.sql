@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   handle TEXT UNIQUE NOT NULL,
-  rank TEXT NOT NULL DEFAULT 'GREY CONTRACT',
+  rank TEXT NOT NULL DEFAULT 'RECRUIT',
   tier INTEGER NOT NULL DEFAULT 9,
   division TEXT,
   speciality TEXT,
@@ -224,11 +224,11 @@ CREATE TRIGGER recruitment_updated_at BEFORE UPDATE ON public.recruitment
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- ============================================================
--- AFTER FIRST SIGNUP: run this to make yourself Architect
--- Replace the email with your actual signup email
+-- AFTER FIRST SIGNUP: run this to make yourself High Admiral
+-- Replace the handle with your actual signup handle
 -- ============================================================
 -- UPDATE public.profiles
--- SET rank = 'ARCHITECT', tier = 1, is_founder = true
+-- SET rank = 'HIGH ADMIRAL', tier = 1, is_founder = true
 -- WHERE handle = 'SearthNox';
 
 -- ============================================================

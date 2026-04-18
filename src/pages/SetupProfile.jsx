@@ -85,7 +85,7 @@ export default function SetupProfile() {
         </form>
 
         <p style={{ marginTop: 14, fontSize: 12, color: 'var(--text-3)', textAlign: 'center' }}>
-          You will be assigned GREY CONTRACT status. An Architect or senior member will review your access.
+          You will be assigned RECRUIT status. An Admiral or senior officer will review your access.
         </p>
       </div>
     </div>

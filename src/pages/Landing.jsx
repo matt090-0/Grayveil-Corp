@@ -59,7 +59,7 @@ const FAQ = [
   },
   {
     q: 'Do I have to use voice comms?',
-    a: 'Discord voice is standard for live operations. Initiates can listen-only while they get comfortable, but combat and logistics ops expect voice presence. No mic shaming — we all started somewhere.',
+    a: 'Discord voice is standard for live operations. Ensigns can listen-only while they get comfortable, but combat and logistics ops expect voice presence. No mic shaming — we all started somewhere.',
   },
   {
     q: 'How does the org economy work?',
@@ -217,7 +217,7 @@ function TierLadder() {
         textAlign: 'center', marginTop: 18,
         fontSize: 12, color: '#6a7280', fontStyle: 'italic',
       }}>
-        Every new operative enters at Grey Contract. Rank is earned, never granted.
+        Every new operative enters at Recruit. Rank is earned, never granted.
       </div>
     </div>
   )

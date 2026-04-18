@@ -86,15 +86,15 @@ This project has been through a full security audit. All critical vulnerabilitie
 
 | Tier | Rank | Access |
 |------|------|--------|
-| 1 | **Architect** | Full access. Admin console. Founder-only features. |
-| 2 | **Shadow Director** | Near-full access. Manage all divisions and finances. |
-| 3 | **Executive Veil** | Division leadership. Contracts, fleet, recruitment, medals. |
-| 4 | **Blackline Operator** | Senior operative. Post contracts, manage fleet, lead ops. |
-| 5 | **Strategos** | Experienced member. File intel, lead operations. |
-| 6 | **Veil Agent** | Full member. Recruitment, intel, diplomacy access. |
-| 7 | **Corporate Associate** | Standard access. Contracts, fleet, bank, loadouts. |
-| 8 | **Initiate** | Probationary. Limited while being evaluated. |
-| 9 | **Grey Contract** | New join. Basic access only. |
+| 1 | **High Admiral** | Full access. Admin console. Founder-only features. |
+| 2 | **Admiral** | Near-full access. Manage all divisions and finances. |
+| 3 | **Vice Admiral** | Division leadership. Contracts, fleet, recruitment, medals. |
+| 4 | **Commodore** | Senior operative. Post contracts, manage fleet, lead ops. |
+| 5 | **Captain** | Experienced member. File intel, lead operations. |
+| 6 | **Commander** | Full member. Recruitment, intel, diplomacy access. |
+| 7 | **Lieutenant** | Standard access. Contracts, fleet, bank, loadouts. |
+| 8 | **Ensign** | Probationary. Limited while being evaluated. |
+| 9 | **Recruit** | New join. Basic access only. |
 
 ---
 

@@ -43,19 +43,19 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] })
 const ORG_NAME = 'Grayveil Corporation'
 
 const ROLES = [
-  { name: 'Architect',           color: '#c8a55a', hoist: true, position: 9 },
-  { name: 'Shadow Director',     color: '#9060c8', hoist: true, position: 8 },
-  { name: 'Executive Veil',      color: '#4a7ad9', hoist: true, position: 7 },
-  { name: 'Blackline Operator',  color: '#4a90d9', hoist: true, position: 6 },
-  { name: 'Strategos',           color: '#5ab870', hoist: false, position: 5 },
-  { name: 'Veil Agent',          color: '#40b0a0', hoist: false, position: 4 },
-  { name: 'Corporate Associate', color: '#8888a0', hoist: false, position: 3 },
-  { name: 'Initiate',            color: '#666680', hoist: false, position: 2 },
-  { name: 'Grey Contract',       color: '#555566', hoist: false, position: 1 },
+  { name: 'High Admiral',  color: '#d4af6e', hoist: true,  position: 9 },
+  { name: 'Admiral',       color: '#9090a8', hoist: true,  position: 8 },
+  { name: 'Vice Admiral',  color: '#9090a8', hoist: true,  position: 7 },
+  { name: 'Commodore',     color: '#4a90d9', hoist: true,  position: 6 },
+  { name: 'Captain',       color: '#4a90d9', hoist: false, position: 5 },
+  { name: 'Commander',     color: '#8888a0', hoist: false, position: 4 },
+  { name: 'Lieutenant',    color: '#8888a0', hoist: false, position: 3 },
+  { name: 'Ensign',        color: '#44445a', hoist: false, position: 2 },
+  { name: 'Recruit',       color: '#44445a', hoist: false, position: 1 },
 ]
 
 // Officer roles (tier 1-4) for permission checks
-const OFFICER_ROLES = ['Architect', 'Shadow Director', 'Executive Veil', 'Blackline Operator']
+const OFFICER_ROLES = ['High Admiral', 'Admiral', 'Vice Admiral', 'Commodore']
 
 const CATEGORIES = [
   {
