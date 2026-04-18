@@ -1,50 +1,107 @@
 // Grayveil PWA Service Worker
-const CACHE_NAME = 'grayveil-v1'
+// Strategy:
+//   - Navigations: network-first with offline.html fallback
+//   - Hashed build assets (/assets/*): cache-first (immutable)
+//   - Brand/static assets: stale-while-revalidate
+//   - Supabase / API: pass-through (always network)
+// Updates: new SW installs but waits — client sends SKIP_WAITING when user accepts.
+
+const VERSION = 'v3'
+const RUNTIME_CACHE = `grayveil-runtime-${VERSION}`
+const STATIC_CACHE  = `grayveil-static-${VERSION}`
 const CORE_ASSETS = [
   '/',
+  '/offline.html',
+  '/favicon.svg',
+  '/manifest.json',
   '/brand/icon.png',
   '/brand/background.png',
-  '/favicon.svg',
+  '/brand/logo.png',
 ]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_ASSETS))
+    caches.open(STATIC_CACHE).then(cache => cache.addAll(CORE_ASSETS).catch(() => {}))
   )
-  self.skipWaiting()
+  // Don't auto-skip — let the page prompt the user, then post SKIP_WAITING.
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+      Promise.all(
+        keys
+          .filter(k => k !== STATIC_CACHE && k !== RUNTIME_CACHE)
+          .map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
   )
-  self.clients.claim()
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('fetch', (event) => {
   const { request } = event
+  if (request.method !== 'GET') return
 
-  // Network-first for API/Supabase calls
-  if (request.url.includes('supabase.co') || request.url.includes('/api/')) {
-    return // let network handle it
+  const url = new URL(request.url)
+
+  // Cross-origin: only touch Google Fonts CSS, pass everything else (Supabase, gstatic, etc.)
+  if (url.origin !== self.location.origin) {
+    if (url.host === 'fonts.googleapis.com') {
+      event.respondWith(staleWhileRevalidate(request))
+    }
+    return
   }
 
-  // Cache-first for static assets
-  if (request.method === 'GET' && (
-    request.url.includes('/brand/') ||
-    request.url.includes('/favicon') ||
-    request.url.match(/\.(js|css|woff2?|png|jpg|svg)$/)
-  )) {
+  // Navigation requests — network first, fallback to cached / offline page
+  if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match(request).then(cached =>
-        cached || fetch(request).then(res => {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
-          return res
-        }).catch(() => cached)
+      fetch(request).catch(() =>
+        caches.match(request).then(r => r || caches.match('/offline.html'))
       )
     )
+    return
+  }
+
+  // Hashed build assets — cache-first, immutable
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(cacheFirst(request, RUNTIME_CACHE))
+    return
+  }
+
+  // Brand / favicon / manifest — stale-while-revalidate
+  if (
+    url.pathname.startsWith('/brand/') ||
+    url.pathname === '/favicon.svg' ||
+    url.pathname === '/manifest.json'
+  ) {
+    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE))
+    return
   }
 })
+
+async function cacheFirst(request, cacheName = RUNTIME_CACHE) {
+  const cache = await caches.open(cacheName)
+  const cached = await cache.match(request)
+  if (cached) return cached
+  try {
+    const res = await fetch(request)
+    if (res && res.status === 200) cache.put(request, res.clone())
+    return res
+  } catch {
+    return cached || Response.error()
+  }
+}
+
+async function staleWhileRevalidate(request, cacheName = RUNTIME_CACHE) {
+  const cache = await caches.open(cacheName)
+  const cached = await cache.match(request)
+  const networkPromise = fetch(request).then(res => {
+    if (res && res.status === 200) cache.put(request, res.clone())
+    return res
+  }).catch(() => null)
+  return cached || networkPromise || Response.error()
+}
