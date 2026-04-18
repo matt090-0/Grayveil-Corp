@@ -35,7 +35,7 @@ function Stat({ label, value, color }) {
 export default function Admin() {
   const { profile: me } = useAuth()
   const [tab, setTab] = useState('overview')
-  const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [], blacklist: [] })
+  const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [], blacklist: [], pending: [] })
   const [treasury, setTreasury] = useState(0)
   const [taxRate, setTaxRate] = useState(10)
   const [loading, setLoading] = useState(true)
@@ -64,6 +64,7 @@ export default function Admin() {
       { data: recruitment }, { data: polls }, { data: announcements }, { data: log },
       { data: txns }, { data: loans }, { data: funds }, { data: budgets },
       { data: blacklist },
+      { data: pending },
       { data: tres }, { data: settings },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('tier').order('handle'),
@@ -79,10 +80,11 @@ export default function Admin() {
       supabase.from('ship_funds').select('*').order('created_at', { ascending: false }),
       supabase.from('division_budgets').select('*').order('division'),
       supabase.from('blacklist').select('id, target_handle, status, created_at').order('created_at', { ascending: false }),
+      supabase.from('pending_admin_actions').select('*, initiator:profiles!pending_admin_actions_initiated_by_fkey(handle), approver:profiles!pending_admin_actions_approved_by_fkey(handle)').order('initiated_at', { ascending: false }).limit(50),
       supabase.from('treasury').select('balance').eq('id', 1).single(),
       supabase.from('org_settings').select('value').eq('key', 'tax_rate').maybeSingle(),
     ])
-    setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[], blacklist: blacklist||[] })
+    setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[], blacklist: blacklist||[], pending: pending||[] })
     setTreasury(tres?.balance || 0)
     if (settings?.value?.percent !== undefined) setTaxRate(settings.value.percent)
     // Load Discord webhooks
@@ -291,27 +293,46 @@ export default function Admin() {
     await supabase.from('announcements').delete().eq('id', id); flash('Deleted.'); load()
   }
 
-  // ── DANGER ZONE ──
+  // ── DANGER ZONE — DUAL APPROVE ──
+  // Step 1: any founder REQUESTS the destructive action with a reason.
+  // Step 2: a different founder (or the initiator after a 5-minute cool-off) APPROVES.
+  // The actual delete/update runs server-side inside approve_admin_action().
   async function dangerAction(type) {
-    const confirms = { purge_log: 'PURGE all activity logs?', purge_txns: 'PURGE all transactions?', purge_contracts: 'PURGE all contracts?', purge_intel: 'PURGE all intelligence?', purge_fleet: 'PURGE all fleet data?', purge_polls: 'PURGE all polls?', purge_ledger: 'PURGE all ledger entries?', purge_loans: 'PURGE all loans?', purge_funds: 'PURGE all ship funds?', reset_wallets: 'RESET all wallets to 0?', reset_treasury: 'RESET treasury to 0?' }
-    if (!confirm(confirms[type] || 'Are you sure?')) return
-    if (!confirm('THIS IS IRREVERSIBLE. Type the action to confirm.')) return
-    const actions = {
-      purge_log: () => supabase.from('activity_log').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      purge_txns: () => supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      purge_contracts: async () => { await supabase.from('contract_comments').delete().neq('id', '00000000-0000-0000-0000-000000000000'); await supabase.from('contract_claims').delete().neq('id', '00000000-0000-0000-0000-000000000000'); await supabase.from('contracts').delete().neq('id', '00000000-0000-0000-0000-000000000000') },
-      purge_intel: () => supabase.from('intelligence').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      purge_fleet: async () => { await supabase.from('fleet_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000'); await supabase.from('fleet').delete().neq('id', '00000000-0000-0000-0000-000000000000') },
-      purge_polls: async () => { await supabase.from('poll_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'); await supabase.from('polls').delete().neq('id', '00000000-0000-0000-0000-000000000000') },
-      purge_ledger: () => supabase.from('ledger').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      purge_loans: () => supabase.from('loans').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      purge_funds: async () => { await supabase.from('ship_fund_contributions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); await supabase.from('ship_funds').delete().neq('id', '00000000-0000-0000-0000-000000000000') },
-      reset_wallets: () => supabase.from('profiles').update({ wallet_balance: 0 }).neq('id', '00000000-0000-0000-0000-000000000000'),
-      reset_treasury: () => supabase.from('treasury').update({ balance: 0 }).eq('id', 1),
+    const labels = {
+      purge_log: 'PURGE activity log', purge_txns: 'PURGE transactions',
+      purge_contracts: 'PURGE all contracts', purge_intel: 'PURGE intelligence',
+      purge_fleet: 'PURGE fleet data', purge_polls: 'PURGE all polls',
+      purge_ledger: 'PURGE ledger', purge_loans: 'PURGE loans',
+      purge_funds: 'PURGE ship funds', reset_wallets: 'RESET all wallets to 0',
+      reset_treasury: 'RESET treasury to 0',
     }
-    await actions[type]?.()
-    await logAction('danger_' + type, null, {})
-    flash('Done.'); load()
+    const label = labels[type] || type
+    const reason = prompt(`Reason to request "${label}"?\n\nThis creates a pending request. Another founder must approve it (or you may self-approve after a 5-minute cool-off).`)
+    if (!reason || reason.trim().length < 3) { if (reason !== null) flash('Reason must be at least 3 characters.'); return }
+    const { error } = await supabase.rpc('request_admin_action', { p_action_type: type, p_reason: reason.trim() })
+    if (error) { flash(`Request failed: ${error.message}`); return }
+    flash(`Request submitted: ${label}. Awaiting approval.`)
+    load()
+  }
+
+  async function approvePendingAction(row) {
+    const isSelf = row.initiated_by === me.id
+    const ack = isSelf
+      ? `Self-approve "${row.action_type}"?\n\nReason: ${row.reason}\n\nThis will execute the destructive action immediately.`
+      : `Approve "${row.action_type}" requested by ${row.initiator?.handle || 'another founder'}?\n\nReason: ${row.reason}\n\nThis will execute the destructive action immediately.`
+    if (!confirm(ack)) return
+    const { data, error } = await supabase.rpc('approve_admin_action', { p_id: row.id })
+    if (error) { flash(`Approve failed: ${error.message}`); return }
+    flash(data || 'Action executed.')
+    load()
+  }
+
+  async function cancelPendingAction(row) {
+    if (!confirm(`Cancel pending request "${row.action_type}"?`)) return
+    const { error } = await supabase.rpc('cancel_admin_action', { p_id: row.id })
+    if (error) { flash(`Cancel failed: ${error.message}`); return }
+    flash('Request cancelled.')
+    load()
   }
 
   // Stats
@@ -738,26 +759,94 @@ export default function Admin() {
 
         {/* ── DANGER ZONE ── */}
         {tab === 'danger' && (
-          <Section title="☠ DANGER ZONE — IRREVERSIBLE ACTIONS">
-            <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 20 }}>Every action below permanently deletes data. Double confirmation required.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 10 }}>
-              {[
-                { key: 'purge_log', label: 'PURGE ACTIVITY LOG' },
-                { key: 'purge_txns', label: 'PURGE TRANSACTIONS' },
-                { key: 'purge_contracts', label: 'PURGE ALL CONTRACTS' },
-                { key: 'purge_intel', label: 'PURGE INTELLIGENCE' },
-                { key: 'purge_fleet', label: 'PURGE FLEET DATA' },
-                { key: 'purge_polls', label: 'PURGE ALL POLLS' },
-                { key: 'purge_ledger', label: 'PURGE LEDGER' },
-                { key: 'purge_loans', label: 'PURGE ALL LOANS' },
-                { key: 'purge_funds', label: 'PURGE SHIP FUNDS' },
-                { key: 'reset_wallets', label: 'RESET ALL WALLETS → 0' },
-                { key: 'reset_treasury', label: 'RESET TREASURY → 0' },
-              ].map(a => (
-                <button key={a.key} className="btn btn-danger" style={{ justifyContent: 'center' }} onClick={() => dangerAction(a.key)}>{a.label}</button>
-              ))}
-            </div>
-          </Section>
+          <>
+            <Section title="☠ DANGER ZONE — DUAL-APPROVE REQUIRED">
+              <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>
+                Each action below is destructive and irreversible. Clicking a button creates a <b>pending request</b>; another founder must approve it before it runs.
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 20 }}>
+                Single-founder fallback: the initiator may self-approve after a 5-minute cool-off. Requests expire automatically after 24 hours.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 10 }}>
+                {[
+                  { key: 'purge_log', label: 'PURGE ACTIVITY LOG' },
+                  { key: 'purge_txns', label: 'PURGE TRANSACTIONS' },
+                  { key: 'purge_contracts', label: 'PURGE ALL CONTRACTS' },
+                  { key: 'purge_intel', label: 'PURGE INTELLIGENCE' },
+                  { key: 'purge_fleet', label: 'PURGE FLEET DATA' },
+                  { key: 'purge_polls', label: 'PURGE ALL POLLS' },
+                  { key: 'purge_ledger', label: 'PURGE LEDGER' },
+                  { key: 'purge_loans', label: 'PURGE ALL LOANS' },
+                  { key: 'purge_funds', label: 'PURGE SHIP FUNDS' },
+                  { key: 'reset_wallets', label: 'RESET ALL WALLETS → 0' },
+                  { key: 'reset_treasury', label: 'RESET TREASURY → 0' },
+                ].map(a => (
+                  <button key={a.key} className="btn btn-danger" style={{ justifyContent: 'center' }} onClick={() => dangerAction(a.key)}>{a.label}</button>
+                ))}
+              </div>
+            </Section>
+
+            <Section title={`PENDING ADMIN ACTIONS — ${d.pending.filter(p => p.status === 'PENDING').length}`}>
+              {d.pending.filter(p => p.status === 'PENDING').length === 0 ? (
+                <div className="empty-state">No pending requests.</div>
+              ) : (
+                <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                  <thead><tr><th>ACTION</th><th>REASON</th><th>INITIATOR</th><th>REQUESTED</th><th>SELF-APPROVE OK</th><th>EXPIRES</th><th>ACTIONS</th></tr></thead>
+                  <tbody>
+                    {d.pending.filter(p => p.status === 'PENDING').map(p => {
+                      const initiated = new Date(p.initiated_at).getTime()
+                      const cooldownReadyAt = initiated + 5 * 60 * 1000
+                      const isSelf = p.initiated_by === me.id
+                      const selfReady = !isSelf || Date.now() >= cooldownReadyAt
+                      return (
+                        <tr key={p.id}>
+                          <td className="mono" style={{ fontSize: 11, color: 'var(--red)' }}>{p.action_type}</td>
+                          <td style={{ fontSize: 12, maxWidth: 280 }}>{p.reason || '—'}</td>
+                          <td>{p.initiator?.handle || '—'}{isSelf && <span className="badge badge-accent" style={{ fontSize: 8, marginLeft: 6 }}>YOU</span>}</td>
+                          <td className="mono text-muted" style={{ fontSize: 11 }}>{fmt(p.initiated_at)}</td>
+                          <td className="mono" style={{ fontSize: 11, color: selfReady ? 'var(--green)' : 'var(--amber)' }}>
+                            {!isSelf ? '—' : selfReady ? 'READY' : `at ${new Date(cooldownReadyAt).toLocaleTimeString()}`}
+                          </td>
+                          <td className="mono text-muted" style={{ fontSize: 11 }}>{fmt(p.expires_at)}</td>
+                          <td>
+                            <div className="flex gap-8">
+                              <button className="btn btn-danger btn-sm" disabled={isSelf && !selfReady} onClick={() => approvePendingAction(p)}>APPROVE</button>
+                              {isSelf && <button className="btn btn-ghost btn-sm" onClick={() => cancelPendingAction(p)}>CANCEL</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table></div></div>
+              )}
+            </Section>
+
+            <Section title="RECENT ADMIN ACTION HISTORY">
+              {d.pending.filter(p => p.status !== 'PENDING').length === 0 ? (
+                <div className="empty-state">No history yet.</div>
+              ) : (
+                <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                  <thead><tr><th>ACTION</th><th>STATUS</th><th>INITIATOR</th><th>APPROVER</th><th>REASON</th><th>RESULT</th><th>WHEN</th></tr></thead>
+                  <tbody>
+                    {d.pending.filter(p => p.status !== 'PENDING').slice(0, 20).map(p => (
+                      <tr key={p.id}>
+                        <td className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{p.action_type}</td>
+                        <td>
+                          <span className={`badge ${p.status === 'EXECUTED' ? 'badge-green' : p.status === 'CANCELLED' ? 'badge-muted' : 'badge-amber'}`}>{p.status}</span>
+                        </td>
+                        <td>{p.initiator?.handle || '—'}</td>
+                        <td>{p.approver?.handle || '—'}</td>
+                        <td style={{ fontSize: 12, maxWidth: 220 }}>{p.reason || '—'}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text-2)' }}>{p.result_message || '—'}</td>
+                        <td className="mono text-muted" style={{ fontSize: 11 }}>{fmt(p.approved_at || p.initiated_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div></div>
+              )}
+            </Section>
+          </>
         )}
       </div>
 

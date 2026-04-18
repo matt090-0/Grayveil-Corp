@@ -512,3 +512,169 @@ CREATE POLICY "settings_update" ON public.org_settings FOR UPDATE TO authenticat
 DROP POLICY IF EXISTS "settings_delete" ON public.org_settings;
 CREATE POLICY "settings_delete" ON public.org_settings FOR DELETE TO authenticated
   USING (get_my_tier() <= 1);
+
+-- ============================================================
+-- DUAL-APPROVE FOR DESTRUCTIVE ADMIN ACTIONS
+-- Purges and resets from the Admin Danger Zone now go through
+-- request/approve. A distinct founder can approve at any time; the
+-- initiator may self-approve after a 5-minute cool-off (single-founder
+-- fallback). Requests expire after 24 hours.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.pending_admin_actions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  action_type TEXT NOT NULL,
+  reason TEXT,
+  initiated_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  initiated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+  approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  result_message TEXT
+);
+ALTER TABLE public.pending_admin_actions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "paa_select" ON public.pending_admin_actions;
+CREATE POLICY "paa_select" ON public.pending_admin_actions FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true));
+-- No insert/update/delete policies on purpose — all mutations go through the RPCs below.
+
+CREATE OR REPLACE FUNCTION public.request_admin_action(p_action_type TEXT, p_reason TEXT)
+RETURNS UUID AS $$
+DECLARE
+  v_id UUID;
+  v_allowed TEXT[] := ARRAY[
+    'purge_log','purge_txns','purge_contracts','purge_intel','purge_fleet',
+    'purge_polls','purge_ledger','purge_loans','purge_funds',
+    'reset_wallets','reset_treasury'
+  ];
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
+    RAISE EXCEPTION 'Only founders may initiate admin actions.';
+  END IF;
+  IF NOT public.is_active_member() THEN
+    RAISE EXCEPTION 'Suspended or banned founders cannot initiate admin actions.';
+  END IF;
+  IF NOT p_action_type = ANY(v_allowed) THEN
+    RAISE EXCEPTION 'Unknown action type: %', p_action_type;
+  END IF;
+  IF p_reason IS NULL OR length(trim(p_reason)) < 3 THEN
+    RAISE EXCEPTION 'A reason of at least 3 characters is required.';
+  END IF;
+  INSERT INTO public.pending_admin_actions (action_type, reason, initiated_by)
+  VALUES (p_action_type, trim(p_reason), auth.uid())
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.request_admin_action(TEXT, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.approve_admin_action(p_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  v_row public.pending_admin_actions%ROWTYPE;
+  v_self_cooldown CONSTANT INTERVAL := INTERVAL '5 minutes';
+  v_result TEXT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
+    RAISE EXCEPTION 'Only founders may approve admin actions.';
+  END IF;
+  IF NOT public.is_active_member() THEN
+    RAISE EXCEPTION 'Suspended or banned founders cannot approve admin actions.';
+  END IF;
+
+  SELECT * INTO v_row FROM public.pending_admin_actions WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No such pending action.'; END IF;
+  IF v_row.status <> 'PENDING' THEN
+    RAISE EXCEPTION 'Action is not pending (status: %).', v_row.status;
+  END IF;
+  IF v_row.expires_at <= NOW() THEN
+    UPDATE public.pending_admin_actions SET status = 'EXPIRED' WHERE id = p_id;
+    RAISE EXCEPTION 'Action expired at %.', v_row.expires_at;
+  END IF;
+
+  IF v_row.initiated_by = auth.uid()
+     AND NOW() < (v_row.initiated_at + v_self_cooldown) THEN
+    RAISE EXCEPTION 'Self-approval requires a 5-minute cool-off; try again after %.',
+      to_char(v_row.initiated_at + v_self_cooldown, 'HH24:MI:SS');
+  END IF;
+
+  CASE v_row.action_type
+    WHEN 'purge_log' THEN
+      DELETE FROM public.activity_log;
+      v_result := 'Activity log purged.';
+    WHEN 'purge_txns' THEN
+      DELETE FROM public.transactions;
+      v_result := 'Transactions purged.';
+    WHEN 'purge_contracts' THEN
+      DELETE FROM public.contract_comments;
+      DELETE FROM public.contract_claims;
+      DELETE FROM public.contracts;
+      v_result := 'Contracts (with comments & claims) purged.';
+    WHEN 'purge_intel' THEN
+      DELETE FROM public.intelligence;
+      v_result := 'Intelligence purged.';
+    WHEN 'purge_fleet' THEN
+      DELETE FROM public.fleet_requests;
+      DELETE FROM public.fleet;
+      v_result := 'Fleet (with requests) purged.';
+    WHEN 'purge_polls' THEN
+      DELETE FROM public.poll_votes;
+      DELETE FROM public.polls;
+      v_result := 'Polls (with votes) purged.';
+    WHEN 'purge_ledger' THEN
+      DELETE FROM public.ledger;
+      v_result := 'Ledger purged.';
+    WHEN 'purge_loans' THEN
+      DELETE FROM public.loans;
+      v_result := 'Loans purged.';
+    WHEN 'purge_funds' THEN
+      DELETE FROM public.ship_fund_contributions;
+      DELETE FROM public.ship_funds;
+      v_result := 'Ship funds (with contributions) purged.';
+    WHEN 'reset_wallets' THEN
+      UPDATE public.profiles SET wallet_balance = 0;
+      v_result := 'All wallets reset to 0.';
+    WHEN 'reset_treasury' THEN
+      UPDATE public.treasury SET balance = 0 WHERE id = 1;
+      v_result := 'Treasury reset to 0.';
+    ELSE
+      RAISE EXCEPTION 'Unknown action type: %', v_row.action_type;
+  END CASE;
+
+  UPDATE public.pending_admin_actions
+     SET status = 'EXECUTED',
+         approved_by = auth.uid(),
+         approved_at = NOW(),
+         result_message = v_result
+   WHERE id = p_id;
+
+  INSERT INTO public.activity_log (action, actor_id, target_type, target_id, details)
+  VALUES (
+    'danger_' || v_row.action_type,
+    auth.uid(),
+    'pending_admin_action',
+    p_id,
+    jsonb_build_object('initiator', v_row.initiated_by, 'reason', v_row.reason, 'result', v_result)
+  );
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.approve_admin_action(UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.cancel_admin_action(p_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.pending_admin_actions
+     SET status = 'CANCELLED'
+   WHERE id = p_id
+     AND status = 'PENDING'
+     AND initiated_by = auth.uid();
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No cancellable pending action found for you.';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.cancel_admin_action(UUID) TO authenticated;
