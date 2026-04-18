@@ -294,6 +294,11 @@ CREATE TABLE IF NOT EXISTS public.applications (
 );
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS playstyles TEXT[];
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS hours_per_week TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS voice_comms TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS source TEXT;
+
 -- ORG SETTINGS
 CREATE TABLE IF NOT EXISTS public.org_settings (
   key TEXT PRIMARY KEY,
