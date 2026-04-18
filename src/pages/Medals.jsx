@@ -152,10 +152,19 @@ export default function Medals() {
                       <div key={mm.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14 }}>
                         <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={48} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, marginBottom: 2 }}>
+                          <div style={{ fontSize: 14, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <strong>{mm.member?.handle}</strong>
-                            <span style={{ color: 'var(--text-2)' }}> received </span>
+                            <span style={{ color: 'var(--text-2)' }}>received</span>
                             <strong style={{ color: RARITY_BADGE[mm.medal?.rarity] === 'badge-accent' ? 'var(--accent)' : 'var(--text-1)' }}>{mm.medal?.name}</strong>
+                            {!mm.awarded_by && (
+                              <span style={{
+                                fontSize: 9, letterSpacing: '.2em',
+                                fontFamily: 'var(--font-mono)',
+                                color: 'var(--accent)',
+                                border: '1px solid var(--accent-dim)',
+                                borderRadius: 4, padding: '1px 6px',
+                              }}>AUTO</span>
+                            )}
                           </div>
                           {mm.reason && <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 2 }}>{mm.reason}</div>}
                         </div>
