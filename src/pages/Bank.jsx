@@ -6,7 +6,6 @@ import { SC_SHIPS } from '../lib/ships'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import GrayveilLogo from '../components/GrayveilLogo'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { greenBurst } from '../lib/confetti'
 import { useToast } from '../components/Toast'
 import { timeAgo, fmtDate as fmt } from '../lib/dates'
@@ -28,94 +27,219 @@ function cardGradient(tier) {
   return 'linear-gradient(135deg, #121318 0%, #1a1c24 50%, #0a0b0f 100%)'
 }
 
-function BankCard({ member, highlight }) {
+function cvv(id) {
+  const hex = (id || '').replace(/-/g, '').slice(-3).padEnd(3, '0')
+  let out = ''
+  for (let i = 0; i < 3; i++) out += (parseInt(hex[i], 16) % 10).toString()
+  return out
+}
+
+function issuedYear(createdAt) {
+  if (!createdAt) return new Date().getFullYear()
+  return new Date(createdAt).getFullYear()
+}
+
+function expiryLabel(createdAt) {
+  const base = createdAt ? new Date(createdAt) : new Date()
+  const yy = (base.getFullYear() + 5).toString().slice(-2)
+  const mm = String(base.getMonth() + 1).padStart(2, '0')
+  return `${mm}/${yy}`
+}
+
+function BankCard({ member, size = 'md', flippable = false }) {
+  const [flipped, setFlipped] = useState(false)
   const rank = getRankByTier(member.tier || 9)
   const accent = rank.color
   const bg = cardGradient(member.tier || 9)
+  const maxWidth = size === 'lg' ? 440 : size === 'sm' ? 300 : 360
+
+  const num = cardNumber(member.id)
+  const code = cvv(member.id)
+  const exp = expiryLabel(member.created_at)
+
   return (
-    <div style={{
-      position: 'relative',
-      width: '100%', aspectRatio: '1.586 / 1', maxWidth: 360,
-      background: bg,
-      border: `1px solid ${highlight ? accent : 'rgba(212,216,224,0.18)'}`,
-      borderRadius: 12,
-      padding: 18,
-      color: '#ededf2',
-      boxShadow: highlight
-        ? `0 6px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px ${accent}40`
-        : '0 6px 22px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-      overflow: 'hidden',
-      fontFamily: 'JetBrains Mono, monospace',
-    }}>
-      {/* Decorative accent bar */}
+    <div
+      onClick={() => flippable && setFlipped(f => !f)}
+      style={{
+        position: 'relative',
+        width: '100%', aspectRatio: '1.586 / 1', maxWidth,
+        perspective: 1400,
+        cursor: flippable ? 'pointer' : 'default',
+      }}
+    >
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
-        opacity: 0.55,
-      }} />
-      {/* Holographic stripe */}
-      <div style={{
-        position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%',
-        background: `radial-gradient(circle, ${accent}22 0%, transparent 65%)`,
-        pointerEvents: 'none',
-      }} />
-
-      {/* Top row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <GrayveilLogo size={22} />
-          <div style={{
-            fontSize: 10, letterSpacing: '.25em', color: '#d4d8e0',
-            fontFamily: 'Syne, sans-serif', fontWeight: 700,
-          }}>GRAYVEIL RESERVE</div>
-        </div>
+        position: 'relative', width: '100%', height: '100%',
+        transformStyle: 'preserve-3d',
+        transition: 'transform .6s cubic-bezier(.22,.9,.3,1)',
+        transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+      }}>
+        {/* ── FRONT ── */}
         <div style={{
-          fontSize: 9, letterSpacing: '.2em', color: accent,
-          border: `1px solid ${accent}55`, padding: '2px 7px', borderRadius: 3,
-          background: `${accent}14`,
-        }}>T-{rank.tier}</div>
-      </div>
-
-      {/* EMV chip */}
-      <div style={{
-        marginTop: 18, width: 40, height: 30, borderRadius: 5,
-        background: 'linear-gradient(135deg, #d4c078 0%, #a8925a 40%, #cdb571 70%, #8a7448 100%)',
-        position: 'relative', boxShadow: 'inset 0 0 2px rgba(0,0,0,0.4)',
-      }}>
-        <div style={{ position: 'absolute', inset: 4, border: '1px solid rgba(0,0,0,0.25)', borderRadius: 3 }} />
-        <div style={{ position: 'absolute', left: 4, right: 4, top: '50%', height: 1, background: 'rgba(0,0,0,0.3)' }} />
-        <div style={{ position: 'absolute', top: 4, bottom: 4, left: '50%', width: 1, background: 'rgba(0,0,0,0.3)' }} />
-      </div>
-
-      {/* Card number */}
-      <div style={{
-        marginTop: 14, fontSize: 'clamp(13px, 2.4vw, 16px)',
-        letterSpacing: '.18em', color: '#d4d8e0',
-        textShadow: '0 1px 0 rgba(0,0,0,0.45)',
-      }}>{cardNumber(member.id)}</div>
-
-      {/* Bottom row */}
-      <div style={{
-        position: 'absolute', left: 18, right: 18, bottom: 16,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>OPERATIVE</div>
+          position: 'absolute', inset: 0,
+          background: bg,
+          border: `1px solid ${accent}55`,
+          borderRadius: 14,
+          padding: 20,
+          color: '#ededf2',
+          boxShadow: `0 10px 38px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px ${accent}22`,
+          overflow: 'hidden',
+          fontFamily: 'JetBrains Mono, monospace',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}>
+          {/* Shimmer sweep */}
           <div style={{
-            fontSize: 13, letterSpacing: '.08em', color: '#ededf2',
-            fontFamily: 'Syne, sans-serif', fontWeight: 600,
-            textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{member.handle}</div>
-          <div style={{ fontSize: 9, letterSpacing: '.15em', color: accent, marginTop: 2 }}>{rank.rank}</div>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>BALANCE</div>
+            position: 'absolute', top: 0, left: '-40%', width: '40%', height: '100%',
+            background: `linear-gradient(120deg, transparent 0%, ${accent}18 50%, transparent 100%)`,
+            animation: 'gvCardShimmer 6s linear infinite',
+            pointerEvents: 'none',
+          }} />
+          {/* Holo blob */}
           <div style={{
-            fontSize: 15, fontFamily: 'Syne, sans-serif', fontWeight: 700,
-            color: '#d4d8e0', letterSpacing: '.02em',
-          }}>{formatCredits(member.wallet_balance || 0)}</div>
+            position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: '50%',
+            background: `radial-gradient(circle, ${accent}33 0%, transparent 65%)`,
+            pointerEvents: 'none',
+          }} />
+          {/* Accent bar */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+            background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
+            opacity: 0.75,
+          }} />
+
+          {/* Top row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GrayveilLogo size={22} />
+              <div style={{
+                fontSize: 10, letterSpacing: '.25em', color: '#d4d8e0',
+                fontFamily: 'Syne, sans-serif', fontWeight: 700,
+              }}>GRAYVEIL RESERVE</div>
+            </div>
+            <div style={{
+              fontSize: 9, letterSpacing: '.2em', color: accent,
+              border: `1px solid ${accent}55`, padding: '2px 7px', borderRadius: 3,
+              background: `${accent}14`,
+            }}>T-{rank.tier}</div>
+          </div>
+
+          {/* EMV chip + contactless */}
+          <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+            <div style={{
+              width: 42, height: 32, borderRadius: 5,
+              background: 'linear-gradient(135deg, #e0c878 0%, #b8985a 40%, #d4b571 70%, #8a7448 100%)',
+              position: 'relative', boxShadow: 'inset 0 0 2px rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ position: 'absolute', inset: 4, border: '1px solid rgba(0,0,0,0.25)', borderRadius: 3 }} />
+              <div style={{ position: 'absolute', left: 4, right: 4, top: '50%', height: 1, background: 'rgba(0,0,0,0.3)' }} />
+              <div style={{ position: 'absolute', top: 4, bottom: 4, left: '50%', width: 1, background: 'rgba(0,0,0,0.3)' }} />
+            </div>
+            {/* Contactless wave */}
+            <svg width="18" height="20" viewBox="0 0 18 20" style={{ opacity: 0.45 }}>
+              <path d="M4 4 A 10 10 0 0 1 4 16" stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M8 4 A 10 10 0 0 1 8 16" stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M12 4 A 10 10 0 0 1 12 16" stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+            </svg>
+          </div>
+
+          {/* Card number */}
+          <div style={{
+            marginTop: 14, fontSize: size === 'lg' ? 20 : 'clamp(13px, 2.4vw, 16px)',
+            letterSpacing: '.18em', color: '#e4e6ed',
+            textShadow: '0 1px 0 rgba(0,0,0,0.45)', position: 'relative',
+          }}>{num}</div>
+
+          {/* Bottom row */}
+          <div style={{
+            position: 'absolute', left: 20, right: 20, bottom: 18,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>OPERATIVE</div>
+              <div style={{
+                fontSize: size === 'lg' ? 15 : 13, letterSpacing: '.08em', color: '#ededf2',
+                fontFamily: 'Syne, sans-serif', fontWeight: 600,
+                textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{member.handle}</div>
+              <div style={{ fontSize: 9, letterSpacing: '.15em', color: accent, marginTop: 2 }}>{rank.rank}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>VALID THRU</div>
+              <div style={{ fontSize: 12, color: '#d4d8e0', letterSpacing: '.1em' }}>{exp}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── BACK ── */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: bg,
+          border: `1px solid ${accent}55`,
+          borderRadius: 14,
+          color: '#ededf2',
+          boxShadow: `0 10px 38px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)`,
+          overflow: 'hidden',
+          fontFamily: 'JetBrains Mono, monospace',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          transform: 'rotateY(180deg)',
+          padding: 0,
+        }}>
+          {/* Magnetic stripe */}
+          <div style={{
+            marginTop: 24, height: 42,
+            background: 'linear-gradient(180deg, #0a0b0f 0%, #14161c 50%, #0a0b0f 100%)',
+            borderTop: '1px solid rgba(0,0,0,0.5)',
+            borderBottom: '1px solid rgba(255,255,255,0.04)',
+          }} />
+          {/* Signature + CVV */}
+          <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'stretch', gap: 12 }}>
+            <div style={{
+              flex: 1,
+              background: 'repeating-linear-gradient(45deg, #d4d8e0 0 4px, #b8bcc8 4px 8px)',
+              border: '1px solid rgba(0,0,0,0.3)',
+              borderRadius: 3, height: 28, position: 'relative',
+              display: 'flex', alignItems: 'center', paddingLeft: 10,
+            }}>
+              <div style={{
+                fontFamily: 'Syne, sans-serif', fontStyle: 'italic',
+                fontSize: 14, color: '#0a0b0f', letterSpacing: '.05em',
+              }}>{(member.handle || '').slice(0, 18)}</div>
+            </div>
+            <div style={{
+              width: 64, background: '#fff', color: '#0a0b0f',
+              borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 700,
+              letterSpacing: '.1em',
+            }}>{code}</div>
+          </div>
+          {/* Metadata */}
+          <div style={{
+            position: 'absolute', left: 20, right: 20, bottom: 18,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12,
+          }}>
+            <div>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>ISSUED</div>
+              <div style={{ fontSize: 11, color: '#d4d8e0', letterSpacing: '.1em' }}>{issuedYear(member.created_at)}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#6a7280' }}>GRAYVEIL CORPORATION · STANTON</div>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: accent, marginTop: 2 }}>AUTHORIZED USE ONLY</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>BALANCE</div>
+              <div style={{ fontSize: 13, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: '#d4d8e0' }}>{formatCredits(member.wallet_balance || 0)}</div>
+            </div>
+          </div>
         </div>
       </div>
+      {flippable && (
+        <div style={{
+          position: 'absolute', bottom: -22, left: 0, right: 0, textAlign: 'center',
+          fontSize: 9, letterSpacing: '.3em', color: 'var(--text-3)',
+          fontFamily: 'JetBrains Mono, monospace', pointerEvents: 'none',
+        }}>{flipped ? '◂ TAP TO FLIP BACK ▸' : '◂ TAP CARD TO FLIP ▸'}</div>
+      )}
     </div>
   )
 }
@@ -183,13 +307,33 @@ export default function Bank() {
   async function doTransfer() {
     const amt = parseInt(form.amount)
     if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
-    if (!form.recipient) { setError('Select a recipient.'); return }
+    if (!form.recipient) { setError('Look up a recipient by handle first.'); return }
     setSaving(true)
     const { error } = await supabase.rpc('transfer_funds', { p_recipient_id: form.recipient, p_amount: amt, p_description: form.desc || null })
     if (error) { setError(error.message); setSaving(false); return }
     greenBurst(); toast('Transfer complete', 'success')
     await refreshProfile()
-    setModal(null); setSaving(false); load()
+    setForm({}); setSaving(false); load()
+  }
+
+  // ── REQUEST PAYMENT ──
+  async function requestPayment() {
+    const amt = parseInt(form.amount)
+    if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
+    if (!form.recipient) { setError('Look up a recipient by handle first.'); return }
+    setSaving(true)
+    const recip = members.find(m => m.id === form.recipient)
+    const msg = `${me.handle} is requesting ${formatCredits(amt)}${form.desc ? ' — ' + form.desc : ''}.`
+    const { error } = await supabase.from('notifications').insert({
+      recipient_id: form.recipient,
+      type: 'payment_request',
+      title: `Payment request from ${me.handle}`,
+      message: msg,
+      link: '/bank',
+    })
+    if (error) { setError(error.message); setSaving(false); return }
+    toast(`Request sent to ${recip?.handle || 'operative'}`, 'success')
+    setForm({}); setSaving(false)
   }
 
   // ── TREASURY OPS (officers) ──
@@ -281,15 +425,36 @@ export default function Bank() {
   }
 
   const myLoans = loans.filter(l => l.borrower_id === me.id)
-  const topEarners = [...members].sort((a, b) => (b.wallet_balance || 0) - (a.wallet_balance || 0)).slice(0, 8)
-  const totalOrgWealth = members.reduce((s, m) => s + (m.wallet_balance || 0), 0) + treasury
+  const myTxns = useMemo(
+    () => txns.filter(t => t.from_id === me.id || t.to_id === me.id),
+    [txns, me.id]
+  )
+  const myStats = useMemo(() => {
+    let sent = 0, received = 0
+    for (const t of myTxns) {
+      if (t.from_id === me.id) sent += t.amount || 0
+      if (t.to_id === me.id) received += t.amount || 0
+    }
+    return { sent, received, net: received - sent, count: myTxns.length }
+  }, [myTxns, me.id])
 
   const filteredFundShips = useMemo(() => {
     if (!shipSearch) return []
     return SC_SHIPS.filter(s => s.name.toLowerCase().includes(shipSearch.toLowerCase())).slice(0, 10)
   }, [shipSearch])
 
-  const TABS = ['overview', 'cards', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
+  const handleMatches = useMemo(() => {
+    const q = (form.recipientHandle || '').trim().toLowerCase()
+    if (!q) return []
+    return members.filter(m => m.id !== me.id && m.handle.toLowerCase().includes(q)).slice(0, 6)
+  }, [form.recipientHandle, members, me.id])
+
+  const recipientMember = useMemo(
+    () => members.find(m => m.id === form.recipient),
+    [form.recipient, members]
+  )
+
+  const TABS = ['overview', 'my card', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
 
   return (
     <>
@@ -319,20 +484,16 @@ export default function Bank() {
             {/* ── OVERVIEW ── */}
             {tab === 'overview' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-                  <BankCard member={me} highlight />
-                </div>
-
                 <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4,minmax(0,1fr))' }}>
-                  <div className="stat-card">
-                    <div className="stat-label">TREASURY</div>
-                    <div className="stat-value" style={{ color: 'var(--accent)' }}>{formatCredits(treasury)}</div>
-                    <div className="stat-sub">org treasury balance</div>
-                  </div>
                   <div className="stat-card">
                     <div className="stat-label">YOUR WALLET</div>
                     <div className="stat-value" style={{ color: 'var(--green)' }}>{formatCredits(me.wallet_balance || 0)}</div>
                     <div className="stat-sub">personal balance</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-label">TREASURY</div>
+                    <div className="stat-value" style={{ color: 'var(--accent)' }}>{formatCredits(treasury)}</div>
+                    <div className="stat-sub">org treasury balance</div>
                   </div>
                   <div className="stat-card">
                     <div className="stat-label">ORG TAX RATE</div>
@@ -340,73 +501,36 @@ export default function Bank() {
                     <div className="stat-sub">on contract payouts</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-label">TOTAL ORG WEALTH</div>
-                    <div className="stat-value">{formatCredits(totalOrgWealth)}</div>
-                    <div className="stat-sub">treasury + all wallets</div>
+                    <div className="stat-label">YOUR TXNS</div>
+                    <div className="stat-value">{myStats.count}</div>
+                    <div className="stat-sub">on record</div>
                   </div>
                 </div>
 
                 <div className="grid-2" style={{ gap: 20 }}>
                   <div>
-                    <div className="section-header"><div className="section-title">RECENT TRANSACTIONS</div></div>
-                    {txns.slice(0, 8).map(t => (
-                      <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 16, color: TXN_COLORS[t.type] || 'var(--text-3)', width: 24, textAlign: 'center' }}>{TXN_ICONS[t.type] || '·'}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12 }}>{t.description || t.type}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{timeAgo(t.created_at)}</div>
-                        </div>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color: TXN_COLORS[t.type] }}>{formatCredits(t.amount)}</span>
-                      </div>
-                    ))}
-                    {txns.length === 0 && <div className="empty-state" style={{ padding: '24px 0' }}>NO TRANSACTIONS YET</div>}
-                  </div>
-                  <div>
-                    {/* Wealth Distribution Chart */}
-                    {topEarners.length > 1 && (() => {
-                      const PIE_COLORS = ['#d4d8e0', '#4a7ad9', '#5ab870', '#d94a7a', '#9060c8', '#d9904a', '#4ad9d9', '#c86060']
-                      const chartData = [
-                        { name: 'Treasury', value: treasury },
-                        ...topEarners.slice(0, 6).map(m => ({ name: m.handle, value: m.wallet_balance || 0 })),
-                      ].filter(d => d.value > 0)
+                    <div className="section-header"><div className="section-title">YOUR RECENT ACTIVITY</div></div>
+                    {myTxns.slice(0, 8).map(t => {
+                      const outgoing = t.from_id === me.id
                       return (
-                        <div style={{ marginBottom: 16 }}>
-                          <div className="section-header"><div className="section-title">WEALTH DISTRIBUTION</div></div>
-                          <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 0' }}>
-                            <ResponsiveContainer width="100%" height={160}>
-                              <PieChart>
-                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" paddingAngle={2} strokeWidth={0}>
-                                  {chartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                                </Pie>
-                                <Tooltip formatter={(v) => formatCredits(v)} contentStyle={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, fontSize: 11 }} />
-                              </PieChart>
-                            </ResponsiveContainer>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: '0 12px', justifyContent: 'center' }}>
-                              {chartData.map((d, i) => (
-                                <span key={d.name} style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <span style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                  <span style={{ color: 'var(--text-3)' }}>{d.name}</span>
-                                </span>
-                              ))}
-                            </div>
+                        <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 16, color: TXN_COLORS[t.type] || 'var(--text-3)', width: 24, textAlign: 'center' }}>{TXN_ICONS[t.type] || '·'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description || t.type}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{timeAgo(t.created_at)}</div>
                           </div>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color: outgoing ? 'var(--red)' : 'var(--green)' }}>
+                            {outgoing ? '−' : '+'}{formatCredits(t.amount)}
+                          </span>
                         </div>
                       )
-                    })()}
-
-                    <div className="section-header"><div className="section-title">TOP EARNERS</div></div>
-                    {topEarners.map((m, i) => (
-                      <div key={m.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 12, color: i < 3 ? 'var(--accent)' : 'var(--text-3)', fontFamily: 'var(--font-mono)', width: 20 }}>#{i+1}</span>
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: m.id === me.id ? 500 : 400 }}>{m.handle}</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--green)' }}>{formatCredits(m.wallet_balance || 0)}</span>
-                      </div>
-                    ))}
-
-                    {/* Active ship funds preview */}
+                    })}
+                    {myTxns.length === 0 && <div className="empty-state" style={{ padding: '24px 0' }}>NO ACTIVITY YET</div>}
+                  </div>
+                  <div>
                     {funds.filter(f => f.status === 'ACTIVE').length > 0 && (
                       <>
-                        <div className="section-header" style={{ marginTop: 20 }}><div className="section-title">ACTIVE SHIP FUNDS</div></div>
+                        <div className="section-header"><div className="section-title">ACTIVE SHIP FUNDS</div></div>
                         {funds.filter(f => f.status === 'ACTIVE').map(f => {
                           const pct = Math.min(100, Math.round((f.current_amount / f.target_amount) * 100))
                           return (
@@ -427,32 +551,77 @@ export default function Bank() {
                         })}
                       </>
                     )}
+                    {funds.filter(f => f.status === 'ACTIVE').length === 0 && (
+                      <>
+                        <div className="section-header"><div className="section-title">QUICK ACTIONS</div></div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button className="btn btn-ghost" onClick={() => setTab('my card')}>VIEW MY CARD</button>
+                          <button className="btn btn-ghost" onClick={() => setTab('transfers')}>SEND / REQUEST aUEC</button>
+                          <button className="btn btn-ghost" onClick={() => setTab('transactions')}>FULL TRANSACTION LEDGER</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </>
             )}
 
-            {/* ── CARDS ── */}
-            {tab === 'cards' && (
-              <>
-                <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 20, lineHeight: 1.7 }}>
-                  Each active operative is issued a Grayveil Reserve card linked to their wallet. Card colour reflects their tier.
-                </div>
-                {members.length === 0 ? (
-                  <div className="empty-state">NO ACTIVE OPERATIVES</div>
-                ) : (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: 18,
-                    justifyItems: 'center',
-                  }}>
-                    {members.map(m => (
-                      <BankCard key={m.id} member={m} highlight={m.id === me.id} />
-                    ))}
+            {/* ── MY CARD ── */}
+            {tab === 'my card' && (
+              <div style={{ maxWidth: 960, margin: '0 auto' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                  gap: 28, alignItems: 'start',
+                }} className="my-card-grid">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
+                    <div style={{ animation: 'gvCardFloat 6s ease-in-out infinite' }}>
+                      <BankCard member={me} size="lg" flippable />
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '.2em', fontFamily: 'var(--font-mono)', textAlign: 'center', lineHeight: 1.7 }}>
+                      ISSUED {issuedYear(me.created_at)} · GRAYVEIL RESERVE<br />
+                      LINKED WALLET · T-{(getRankByTier(me.tier || 9)).tier} {(getRankByTier(me.tier || 9)).rank}
+                    </div>
                   </div>
-                )}
-              </>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div className="card" style={{ padding: 20 }}>
+                      <div style={{ fontSize: 10, letterSpacing: '.25em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>CURRENT BALANCE</div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, color: 'var(--accent)', lineHeight: 1 }}>
+                        {formatCredits(me.wallet_balance || 0)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 6 }}>aUEC · {getRankByTier(me.tier || 9).rank}</div>
+                    </div>
+
+                    <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10 }}>
+                      <div className="stat-card" style={{ padding: 12 }}>
+                        <div className="stat-label" style={{ fontSize: 9 }}>RECEIVED</div>
+                        <div className="stat-value" style={{ fontSize: 16, color: 'var(--green)' }}>{formatCredits(myStats.received)}</div>
+                      </div>
+                      <div className="stat-card" style={{ padding: 12 }}>
+                        <div className="stat-label" style={{ fontSize: 9 }}>SENT</div>
+                        <div className="stat-value" style={{ fontSize: 16, color: 'var(--red)' }}>{formatCredits(myStats.sent)}</div>
+                      </div>
+                      <div className="stat-card" style={{ padding: 12 }}>
+                        <div className="stat-label" style={{ fontSize: 9 }}>NET FLOW</div>
+                        <div className="stat-value" style={{ fontSize: 16, color: myStats.net >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                          {myStats.net >= 0 ? '+' : ''}{formatCredits(myStats.net)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <button className="btn btn-primary" onClick={() => setTab('transfers')}>SEND aUEC</button>
+                      <button className="btn btn-ghost" onClick={() => setTab('transfers')}>REQUEST PAYMENT</button>
+                      <button className="btn btn-ghost" style={{ gridColumn: '1 / -1' }} onClick={() => setTab('transactions')}>VIEW LEDGER</button>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.7, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                      Your card is private. No other operative can see your balance, card number, or CVV. To pay someone, you need their handle — to receive payment, send a request.
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* ── TRANSACTIONS ── */}
@@ -480,15 +649,71 @@ export default function Bank() {
 
             {/* ── TRANSFERS ── */}
             {tab === 'transfers' && (
-              <div style={{ maxWidth: 500 }}>
+              <div style={{ maxWidth: 560 }}>
                 <div className="card mb-20">
-                  <div className="section-title mb-16">SEND aUEC</div>
+                  <div className="section-title mb-16">SEND OR REQUEST aUEC</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.7 }}>
+                    You must know the operative's handle — members are not publicly listed.
+                  </div>
+
                   <div className="form-group">
-                    <label className="form-label">RECIPIENT</label>
-                    <select className="form-select" value={form.recipient || ''} onChange={e => setForm(f => ({ ...f, recipient: e.target.value }))}>
-                      <option value="">— Select Member —</option>
-                      {members.filter(m => m.id !== me.id).map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
-                    </select>
+                    <label className="form-label">RECIPIENT HANDLE</label>
+                    {recipientMember ? (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 12px', background: 'var(--accent-glow)',
+                        border: '1px solid var(--accent)', borderRadius: 6,
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--accent)' }}>{recipientMember.handle}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>
+                            {getRankByTier(recipientMember.tier || 9).rank.toUpperCase()} · VERIFIED
+                          </div>
+                        </div>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setForm(f => ({ ...f, recipient: '', recipientHandle: '' }))}>CLEAR</button>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          className="form-input"
+                          value={form.recipientHandle || ''}
+                          onChange={e => setForm(f => ({ ...f, recipientHandle: e.target.value, recipient: '' }))}
+                          placeholder="Type a handle..."
+                          autoComplete="off"
+                        />
+                        {handleMatches.length > 0 && (
+                          <div style={{
+                            marginTop: 6, border: '1px solid var(--border)', borderRadius: 6,
+                            background: 'var(--bg-raised)', maxHeight: 180, overflowY: 'auto',
+                          }}>
+                            {handleMatches.map(m => (
+                              <button
+                                key={m.id}
+                                onClick={() => setForm(f => ({ ...f, recipient: m.id, recipientHandle: m.handle }))}
+                                style={{
+                                  display: 'flex', width: '100%', padding: '8px 12px',
+                                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
+                                  color: 'var(--text-1)', fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                                  alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <span>{m.handle}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>
+                                  {getRankByTier(m.tier || 9).rank.toUpperCase()}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {form.recipientHandle && handleMatches.length === 0 && (
+                          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+                            NO OPERATIVE MATCHES "{form.recipientHandle}"
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                   <div className="form-row">
                     <div className="form-group">
@@ -501,10 +726,17 @@ export default function Bank() {
                     </div>
                   </div>
                   {error && <div className="form-error mb-8">{error}</div>}
-                  <button className="btn btn-primary" onClick={() => { setError(''); doTransfer() }} disabled={saving}>
-                    {saving ? 'SENDING...' : 'SEND'}
-                  </button>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8, fontFamily: 'var(--font-mono)' }}>YOUR BALANCE: {formatCredits(me.wallet_balance || 0)}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn btn-primary" onClick={() => { setError(''); doTransfer() }} disabled={saving || !form.recipient}>
+                      {saving ? 'SENDING...' : 'SEND aUEC'}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => { setError(''); requestPayment() }} disabled={saving || !form.recipient}>
+                      {saving ? 'SENDING REQUEST...' : 'REQUEST PAYMENT'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 10, fontFamily: 'var(--font-mono)' }}>
+                    YOUR BALANCE: {formatCredits(me.wallet_balance || 0)}
+                  </div>
                 </div>
 
                 {isOfficer && (

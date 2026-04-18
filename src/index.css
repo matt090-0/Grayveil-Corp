@@ -689,6 +689,20 @@ table.data-table {
   100% { background-position: -200% 0; }
 }
 
+@keyframes gvCardShimmer {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(350%); }
+}
+
+@keyframes gvCardFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@media (max-width: 760px) {
+  .my-card-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 .skeleton-text {
   height: 12px; margin-bottom: 8px;
 }
