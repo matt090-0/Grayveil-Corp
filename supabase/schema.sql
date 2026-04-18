@@ -678,3 +678,178 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION public.cancel_admin_action(UUID) TO authenticated;
+
+-- ============================================================
+-- MEDALS AUTOMATION
+-- Triggers that auto-award medals based on real activity:
+--   kills, contracts claimed, credits earned, ship fund contributions,
+--   confirmed referrals, and AAR attendance.
+-- All awards go through try_award_medal() which is idempotent.
+-- awarded_by = NULL signals "system-awarded".
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.try_award_medal(
+  p_member_id UUID,
+  p_medal_name TEXT,
+  p_reason TEXT DEFAULT NULL
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_medal_id UUID;
+  v_inserted BOOLEAN := FALSE;
+BEGIN
+  IF p_member_id IS NULL OR p_medal_name IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT id INTO v_medal_id FROM public.medals WHERE name = p_medal_name LIMIT 1;
+  IF v_medal_id IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.member_medals
+    WHERE member_id = p_member_id AND medal_id = v_medal_id
+  ) THEN
+    RETURN FALSE;
+  END IF;
+
+  INSERT INTO public.member_medals (member_id, medal_id, awarded_by, reason)
+  VALUES (p_member_id, v_medal_id, NULL, COALESCE(p_reason, 'Auto-awarded'));
+  v_inserted := TRUE;
+
+  INSERT INTO public.notifications (recipient_id, type, title, message, link)
+  VALUES (
+    p_member_id,
+    'promotion',
+    'Medal earned: ' || p_medal_name,
+    COALESCE(p_reason, 'Awarded automatically for distinguished service.'),
+    '/medals'
+  );
+
+  INSERT INTO public.activity_log (action, actor_id, target_id, target_type, details)
+  VALUES (
+    'medal_auto_award',
+    NULL,
+    p_member_id,
+    'profile',
+    jsonb_build_object('medal', p_medal_name, 'reason', COALESCE(p_reason, 'Auto-awarded'))
+  );
+
+  RETURN v_inserted;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.try_award_medal(UUID, TEXT, TEXT) TO authenticated;
+
+-- KILL LOG → combat medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_kill() RETURNS TRIGGER AS $$
+DECLARE
+  v_total INT; v_vanduul INT; v_bounty INT;
+BEGIN
+  IF NEW.reporter_id IS NULL THEN RETURN NEW; END IF;
+
+  SELECT COUNT(*) INTO v_total FROM public.kill_log WHERE reporter_id = NEW.reporter_id;
+  IF v_total >= 1   THEN PERFORM public.try_award_medal(NEW.reporter_id, 'First Blood',  'First confirmed kill recorded.'); END IF;
+  IF v_total >= 10  THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Trigger Happy','Reached 10 confirmed kills.'); END IF;
+  IF v_total >= 50  THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Vanguard',     'Reached 50 confirmed kills.'); END IF;
+  IF v_total >= 100 THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Ace Pilot',    'Reached 100 confirmed kills.'); END IF;
+  IF v_total >= 500 THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Ace of Aces',  'Reached 500 confirmed kills.'); END IF;
+
+  SELECT COUNT(*) INTO v_vanduul FROM public.kill_log
+    WHERE reporter_id = NEW.reporter_id
+      AND (target_org ILIKE '%vanduul%' OR target_name ILIKE '%vanduul%');
+  IF v_vanduul >= 25 THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Vanduul Slayer', '25 confirmed Vanduul kills.'); END IF;
+
+  SELECT COUNT(*) INTO v_bounty FROM public.kill_log
+    WHERE reporter_id = NEW.reporter_id AND engagement_type ILIKE '%bounty%';
+  IF v_bounty >= 25 THEN PERFORM public.try_award_medal(NEW.reporter_id, 'Pirate Hunter', '25 bounty kills logged.'); END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_kill ON public.kill_log;
+CREATE TRIGGER medals_after_kill AFTER INSERT ON public.kill_log
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_kill();
+
+-- CONTRACT CLAIMS → operations medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_contract_claim() RETURNS TRIGGER AS $$
+DECLARE v_total INT;
+BEGIN
+  IF NEW.member_id IS NULL THEN RETURN NEW; END IF;
+  SELECT COUNT(*) INTO v_total FROM public.contract_claims WHERE member_id = NEW.member_id;
+  IF v_total >= 1  THEN PERFORM public.try_award_medal(NEW.member_id, 'First Sortie', 'First contract claimed.'); END IF;
+  IF v_total >= 10 THEN PERFORM public.try_award_medal(NEW.member_id, 'Hangar Rat',   '10 contracts claimed.'); END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_contract_claim ON public.contract_claims;
+CREATE TRIGGER medals_after_contract_claim AFTER INSERT ON public.contract_claims
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_contract_claim();
+
+-- LEDGER → wealth medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_ledger() RETURNS TRIGGER AS $$
+DECLARE v_earned BIGINT;
+BEGIN
+  IF NEW.member_id IS NULL OR NEW.amount IS NULL OR NEW.amount <= 0 THEN RETURN NEW; END IF;
+  SELECT COALESCE(SUM(amount), 0) INTO v_earned FROM public.ledger WHERE member_id = NEW.member_id AND amount > 0;
+  IF v_earned >=    100000 THEN PERFORM public.try_award_medal(NEW.member_id, 'Cargo Runner',  'Lifetime ledger crossed 100k aUEC.'); END IF;
+  IF v_earned >=   1000000 THEN PERFORM public.try_award_medal(NEW.member_id, 'Credit Chaser', 'Lifetime ledger crossed 1M aUEC.'); END IF;
+  IF v_earned >=  10000000 THEN PERFORM public.try_award_medal(NEW.member_id, 'Moneybags',     'Lifetime ledger crossed 10M aUEC.'); END IF;
+  IF v_earned >=  50000000 THEN PERFORM public.try_award_medal(NEW.member_id, 'War Profiteer', 'Lifetime ledger crossed 50M aUEC.'); END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_ledger ON public.ledger;
+CREATE TRIGGER medals_after_ledger AFTER INSERT ON public.ledger
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_ledger();
+
+-- SHIP FUND CONTRIBUTIONS → backer medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_ship_contribution() RETURNS TRIGGER AS $$
+DECLARE v_total BIGINT;
+BEGIN
+  IF NEW.contributor_id IS NULL OR NEW.amount IS NULL OR NEW.amount <= 0 THEN RETURN NEW; END IF;
+  SELECT COALESCE(SUM(amount), 0) INTO v_total FROM public.ship_fund_contributions WHERE contributor_id = NEW.contributor_id;
+  IF v_total >=   500000 THEN PERFORM public.try_award_medal(NEW.contributor_id, 'Treasury Guard',  'Contributed 500k+ aUEC to ship funds.'); END IF;
+  IF v_total >=  5000000 THEN PERFORM public.try_award_medal(NEW.contributor_id, 'Citadel Builder', 'Contributed 5M+ aUEC to ship funds.'); END IF;
+  IF v_total >= 50000000 THEN PERFORM public.try_award_medal(NEW.contributor_id, 'Sovereign Backer','Contributed 50M+ aUEC to ship funds.'); END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_ship_contribution ON public.ship_fund_contributions;
+CREATE TRIGGER medals_after_ship_contribution AFTER INSERT ON public.ship_fund_contributions
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_ship_contribution();
+
+-- REFERRALS → recruiter medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_referral_confirmed() RETURNS TRIGGER AS $$
+DECLARE v_count INT;
+BEGIN
+  IF NEW.status <> 'CONFIRMED' THEN RETURN NEW; END IF;
+  IF OLD.status = 'CONFIRMED' THEN RETURN NEW; END IF;
+  IF NEW.referrer_id IS NULL THEN RETURN NEW; END IF;
+  SELECT COUNT(*) INTO v_count FROM public.referrals WHERE referrer_id = NEW.referrer_id AND status = 'CONFIRMED';
+  IF v_count >=  5 THEN PERFORM public.try_award_medal(NEW.referrer_id, 'Recruiter','5 confirmed recruits.'); END IF;
+  IF v_count >= 25 THEN PERFORM public.try_award_medal(NEW.referrer_id, 'Kingmaker','25 confirmed recruits.'); END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_referral_confirmed ON public.referrals;
+CREATE TRIGGER medals_after_referral_confirmed AFTER UPDATE ON public.referrals
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_referral_confirmed();
+
+-- AAR FILED → operations attendance medals
+CREATE OR REPLACE FUNCTION public.tg_medals_after_aar() RETURNS TRIGGER AS $$
+DECLARE v_member UUID; v_count INT;
+BEGIN
+  IF NEW.attendees IS NULL OR cardinality(NEW.attendees) = 0 THEN RETURN NEW; END IF;
+  FOREACH v_member IN ARRAY NEW.attendees LOOP
+    SELECT COUNT(*) INTO v_count FROM public.after_action_reports WHERE v_member = ANY(attendees);
+    IF v_count >=   1 THEN PERFORM public.try_award_medal(v_member, 'Wingman',      'Attended a recorded operation.'); END IF;
+    IF v_count >=  10 THEN PERFORM public.try_award_medal(v_member, 'Fleet Anchor', '10 operations attended.'); END IF;
+    IF v_count >=  50 THEN PERFORM public.try_award_medal(v_member, 'Quantum Ace',  '50 operations attended.'); END IF;
+    IF v_count >= 100 THEN PERFORM public.try_award_medal(v_member, 'Centurion',    '100 operations attended.'); END IF;
+  END LOOP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS medals_after_aar ON public.after_action_reports;
+CREATE TRIGGER medals_after_aar AFTER INSERT ON public.after_action_reports
+  FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_aar();
