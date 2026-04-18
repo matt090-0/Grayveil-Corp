@@ -134,12 +134,12 @@ const PATCHES = {
       <circle cx="50" cy="30" r="4" fill={C.amb} opacity="0.6" />
     </PatchBase>
   ),
-  "Architect's Hand": ({ size, rarity }) => (
+  "High Admiral's Commendation": ({ size, rarity }) => (
     <PatchBase rarity={rarity} size={size}>
       <polygon points="50,24 62,34 62,54 50,64 38,54 38,34" fill={C.gld} opacity="0.1" stroke={C.gld} strokeWidth="2" />
       <polygon points="50,32 56,38 56,50 50,56 44,50 44,38" fill="none" stroke={C.gld} strokeWidth="1" />
       <circle cx="50" cy="44" r="5" fill={C.gld} />
-      <text x="50" y="78" textAnchor="middle" fill={C.gld} fontSize="5" fontFamily="monospace" letterSpacing="1">ARCHITECT</text>
+      <text x="50" y="78" textAnchor="middle" fill={C.gld} fontSize="5" fontFamily="monospace" letterSpacing="1">ADMIRAL</text>
     </PatchBase>
   ),
   'Sovereign Backer': ({ size, rarity }) => (

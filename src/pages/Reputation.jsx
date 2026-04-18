@@ -6,13 +6,17 @@ import { SC_DIVISIONS } from '../lib/scdata'
 import RankBadge from '../components/RankBadge'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LabelList, ResponsiveContainer } from 'recharts'
+
+const CHART_COLORS = ['#d4af6e', '#c8b48a', '#b8bcc8', '#9aa0b0', '#7a8090', '#6a7280', '#5a6272', '#4a5262', '#3a4252']
 
 const RepTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null
+  const p = payload[0].payload
   return (
-    <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
-      <div style={{ color: '#d4d8e0', fontWeight: 600 }}>{payload[0].payload.handle}: {payload[0].value} rep</div>
+    <div style={{ background: '#1a1a24', border: '1px solid #333344', borderRadius: 6, padding: '8px 12px', fontSize: 11, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+      <div style={{ color: '#d4d8e0', fontWeight: 600, marginBottom: 2 }}>{p.handle}</div>
+      <div style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>{p.rep} REP</div>
     </div>
   )
 }
@@ -113,12 +117,23 @@ export default function Reputation() {
 
                 {/* Rep Chart */}
                 {members.filter(m => (m.rep_score || 0) > 0).length > 1 && (
-                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 8px 8px', marginBottom: 16 }}>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={members.slice(0, 10).map(m => ({ handle: m.handle?.length > 10 ? m.handle.slice(0, 8) + '…' : m.handle, rep: m.rep_score || 0 }))} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
-                        <XAxis dataKey="handle" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip content={<RepTooltip />} />
-                        <Bar dataKey="rep" fill="#d4d8e0" radius={[4, 4, 0, 0]} />
+                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '20px 16px 12px', marginBottom: 16 }}>
+                    <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>REP · TOP {Math.min(10, members.filter(m => (m.rep_score || 0) > 0).length)}</div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart
+                        data={members.slice(0, 10).map(m => ({ handle: m.handle?.length > 10 ? m.handle.slice(0, 9) + '…' : m.handle, rep: m.rep_score || 0, tier: m.tier }))}
+                        margin={{ top: 20, right: 16, left: 0, bottom: 0 }}
+                        barCategoryGap="25%"
+                      >
+                        <XAxis dataKey="handle" tick={{ fill: '#8a8f9c', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={{ stroke: '#333344' }} tickLine={false} tickMargin={8} />
+                        <YAxis tick={{ fill: '#555566', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} width={36} />
+                        <Tooltip content={<RepTooltip />} cursor={{ fill: 'rgba(212,216,224,0.04)' }} />
+                        <Bar dataKey="rep" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                          {members.slice(0, 10).map((m, i) => (
+                            <Cell key={m.id} fill={CHART_COLORS[Math.min(i, CHART_COLORS.length - 1)]} />
+                          ))}
+                          <LabelList dataKey="rep" position="top" fill="#d4d8e0" fontSize={10} fontFamily="JetBrains Mono, monospace" />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

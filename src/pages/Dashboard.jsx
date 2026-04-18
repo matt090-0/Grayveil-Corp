@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
 import { timeAgo } from '../lib/dates'
 import RankBadge from '../components/RankBadge'
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -301,12 +301,13 @@ export default function Dashboard() {
               return (
                 <div style={{ marginTop: 20 }}>
                   <div className="section-header"><div className="section-title">ACTIVITY BREAKDOWN</div></div>
-                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 8px 8px' }}>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={chartData} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
-                        <XAxis dataKey="name" tick={{ fill: '#555566', fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Bar dataKey="count" fill="#d4d8e0" radius={[4, 4, 0, 0]} />
+                  <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '20px 16px 12px' }}>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={chartData} margin={{ top: 20, right: 16, left: 0, bottom: 0 }} barCategoryGap="25%">
+                        <XAxis dataKey="name" tick={{ fill: '#8a8f9c', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={{ stroke: '#333344' }} tickLine={false} tickMargin={8} />
+                        <YAxis tick={{ fill: '#555566', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(212,216,224,0.04)' }} />
+                        <Bar dataKey="count" fill="#8ba7d4" radius={[4, 4, 0, 0]} maxBarSize={64} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
