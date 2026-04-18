@@ -103,12 +103,12 @@ This project has been through a full security audit. All critical vulnerabilitie
 ### PROJECT CITADEL — Player Space Station
 Build a modular space station using the Pioneer construction ship. The station serves as Grayveil's permanent HQ, industrial hub, and shipyard. Includes fabrication bays, refinery, hangars, repair facilities, refueling depot, defense grid, and command center.
 
-**Fund target: 25,000,000 aUEC**
+**Fund target: Unknown cost aUEC**
 
 ### PROJECT SOVEREIGN — Bengal Carrier
 Fabricate a Bengal-class carrier (990m, 90+ turrets, full fighter wings) at our space station. The Bengal is built using the crafting pipeline — blueprints, refined materials, and top-tier fabrication modules at the Citadel shipyard.
 
-**Fund target: 50,000,000 aUEC**
+**Fund target: Unknown cost aUEC**
 
 ---
 
