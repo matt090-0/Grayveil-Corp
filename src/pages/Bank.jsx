@@ -62,7 +62,7 @@ function BankCard({ member, size = 'md', flippable = false }) {
       onClick={() => flippable && setFlipped(f => !f)}
       style={{
         position: 'relative',
-        width: '100%', aspectRatio: '1.586 / 1', maxWidth,
+        width: maxWidth, maxWidth: '100%', aspectRatio: '1.586 / 1',
         perspective: 1400,
         cursor: flippable ? 'pointer' : 'default',
       }}
