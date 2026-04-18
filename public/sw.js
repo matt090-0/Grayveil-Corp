@@ -6,7 +6,7 @@
 //   - Supabase / API: pass-through (always network)
 // Updates: new SW installs but waits — client sends SKIP_WAITING when user accepts.
 
-const VERSION = 'v4'
+const VERSION = 'v5'
 const RUNTIME_CACHE = `grayveil-runtime-${VERSION}`
 const STATIC_CACHE  = `grayveil-static-${VERSION}`
 const CORE_ASSETS = [
@@ -23,7 +23,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then(cache => cache.addAll(CORE_ASSETS).catch(() => {}))
   )
-  // Don't auto-skip — let the page prompt the user, then post SKIP_WAITING.
+  // One-time auto-skip: recover clients stuck on a prior SW that cached
+  // HTML (Vercel's SPA fallback) in place of /assets/*.js during a deploy
+  // race. Holding back for a user banner click is pointless when the app
+  // can't boot to show the banner.
+  self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
@@ -66,9 +70,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Hashed build assets — cache-first, immutable
+  // Hashed build assets — cache-first, immutable, but validate MIME
   if (url.pathname.startsWith('/assets/')) {
-    event.respondWith(cacheFirst(request, RUNTIME_CACHE))
+    event.respondWith(cacheFirstValidated(request, RUNTIME_CACHE, url.pathname))
     return
   }
 
@@ -93,6 +97,39 @@ async function cacheFirst(request, cacheName = RUNTIME_CACHE) {
     return res
   } catch {
     return cached || Response.error()
+  }
+}
+
+// Same as cacheFirst but rejects (and evicts) any cached response whose
+// Content-Type disagrees with the request path. This guards against a
+// prior SW cycle that cached Vercel's SPA fallback (text/html) for a
+// /assets/*.js URL during a brief deploy race — once that happens the
+// cache-first branch would keep returning HTML for the JS forever,
+// producing "Failed to load module script: ... MIME type text/html".
+function expectedMime(pathname) {
+  if (pathname.endsWith('.js') || pathname.endsWith('.mjs')) return 'javascript'
+  if (pathname.endsWith('.css')) return 'css'
+  return null
+}
+function hasAcceptableType(res, expected) {
+  if (!expected) return true
+  const ct = (res.headers.get('content-type') || '').toLowerCase()
+  return ct.includes(expected)
+}
+async function cacheFirstValidated(request, cacheName, pathname) {
+  const cache = await caches.open(cacheName)
+  const expected = expectedMime(pathname)
+  const cached = await cache.match(request)
+  if (cached && hasAcceptableType(cached, expected)) return cached
+  if (cached) await cache.delete(request)
+  try {
+    const res = await fetch(request)
+    if (res && res.status === 200 && hasAcceptableType(res, expected)) {
+      cache.put(request, res.clone())
+    }
+    return res
+  } catch {
+    return Response.error()
   }
 }
 
