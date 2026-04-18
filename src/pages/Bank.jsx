@@ -1,14 +1,124 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import { formatCredits } from '../lib/ranks'
+import { formatCredits, getRankByTier } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
+import GrayveilLogo from '../components/GrayveilLogo'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { greenBurst } from '../lib/confetti'
 import { useToast } from '../components/Toast'
 import { timeAgo, fmtDate as fmt } from '../lib/dates'
+
+// Card number derived from profile ID — 16 digits in 4 groups of 4.
+// Deterministic so a member's card number is stable.
+function cardNumber(id) {
+  const hex = (id || '').replace(/-/g, '').slice(0, 16).padEnd(16, '0')
+  let out = ''
+  for (let i = 0; i < 16; i++) out += (parseInt(hex[i], 16) % 10).toString()
+  return out.match(/.{1,4}/g).join(' ')
+}
+
+function cardGradient(tier) {
+  if (tier === 1) return 'linear-gradient(135deg, #2a2418 0%, #4a3a20 45%, #1a1610 100%)'
+  if (tier <= 3) return 'linear-gradient(135deg, #1c1e26 0%, #2e3140 50%, #14161c 100%)'
+  if (tier <= 5) return 'linear-gradient(135deg, #14182a 0%, #1e2a4a 50%, #0c0f1c 100%)'
+  if (tier <= 7) return 'linear-gradient(135deg, #1a1c24 0%, #242832 50%, #101218 100%)'
+  return 'linear-gradient(135deg, #121318 0%, #1a1c24 50%, #0a0b0f 100%)'
+}
+
+function BankCard({ member, highlight }) {
+  const rank = getRankByTier(member.tier || 9)
+  const accent = rank.color
+  const bg = cardGradient(member.tier || 9)
+  return (
+    <div style={{
+      position: 'relative',
+      width: '100%', aspectRatio: '1.586 / 1', maxWidth: 360,
+      background: bg,
+      border: `1px solid ${highlight ? accent : 'rgba(212,216,224,0.18)'}`,
+      borderRadius: 12,
+      padding: 18,
+      color: '#ededf2',
+      boxShadow: highlight
+        ? `0 6px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px ${accent}40`
+        : '0 6px 22px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+      overflow: 'hidden',
+      fontFamily: 'JetBrains Mono, monospace',
+    }}>
+      {/* Decorative accent bar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+        background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
+        opacity: 0.55,
+      }} />
+      {/* Holographic stripe */}
+      <div style={{
+        position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%',
+        background: `radial-gradient(circle, ${accent}22 0%, transparent 65%)`,
+        pointerEvents: 'none',
+      }} />
+
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <GrayveilLogo size={22} />
+          <div style={{
+            fontSize: 10, letterSpacing: '.25em', color: '#d4d8e0',
+            fontFamily: 'Syne, sans-serif', fontWeight: 700,
+          }}>GRAYVEIL RESERVE</div>
+        </div>
+        <div style={{
+          fontSize: 9, letterSpacing: '.2em', color: accent,
+          border: `1px solid ${accent}55`, padding: '2px 7px', borderRadius: 3,
+          background: `${accent}14`,
+        }}>T-{rank.tier}</div>
+      </div>
+
+      {/* EMV chip */}
+      <div style={{
+        marginTop: 18, width: 40, height: 30, borderRadius: 5,
+        background: 'linear-gradient(135deg, #d4c078 0%, #a8925a 40%, #cdb571 70%, #8a7448 100%)',
+        position: 'relative', boxShadow: 'inset 0 0 2px rgba(0,0,0,0.4)',
+      }}>
+        <div style={{ position: 'absolute', inset: 4, border: '1px solid rgba(0,0,0,0.25)', borderRadius: 3 }} />
+        <div style={{ position: 'absolute', left: 4, right: 4, top: '50%', height: 1, background: 'rgba(0,0,0,0.3)' }} />
+        <div style={{ position: 'absolute', top: 4, bottom: 4, left: '50%', width: 1, background: 'rgba(0,0,0,0.3)' }} />
+      </div>
+
+      {/* Card number */}
+      <div style={{
+        marginTop: 14, fontSize: 'clamp(13px, 2.4vw, 16px)',
+        letterSpacing: '.18em', color: '#d4d8e0',
+        textShadow: '0 1px 0 rgba(0,0,0,0.45)',
+      }}>{cardNumber(member.id)}</div>
+
+      {/* Bottom row */}
+      <div style={{
+        position: 'absolute', left: 18, right: 18, bottom: 16,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>OPERATIVE</div>
+          <div style={{
+            fontSize: 13, letterSpacing: '.08em', color: '#ededf2',
+            fontFamily: 'Syne, sans-serif', fontWeight: 600,
+            textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{member.handle}</div>
+          <div style={{ fontSize: 9, letterSpacing: '.15em', color: accent, marginTop: 2 }}>{rank.rank}</div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>BALANCE</div>
+          <div style={{
+            fontSize: 15, fontFamily: 'Syne, sans-serif', fontWeight: 700,
+            color: '#d4d8e0', letterSpacing: '.02em',
+          }}>{formatCredits(member.wallet_balance || 0)}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const TXN_ICONS = {
   deposit: '↓', withdrawal: '↑', transfer: '⇄', payout: '◆',
@@ -179,7 +289,7 @@ export default function Bank() {
     return SC_SHIPS.filter(s => s.name.toLowerCase().includes(shipSearch.toLowerCase())).slice(0, 10)
   }, [shipSearch])
 
-  const TABS = ['overview', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
+  const TABS = ['overview', 'cards', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
 
   return (
     <>
@@ -209,6 +319,10 @@ export default function Bank() {
             {/* ── OVERVIEW ── */}
             {tab === 'overview' && (
               <>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+                  <BankCard member={me} highlight />
+                </div>
+
                 <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4,minmax(0,1fr))' }}>
                   <div className="stat-card">
                     <div className="stat-label">TREASURY</div>
@@ -315,6 +429,29 @@ export default function Bank() {
                     )}
                   </div>
                 </div>
+              </>
+            )}
+
+            {/* ── CARDS ── */}
+            {tab === 'cards' && (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 20, lineHeight: 1.7 }}>
+                  Each active operative is issued a Grayveil Reserve card linked to their wallet. Card colour reflects their tier.
+                </div>
+                {members.length === 0 ? (
+                  <div className="empty-state">NO ACTIVE OPERATIVES</div>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: 18,
+                    justifyItems: 'center',
+                  }}>
+                    {members.map(m => (
+                      <BankCard key={m.id} member={m} highlight={m.id === me.id} />
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
