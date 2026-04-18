@@ -5,6 +5,18 @@ import GrayveilLogo from '../components/GrayveilLogo'
 import { RANKS } from '../lib/ranks'
 import { useSeo, useJsonLd } from '../lib/useSeo'
 
+const LADDER_COLORS = {
+  1: '#e8c98a',
+  2: '#d4d8e0',
+  3: '#a8afbd',
+  4: '#4a90d9',
+  5: '#6ba6d9',
+  6: '#8b6fc7',
+  7: '#a590c8',
+  8: '#d4943a',
+  9: '#6a7280',
+}
+
 const DIVISIONS = [
   {
     code: '01',
@@ -171,33 +183,36 @@ function TierLadder() {
       display: 'flex', flexDirection: 'column', gap: 8,
       maxWidth: 720, margin: '0 auto',
     }}>
-      {RANKS.map(r => (
-        <div key={r.tier} style={{
-          display: 'grid',
-          gridTemplateColumns: '48px 1fr auto',
-          alignItems: 'center',
-          gap: 16,
-          background: 'rgba(15,16,21,0.55)',
-          border: '1px solid rgba(212,216,224,0.06)',
-          borderLeft: `3px solid ${r.color}`,
-          borderRadius: 8,
-          padding: '12px 18px',
-        }}>
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 11, color: '#6a7280', letterSpacing: '.15em',
-          }}>T-{r.tier}</div>
-          <div style={{
-            fontFamily: 'Syne, sans-serif',
-            fontSize: 14, fontWeight: 600, letterSpacing: '.1em',
-            color: '#ededf2',
-          }}>{r.rank}</div>
-          <div style={{
-            width: 10, height: 10, borderRadius: '50%',
-            background: r.color, boxShadow: `0 0 10px ${r.color}55`,
-          }} />
-        </div>
-      ))}
+      {RANKS.map(r => {
+        const c = LADDER_COLORS[r.tier] || r.color
+        return (
+          <div key={r.tier} style={{
+            display: 'grid',
+            gridTemplateColumns: '48px 1fr auto',
+            alignItems: 'center',
+            gap: 16,
+            background: `linear-gradient(90deg, ${c}0f 0%, rgba(15,16,21,0.55) 40%)`,
+            border: '1px solid rgba(212,216,224,0.06)',
+            borderLeft: `3px solid ${c}`,
+            borderRadius: 8,
+            padding: '12px 18px',
+          }}>
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 11, color: c, opacity: 0.85, letterSpacing: '.15em',
+            }}>T-{r.tier}</div>
+            <div style={{
+              fontFamily: 'Syne, sans-serif',
+              fontSize: 14, fontWeight: 600, letterSpacing: '.1em',
+              color: '#ededf2',
+            }}>{r.rank}</div>
+            <div style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: c, boxShadow: `0 0 12px ${c}88`,
+            }} />
+          </div>
+        )
+      })}
       <div style={{
         textAlign: 'center', marginTop: 18,
         fontSize: 12, color: '#6a7280', fontStyle: 'italic',
