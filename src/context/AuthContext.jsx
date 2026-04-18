@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../supabaseClient'
+import { setSentryUser } from '../lib/sentry'
 
 const AuthContext = createContext(null)
 
@@ -87,7 +88,12 @@ export function AuthProvider({ children }) {
     return () => { ignore = true }
   }, [session])
 
-  // ── 3. SAFETY TIMEOUT — never stay loading forever ──
+  // ── 3. SENTRY USER CONTEXT — tag captured errors with the active member ──
+  useEffect(() => {
+    setSentryUser(profile)
+  }, [profile])
+
+  // ── SAFETY TIMEOUT — never stay loading forever ──
   useEffect(() => {
     if (!loading) return
     const t = setTimeout(() => setLoading(false), 5000)

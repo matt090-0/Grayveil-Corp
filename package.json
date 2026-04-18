@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/react": "^10.49.0",
     "@supabase/supabase-js": "^2.39.0",
     "canvas-confetti": "^1.9.3",
     "date-fns": "^3.6.0",
