@@ -897,7 +897,7 @@ END $$;
 -- with (channel, payload); the function looks up the URL and fires an async
 -- HTTP POST via pg_net. Discord allows up to 10 embeds per payload, so
 -- clients batch bursts before calling.
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
 CREATE OR REPLACE FUNCTION public.post_discord_webhook(p_channel TEXT, p_payload JSONB)
 RETURNS BIGINT AS $$
@@ -933,7 +933,7 @@ BEGIN
       'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb)
     );
 
-  SELECT extensions.net.http_post(
+  SELECT net.http_post(
     url     := v_url,
     headers := '{"Content-Type":"application/json"}'::jsonb,
     body    := p_payload
@@ -942,7 +942,7 @@ BEGIN
   RETURN v_request_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
-   SET search_path = public, extensions;
+   SET search_path = public, net;
 GRANT EXECUTE ON FUNCTION public.post_discord_webhook(TEXT, JSONB) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.test_discord_webhook(p_channel TEXT)
@@ -967,7 +967,7 @@ BEGIN
   RETURN v_request_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
-   SET search_path = public, extensions;
+   SET search_path = public, net;
 GRANT EXECUTE ON FUNCTION public.test_discord_webhook(TEXT) TO authenticated;
 
 -- ── 4. Multi-founder recovery guidance ──
@@ -981,6 +981,8 @@ GRANT EXECUTE ON FUNCTION public.test_discord_webhook(TEXT) TO authenticated;
 --
 -- A view exposes the current count so admins can see at a glance whether a
 -- fallback founder exists.
-CREATE OR REPLACE VIEW public.founder_count AS
-  SELECT COUNT(*)::INT AS count FROM public.profiles WHERE is_founder = true;
+DROP VIEW IF EXISTS public.founder_count;
+CREATE VIEW public.founder_count
+  WITH (security_invoker = true)
+  AS SELECT COUNT(*)::INT AS count FROM public.profiles WHERE is_founder = true;
 GRANT SELECT ON public.founder_count TO authenticated;
