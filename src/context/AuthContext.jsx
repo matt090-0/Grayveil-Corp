@@ -1,8 +1,33 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { setSentryUser } from '../lib/sentry'
+import { setSentryUser, captureException } from '../lib/sentry'
+
+const LAST_SEEN_THROTTLE_MS = 60_000
+const LAST_SEEN_STORAGE_KEY = 'gv:last_seen_pinged_at'
 
 const AuthContext = createContext(null)
+
+// Throttle per-tab — avoids a DB write on every profile fetch in a session.
+// Uses sessionStorage so it resets on a new tab/window (can be worn down by
+// deliberate navigation, but that's fine — it's a rate limit, not a lock).
+function pingLastSeen(userId) {
+  try {
+    const last = Number(sessionStorage.getItem(LAST_SEEN_STORAGE_KEY) || 0)
+    if (Date.now() - last < LAST_SEEN_THROTTLE_MS) return
+    sessionStorage.setItem(LAST_SEEN_STORAGE_KEY, String(Date.now()))
+  } catch {
+    // sessionStorage unavailable (private mode, SSR) — skip the write entirely
+    // rather than spam on every fetch.
+    return
+  }
+  supabase
+    .from('profiles')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', userId)
+    .then(({ error }) => {
+      if (error) captureException(error, { where: 'pingLastSeen' })
+    })
+}
 
 export function useAuth() {
   const ctx = useContext(AuthContext)
@@ -71,10 +96,7 @@ export function AuthProvider({ children }) {
           setProfile(null)
         } else {
           setProfile(data) // null if no profile row yet (new user)
-          // Update last_seen_at silently (fire and forget)
-          if (data) {
-            supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id).then(() => {})
-          }
+          if (data) pingLastSeen(session.user.id)
         }
       } catch (err) {
         console.error('[Auth] profile fetch exception:', err)

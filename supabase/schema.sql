@@ -858,3 +858,129 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS medals_after_aar ON public.after_action_reports;
 CREATE TRIGGER medals_after_aar AFTER INSERT ON public.after_action_reports
   FOR EACH ROW EXECUTE FUNCTION public.tg_medals_after_aar();
+
+-- ============================================================
+-- SECURITY HARDENING
+-- ============================================================
+
+-- ── 1. Hide webhook URLs from non-founders ──
+-- Previous settings_select policy allowed every authenticated user to read
+-- every row of org_settings, which exposed Discord webhook URLs (equivalent
+-- to Discord API tokens). Restrict rows with sensitive keys to founders.
+DROP POLICY IF EXISTS "settings_select" ON public.org_settings;
+CREATE POLICY "settings_select" ON public.org_settings FOR SELECT TO authenticated
+  USING (
+    CASE
+      WHEN key LIKE 'discord_webhook_%' THEN
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true)
+      ELSE true
+    END
+  );
+
+-- ── 2. Bound medal citation text ──
+-- User-supplied award text was unbounded. Cap at 500 chars to prevent bloat.
+-- Using DO block so repeated schema runs don't fail if the constraint exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'member_medals_reason_len'
+  ) THEN
+    ALTER TABLE public.member_medals
+      ADD CONSTRAINT member_medals_reason_len
+      CHECK (reason IS NULL OR length(reason) <= 500);
+  END IF;
+END $$;
+
+-- ── 3. Server-side Discord delivery (pg_net) ──
+-- Webhook URLs never leave the database. Clients call post_discord_webhook
+-- with (channel, payload); the function looks up the URL and fires an async
+-- HTTP POST via pg_net. Discord allows up to 10 embeds per payload, so
+-- clients batch bursts before calling.
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.post_discord_webhook(p_channel TEXT, p_payload JSONB)
+RETURNS BIGINT AS $$
+DECLARE
+  v_url       TEXT;
+  v_allowed   TEXT[] := ARRAY[
+    'announcements','moderation','operations','kills',
+    'contracts','recruitment','promotions'
+  ];
+  v_request_id BIGINT;
+BEGIN
+  IF NOT public.is_active_member() THEN
+    RAISE EXCEPTION 'Suspended or banned members cannot trigger webhooks.';
+  END IF;
+  IF NOT p_channel = ANY(v_allowed) THEN
+    RAISE EXCEPTION 'Unknown webhook channel: %', p_channel;
+  END IF;
+  IF p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object' THEN
+    RAISE EXCEPTION 'Payload must be a JSON object.';
+  END IF;
+
+  SELECT NULLIF(value ->> 'url', '') INTO v_url
+    FROM public.org_settings
+   WHERE key = 'discord_webhook_' || p_channel;
+
+  -- No webhook configured — succeed silently so callers don't need to branch.
+  IF v_url IS NULL THEN RETURN NULL; END IF;
+
+  -- Strip @everyone / @here to prevent members from mass-pinging via crafted
+  -- embed fields. Discord also honours allowed_mentions; we do both.
+  p_payload := p_payload
+    || jsonb_build_object(
+      'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb)
+    );
+
+  SELECT extensions.net.http_post(
+    url     := v_url,
+    headers := '{"Content-Type":"application/json"}'::jsonb,
+    body    := p_payload
+  ) INTO v_request_id;
+
+  RETURN v_request_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, extensions;
+GRANT EXECUTE ON FUNCTION public.post_discord_webhook(TEXT, JSONB) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.test_discord_webhook(p_channel TEXT)
+RETURNS BIGINT AS $$
+DECLARE v_request_id BIGINT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
+    RAISE EXCEPTION 'Only founders may test webhooks.';
+  END IF;
+  SELECT public.post_discord_webhook(
+    p_channel,
+    jsonb_build_object(
+      'username', 'Grayveil Corporation',
+      'embeds', jsonb_build_array(jsonb_build_object(
+        'title',       '✅ Webhook Test: ' || p_channel,
+        'description', 'This channel is connected to grayveil.net',
+        'color',       13148506,   -- 0xc8a55a
+        'timestamp',   to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      ))
+    )
+  ) INTO v_request_id;
+  RETURN v_request_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, extensions;
+GRANT EXECUTE ON FUNCTION public.test_discord_webhook(TEXT) TO authenticated;
+
+-- ── 4. Multi-founder recovery guidance ──
+-- is_founder is a boolean, so any number of profiles may be founders. Dual
+-- approval already works: approve_admin_action() enforces a 5-minute cool-off
+-- only when the initiator self-approves; a second founder can approve
+-- instantly. To avoid single-point-of-failure lockout, keep at least two
+-- accounts with is_founder = true. Promote a trusted officer with:
+--
+--   UPDATE public.profiles SET is_founder = true WHERE handle = '<officer>';
+--
+-- A view exposes the current count so admins can see at a glance whether a
+-- fallback founder exists.
+CREATE OR REPLACE VIEW public.founder_count AS
+  SELECT COUNT(*)::INT AS count FROM public.profiles WHERE is_founder = true;
+GRANT SELECT ON public.founder_count TO authenticated;

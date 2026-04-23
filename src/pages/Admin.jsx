@@ -5,7 +5,7 @@ import { RANKS, formatCredits } from '../lib/ranks'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
-import { discordAnnouncement } from '../lib/discord'
+import { discordAnnouncement, discordModeration, testDiscordWebhook } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
 import { notifyMaintenanceChange } from '../hooks/useMaintenanceMap'
@@ -110,31 +110,9 @@ export default function Admin() {
   }
 
   async function sendModerationAlert(action, member, reason, details = {}) {
-    const url = webhooks.discord_webhook_moderation || webhooks.discord_webhook_announcements
-    if (!url) { flash(`${action} recorded — no moderation webhook configured, Discord not notified.`); return }
-    try {
-      const extra = []
-      if (details.days) extra.push(`Duration: ${details.days}d`)
-      if (details.suspended_until) extra.push(`Until: ${new Date(details.suspended_until).toLocaleString()}`)
-      if (details.strike_count !== undefined) extra.push(`Strikes: ${details.strike_count}`)
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: 'Grayveil Moderation',
-          embeds: [{
-            title: `⚖ ${action}`,
-            description: `Member: **${member.handle}**\nReason: ${reason}${extra.length ? `\n${extra.join('\n')}` : ''}`,
-            color: action === 'BAN' ? 0xd64545 : action === 'SUSPEND' ? 0xd48b3a : 0x4aa3d4,
-            footer: { text: `By ${me.handle}` },
-            timestamp: new Date().toISOString(),
-          }],
-        }),
-      })
-      if (!resp.ok) flash(`${action} recorded — Discord webhook returned ${resp.status}.`)
-    } catch (e) {
-      flash(`${action} recorded — Discord alert failed: ${e.message}`)
-    }
+    // Server-side RPC; webhook URL stays in the DB. Errors are captured by Sentry
+    // inside the queue — we don't block the moderation flow on Discord delivery.
+    await discordModeration(action, member.handle, reason, me.handle, details)
   }
 
   // ── DISCIPLINARY ACTIONS ──
@@ -709,19 +687,10 @@ export default function Admin() {
             <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TEST WEBHOOK</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {['announcements', 'operations', 'kills', 'contracts', 'recruitment', 'promotions'].map(ch => (
+                {['announcements', 'moderation', 'operations', 'kills', 'contracts', 'recruitment', 'promotions'].map(ch => (
                   <button key={ch} className="btn btn-ghost btn-sm" onClick={async () => {
-                    const url = webhooks[`discord_webhook_${ch}`]
-                    if (!url) { flash(`No webhook URL set for ${ch}`); return }
                     try {
-                      await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          username: 'Grayveil Corporation',
-                          embeds: [{ title: `✅ Webhook Test: ${ch}`, description: 'This channel is connected to grayveil.net', color: 0xc8a55a, timestamp: new Date().toISOString() }],
-                        }),
-                      })
+                      await testDiscordWebhook(ch)
                       flash(`Test sent to #${ch}`)
                     } catch (e) { flash(`Failed: ${e.message}`) }
                   }}>TEST #{ch.toUpperCase()}</button>

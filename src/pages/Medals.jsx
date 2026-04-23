@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordMedal } from '../lib/discord'
 
+const MAX_REASON_LEN = 500
 const RARITY_BADGE = { COMMON: 'badge-muted', UNCOMMON: 'badge-green', RARE: 'badge-blue', LEGENDARY: 'badge-accent' }
 const CERT_CAT_BADGE = { GENERAL: 'badge-muted', COMBAT: 'badge-red', MINING: 'badge-amber', MEDICAL: 'badge-green', CAPITAL: 'badge-purple', RECON: 'badge-blue', TRADE: 'badge-accent' }
 
@@ -47,11 +48,12 @@ export default function Medals() {
 
   async function awardMedal() {
     if (!form.member_id || !form.medal_id) { setError('Select member and medal.'); return }
+    const reason = (form.reason || '').trim().slice(0, MAX_REASON_LEN) || null
     setSaving(true)
-    await supabase.from('member_medals').insert({ member_id: form.member_id, medal_id: form.medal_id, awarded_by: me.id, reason: form.reason || null })
+    await supabase.from('member_medals').insert({ member_id: form.member_id, medal_id: form.medal_id, awarded_by: me.id, reason })
     const medal = medals.find(m => m.id === form.medal_id)
     const member = members.find(m => m.id === form.member_id)
-    await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Medal: ${medal?.name || 'Award'}`, message: `Awarded by ${me.handle}${form.reason ? ' — ' + form.reason : ''}`, link: '/medals' })
+    await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Medal: ${medal?.name || 'Award'}`, message: `Awarded by ${me.handle}${reason ? ' — ' + reason : ''}`, link: '/medals' })
     goldBurst()
     discordMedal(member?.handle || 'Unknown', medal?.name, medal?.rarity, me.handle)
     toast(`${medal?.name} awarded`, 'success')
@@ -280,8 +282,8 @@ export default function Medals() {
             </div>
           )}
           <div className="form-group">
-            <label className="form-label">CITATION (optional)</label>
-            <input className="form-input" value={form.reason || ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="For conspicuous bravery during..." />
+            <label className="form-label">CITATION (optional — max {MAX_REASON_LEN} chars)</label>
+            <input className="form-input" maxLength={MAX_REASON_LEN} value={form.reason || ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value.slice(0, MAX_REASON_LEN) }))} placeholder="For conspicuous bravery during..." />
           </div>
           {error && <div className="form-error mb-8">{error}</div>}
           <div className="modal-footer">

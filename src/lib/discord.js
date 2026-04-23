@@ -1,36 +1,54 @@
 import { supabase } from '../supabaseClient'
+import { captureException } from './sentry'
 
-// Cache webhook URLs so we don't query on every action
-let webhookCache = {}
-let cacheTime = 0
+// Webhook sends go through the server-side post_discord_webhook RPC so the
+// webhook URL never leaves the database. Per-channel batching collapses
+// bursts (e.g. 10 kill-log rows → 10 medal triggers) into one HTTP call
+// (Discord accepts up to 10 embeds per payload).
+const BATCH_SIZE = 5
+const BATCH_MS   = 1500
+const queues = new Map()
 
-async function getWebhookUrl(key) {
-  // Refresh cache every 5 minutes
-  if (Date.now() - cacheTime > 300000) {
-    const { data } = await supabase.from('org_settings').select('key, value').ilike('key', 'discord_webhook_%')
-    webhookCache = {}
-    ;(data || []).forEach(s => { webhookCache[s.key] = s.value?.url || '' })
-    cacheTime = Date.now()
+async function flush(channel) {
+  const entry = queues.get(channel)
+  if (!entry || entry.embeds.length === 0) return
+  if (entry.timer) { clearTimeout(entry.timer); entry.timer = null }
+  const batch = entry.embeds.splice(0, BATCH_SIZE)
+  try {
+    const { error } = await supabase.rpc('post_discord_webhook', {
+      p_channel: channel,
+      p_payload: {
+        username: 'Grayveil Corporation',
+        avatar_url: 'https://grayveil.net/brand/icon.png',
+        embeds: batch,
+      },
+    })
+    if (error) captureException(new Error(`Discord webhook ${channel}: ${error.message}`), { channel, count: batch.length })
+  } catch (e) {
+    captureException(e, { channel, count: batch.length })
   }
-  return webhookCache[`discord_webhook_${key}`] || ''
+  if (entry.embeds.length > 0) schedule(channel, entry)
+}
+
+function schedule(channel, entry) {
+  if (entry.embeds.length >= BATCH_SIZE) { flush(channel); return }
+  if (entry.timer) return
+  entry.timer = setTimeout(() => { entry.timer = null; flush(channel) }, BATCH_MS)
 }
 
 async function send(channel, embed) {
-  const url = await getWebhookUrl(channel)
-  if (!url) return // No webhook configured for this channel
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'Grayveil Corporation',
-        avatar_url: 'https://grayveil.net/brand/icon.png',
-        embeds: [embed],
-      }),
-    })
-  } catch (e) {
-    console.warn('Discord webhook failed:', e.message)
-  }
+  let entry = queues.get(channel)
+  if (!entry) { entry = { embeds: [], timer: null }; queues.set(channel, entry) }
+  entry.embeds.push(embed)
+  schedule(channel, entry)
+}
+
+// Server-side test — founder-only RPC posts a canned test payload to the
+// named channel. Returns the new net.http_request row id on success.
+export async function testDiscordWebhook(channel) {
+  const { data, error } = await supabase.rpc('test_discord_webhook', { p_channel: channel })
+  if (error) throw error
+  return data
 }
 
 // ═══════════════════════════════════════
@@ -136,6 +154,20 @@ export async function discordBountyClaimed(targetName, reward, claimedBy) {
     description: `**${claimedBy}** claimed the bounty for **${reward}** aUEC`,
     color: 0x5ab870,
     footer: { text: 'grayveil.net/bounties' },
+    timestamp: new Date().toISOString(),
+  })
+}
+
+export async function discordModeration(action, memberHandle, reason, actor, extra = {}) {
+  const lines = [`Member: **${memberHandle}**`, `Reason: ${reason}`]
+  if (extra.days) lines.push(`Duration: ${extra.days}d`)
+  if (extra.suspended_until) lines.push(`Until: ${new Date(extra.suspended_until).toLocaleString()}`)
+  if (extra.strike_count !== undefined) lines.push(`Strikes: ${extra.strike_count}`)
+  await send('moderation', {
+    title: `⚖ ${action}`,
+    description: lines.join('\n'),
+    color: action === 'BAN' ? 0xd64545 : action === 'SUSPEND' ? 0xd48b3a : 0x4aa3d4,
+    footer: { text: `By ${actor}` },
     timestamp: new Date().toISOString(),
   })
 }
