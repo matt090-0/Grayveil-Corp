@@ -6,7 +6,7 @@
 //   - Supabase / API: pass-through (always network)
 // Updates: new SW installs but waits — client sends SKIP_WAITING when user accepts.
 
-const VERSION = 'v5'
+const VERSION = 'v6'
 const RUNTIME_CACHE = `grayveil-runtime-${VERSION}`
 const STATIC_CACHE  = `grayveil-static-${VERSION}`
 const CORE_ASSETS = [
@@ -15,6 +15,8 @@ const CORE_ASSETS = [
   '/favicon.svg',
   '/manifest.json',
   '/brand/icon.png',
+  '/brand/icon-192.png',
+  '/brand/icon-maskable-512.png',
   '/brand/background.png',
   '/brand/logo.png',
 ]
