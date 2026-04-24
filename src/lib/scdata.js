@@ -1,7 +1,10 @@
 // ── DIVISIONS — org structure common in Star Citizen orgs ──
+// 'High Command' is the Grayveil-specific leadership tier — strategic
+// oversight, cross-division coordination, and direct-to-founder reporting.
 export const SC_DIVISIONS = [
   'Combat',
   'Exploration',
+  'High Command',
   'Industry',
   'Intelligence',
   'Logistics',
@@ -44,6 +47,7 @@ export const SC_SPECIALITIES = [
   'Search & Rescue',
   'Snub Fighter Pilot',
   'Stealth Ops',
+  'Strategic Command',
   'Torpedo Bomber',
   'Trade & Commodities',
   'Turret Gunner',
