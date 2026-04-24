@@ -155,7 +155,7 @@ body {
 }
 
 .user-info { min-width: 0; }
-.user-handle { font-size: 13px; font-weight: 500; truncate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-handle { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-rank { font-size: 10px; color: var(--text-3); letter-spacing: .06em; font-family: var(--font-mono); }
 
 /* ── MAIN CONTENT ── */

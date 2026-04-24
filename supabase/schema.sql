@@ -1046,3 +1046,97 @@ DROP TRIGGER IF EXISTS trg_releases_touch_updated_at ON public.releases;
 CREATE TRIGGER trg_releases_touch_updated_at
   BEFORE UPDATE ON public.releases
   FOR EACH ROW EXECUTE FUNCTION public.releases_touch_updated_at();
+
+-- ── 7. Member credit score (FICO-style 300–850) ──
+-- Defense-in-depth:
+--   (a) Column is guarded by a BEFORE UPDATE trigger so no one can poke it
+--       through a direct REST update — even with a broad profiles UPDATE
+--       policy, the trigger rejects any change unless the caller is a
+--       founder (or the service role during migrations / seeding).
+--   (b) The writable path is the set_credit_score() RPC, which re-validates
+--       the founder check, clamps the 300–850 range, and writes an
+--       activity_log row for auditing.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS credit_score INTEGER NOT NULL DEFAULT 600
+    CHECK (credit_score BETWEEN 300 AND 850);
+
+-- Trigger guard: any UPDATE that changes credit_score must come from a
+-- founder OR run without an auth.uid() (service role / migration context).
+CREATE OR REPLACE FUNCTION public.guard_credit_score_update()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public AS $$
+BEGIN
+  IF NEW.credit_score IS DISTINCT FROM OLD.credit_score THEN
+    -- auth.uid() is NULL under service role / migrations — allow that path
+    IF auth.uid() IS NULL THEN
+      RETURN NEW;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND is_founder = true
+    ) THEN
+      RAISE EXCEPTION 'Only founders can modify credit_score';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_credit_score_update ON public.profiles;
+CREATE TRIGGER trg_guard_credit_score_update
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_credit_score_update();
+
+-- Canonical write path: founder-authenticated, range-clamped, audit-logged.
+CREATE OR REPLACE FUNCTION public.set_credit_score(
+  p_target_id UUID,
+  p_score     INTEGER,
+  p_reason    TEXT DEFAULT NULL
+) RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public AS $$
+DECLARE
+  v_actor_id UUID := auth.uid();
+  v_old      INTEGER;
+  v_new      INTEGER;
+BEGIN
+  IF v_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = v_actor_id AND is_founder = true
+  ) THEN
+    RAISE EXCEPTION 'Only founders can modify credit_score';
+  END IF;
+  IF p_score IS NULL OR p_score < 300 OR p_score > 850 THEN
+    RAISE EXCEPTION 'credit_score must be between 300 and 850';
+  END IF;
+
+  SELECT credit_score INTO v_old FROM public.profiles WHERE id = p_target_id;
+  IF v_old IS NULL THEN
+    RAISE EXCEPTION 'Target profile not found';
+  END IF;
+
+  UPDATE public.profiles
+  SET credit_score = p_score, updated_at = NOW()
+  WHERE id = p_target_id
+  RETURNING credit_score INTO v_new;
+
+  INSERT INTO public.activity_log (actor_id, action, target_type, target_id, metadata)
+  VALUES (
+    v_actor_id,
+    'credit_score_update',
+    'profile',
+    p_target_id,
+    jsonb_build_object(
+      'old', v_old,
+      'new', v_new,
+      'reason', COALESCE(p_reason, '')
+    )
+  );
+
+  RETURN v_new;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.set_credit_score(UUID, INTEGER, TEXT) TO authenticated;

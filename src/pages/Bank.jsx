@@ -255,6 +255,20 @@ const TXN_COLORS = {
 }
 const LOAN_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', DENIED: 'badge-red', ACTIVE: 'badge-blue', REPAID: 'badge-muted' }
 
+// FICO-style bands. Keep tiers + labels centralized so the pill, ring, and
+// tab summary all read from the same source.
+const CREDIT_TIERS = [
+  { min: 800, label: 'EXCELLENT', color: '#c8a55a' },  // gold
+  { min: 740, label: 'VERY GOOD', color: '#5ce0a1' },  // green
+  { min: 670, label: 'GOOD',      color: '#5a80d9' },  // blue
+  { min: 580, label: 'FAIR',      color: '#e0a155' },  // amber
+  { min: 300, label: 'POOR',      color: '#e05c5c' },  // red
+]
+function creditTier(score) {
+  const s = Number(score) || 0
+  return CREDIT_TIERS.find(t => s >= t.min) || CREDIT_TIERS[CREDIT_TIERS.length - 1]
+}
+
 export default function Bank() {
   const { profile: me, refreshProfile } = useAuth()
   const toast = useToast()
@@ -283,7 +297,7 @@ export default function Bank() {
     ] = await Promise.all([
       supabase.from('treasury').select('balance').eq('id', 1).single(),
       supabase.from('transactions').select('*, from_profile:profiles!transactions_from_id_fkey(handle), to_profile:profiles!transactions_to_id_fkey(handle)').order('created_at', { ascending: false }).limit(50),
-      supabase.from('profiles').select('id, handle, wallet_balance, tier, division').eq('status', 'ACTIVE').order('wallet_balance', { ascending: false }),
+      supabase.from('profiles').select('id, handle, wallet_balance, tier, division, credit_score, is_founder').eq('status', 'ACTIVE').order('wallet_balance', { ascending: false }),
       supabase.from('loans').select('*, borrower:profiles!loans_borrower_id_fkey(handle), approver:profiles!loans_approved_by_fkey(handle)').order('created_at', { ascending: false }),
       supabase.from('ship_funds').select('*').order('created_at', { ascending: false }),
       supabase.from('ship_fund_contributions').select('*, contributor:profiles(handle)').order('created_at', { ascending: false }),
@@ -454,7 +468,7 @@ export default function Bank() {
     [form.recipient, members]
   )
 
-  const TABS = ['overview', 'my card', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
+  const TABS = ['overview', 'my card', 'credit', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
 
   return (
     <>
@@ -622,6 +636,19 @@ export default function Bank() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* ── CREDIT ── */}
+            {tab === 'credit' && (
+              <CreditTab
+                me={me}
+                members={members}
+                onEdit={(member) => {
+                  setForm({ creditTarget: member.id, creditTargetHandle: member.handle, creditScore: member.credit_score || 600, creditReason: '' })
+                  setError(''); setModal('credit')
+                }}
+                isFounder={!!me.is_founder}
+              />
             )}
 
             {/* ── TRANSACTIONS ── */}
@@ -956,6 +983,57 @@ export default function Bank() {
         </Modal>
       )}
 
+      {modal === 'credit' && (
+        <Modal title={`CREDIT SCORE — ${form.creditTargetHandle || 'Operative'}`} onClose={() => setModal(null)}>
+          <p style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.5 }}>
+            Set this operative's Grayveil credit rating. Score must be between <strong>300</strong> (delinquent) and <strong>850</strong> (excellent).
+          </p>
+          <div className="form-group">
+            <label className="form-label">SCORE</label>
+            <input
+              className="form-input"
+              type="number"
+              min={300}
+              max={850}
+              value={form.creditScore ?? 600}
+              onChange={e => setForm(f => ({ ...f, creditScore: e.target.value }))}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">REASON (optional, audit log only)</label>
+            <input
+              className="form-input"
+              placeholder="e.g. Late loan repayment / consistent op attendance"
+              value={form.creditReason || ''}
+              onChange={e => setForm(f => ({ ...f, creditReason: e.target.value }))}
+            />
+          </div>
+          {error && <div className="form-error mb-8">{error}</div>}
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
+            <button
+              className="btn btn-primary"
+              disabled={saving}
+              onClick={async () => {
+                const score = parseInt(form.creditScore)
+                if (!score || score < 300 || score > 850) { setError('Score must be 300–850.'); return }
+                setSaving(true); setError('')
+                const { error: err } = await supabase.rpc('set_credit_score', {
+                  p_target_id: form.creditTarget,
+                  p_score: score,
+                  p_reason: form.creditReason || null,
+                })
+                if (err) { setError(err.message); setSaving(false); return }
+                toast(`Credit score updated to ${score}`, 'success')
+                setModal(null); setSaving(false); setForm({}); load()
+              }}
+            >
+              {saving ? 'SAVING...' : 'APPLY'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {modal === 'tax' && (
         <Modal title="SET TAX RATE" onClose={() => setModal(null)}>
           <p style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 16 }}>Percentage automatically deducted from contract payouts into the treasury.</p>
@@ -973,5 +1051,176 @@ export default function Bank() {
         </Modal>
       )}
     </>
+  )
+}
+
+// ─── CREDIT SCORE TAB ───────────────────────────────────────────
+// Shows the operative's own score prominently, plus the full roster so
+// founders can bump scores. Non-founders see the roster read-only.
+function CreditTab({ me, members, onEdit, isFounder }) {
+  const [search, setSearch] = useState('')
+  const myScore = me.credit_score ?? 600
+  const myTier  = creditTier(myScore)
+
+  const avg = useMemo(() => {
+    if (!members.length) return 0
+    const sum = members.reduce((acc, m) => acc + (m.credit_score || 0), 0)
+    return Math.round(sum / members.length)
+  }, [members])
+
+  const q = search.trim().toLowerCase()
+  const visibleMembers = q
+    ? members.filter(m => (m.handle || '').toLowerCase().includes(q))
+    : members
+
+  return (
+    <>
+      {/* Your own score — prominent ring + tier label */}
+      <div className="card" style={{ padding: 24, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
+        <CreditDial score={myScore} tier={myTier} size={140} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 10, letterSpacing: '.25em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>
+            YOUR GRAYVEIL CREDIT SCORE
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, color: myTier.color, lineHeight: 1 }}>
+            {myScore} <span style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 400, letterSpacing: '.15em' }}>· {myTier.label}</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginTop: 10, maxWidth: 520 }}>
+            Score reflects reliability on org operations — loan repayment, op attendance, contract completion, and standing with the treasury. Only the founder can adjust scores.
+          </div>
+        </div>
+        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(2,minmax(120px,1fr))', gap: 10, minWidth: 240 }}>
+          <div className="stat-card" style={{ padding: 12 }}>
+            <div className="stat-label" style={{ fontSize: 9 }}>ORG AVERAGE</div>
+            <div className="stat-value" style={{ fontSize: 20 }}>{avg}</div>
+          </div>
+          <div className="stat-card" style={{ padding: 12 }}>
+            <div className="stat-label" style={{ fontSize: 9 }}>OPERATIVES</div>
+            <div className="stat-value" style={{ fontSize: 20 }}>{members.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Band legend */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        {CREDIT_TIERS.map(t => (
+          <div key={t.label} style={{
+            fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '.15em',
+            padding: '4px 10px', borderRadius: 14,
+            background: `${t.color}18`,
+            border: `1px solid ${t.color}55`,
+            color: t.color,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.color }} />
+            {t.label} <span style={{ opacity: 0.6 }}>≥ {t.min}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Roster table */}
+      <div className="card" style={{ padding: 0 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+            ROSTER · {visibleMembers.length} OPERATIVES
+          </div>
+          <input
+            className="form-input"
+            style={{ maxWidth: 240 }}
+            placeholder="Search handle..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>OPERATIVE</th>
+                <th>DIVISION</th>
+                <th style={{ textAlign: 'right' }}>SCORE</th>
+                <th>TIER</th>
+                <th style={{ textAlign: 'right' }}>WALLET</th>
+                {isFounder && <th style={{ width: 1, whiteSpace: 'nowrap' }}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleMembers.length === 0 ? (
+                <tr><td colSpan={isFounder ? 6 : 5} className="empty-state">NO OPERATIVES</td></tr>
+              ) : visibleMembers.map(m => {
+                const score = m.credit_score ?? 600
+                const tier = creditTier(score)
+                const isMe = m.id === me.id
+                return (
+                  <tr key={m.id}>
+                    <td>
+                      <span style={{ fontWeight: isMe ? 600 : 400 }}>{m.handle}</span>
+                      {isMe && <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)', letterSpacing: '.2em' }}>YOU</span>}
+                      {m.is_founder && <span style={{ marginLeft: 6, fontSize: 9, color: '#c8a55a', fontFamily: 'var(--font-mono)', letterSpacing: '.2em' }}>★ FOUNDER</span>}
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--text-3)' }}>{m.division || '—'}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600, color: tier.color }}>{score}</td>
+                    <td>
+                      <span style={{
+                        fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '.15em',
+                        padding: '2px 8px', borderRadius: 10,
+                        background: `${tier.color}22`, color: tier.color,
+                        border: `1px solid ${tier.color}55`,
+                      }}>{tier.label}</span>
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-2)' }}>
+                      {formatCredits(m.wallet_balance || 0)}
+                    </td>
+                    {isFounder && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => onEdit(m)}>ADJUST</button>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Simple dial / ring showing the score as a 300-850 sweep.
+function CreditDial({ score, tier, size = 140 }) {
+  const s = Math.max(300, Math.min(850, Number(score) || 0))
+  const pct = (s - 300) / (850 - 300)              // 0..1
+  const stroke = 10
+  const r = (size / 2) - (stroke / 2) - 2
+  const cx = size / 2
+  const cy = size / 2
+  const C = 2 * Math.PI * r
+  const arcLen = pct * C
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg-surface)" strokeWidth={stroke} />
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill="none"
+          stroke={tier.color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${arcLen} ${C}`}
+          style={{ transition: 'stroke-dasharray .6s ease' }}
+        />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700, color: tier.color, lineHeight: 1 }}>{s}</div>
+        <div style={{ fontSize: 9, letterSpacing: '.25em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+          {tier.label}
+        </div>
+      </div>
+    </div>
   )
 }
