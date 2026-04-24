@@ -102,7 +102,7 @@ export default function Wiki() {
             <ReactMarkdown>{viewing.content}</ReactMarkdown>
           </div>
           <div className="modal-footer">
-            {(viewing.created_by === me.id || me.tier <= 3) && <button className="btn btn-danger btn-sm" onClick={() => deleteArticle(viewing.id)}>DELETE</button>}
+            {me.tier <= 3 && <button className="btn btn-danger btn-sm" onClick={() => deleteArticle(viewing.id)}>DELETE</button>}
             {canWrite && <button className="btn btn-ghost" onClick={() => { setForm({ ...viewing }); setEditing(viewing); setViewing(null) }}>EDIT</button>}
             <button className="btn btn-ghost" onClick={() => setViewing(null)}>CLOSE</button>
           </div>
