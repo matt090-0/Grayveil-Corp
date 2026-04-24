@@ -1406,3 +1406,66 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.cancel_market_listing(UUID) TO authenticated;
+
+-- ── 10. Weapon + Armor loadouts (companions to ship_loadouts) ──
+-- Mirror the ship_loadouts shape + RLS so the Loadouts page can serve three
+-- tabs (SHIP / WEAPON / ARMOR) from a uniform schema. The `components`
+-- jsonb stores slotted pieces (primary / sidearm / melee / ... for weapons,
+-- helmet / core / arms / legs / backpack / undersuit for armor).
+CREATE TABLE IF NOT EXISTS public.weapon_loadouts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL,
+  archetype   TEXT,
+  role        TEXT,
+  description TEXT,
+  components  JSONB DEFAULT '{}'::jsonb,
+  tags        TEXT[],
+  created_by  UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_weapon_loadouts_created
+  ON public.weapon_loadouts (created_at DESC);
+ALTER TABLE public.weapon_loadouts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS weapon_loadouts_select ON public.weapon_loadouts;
+CREATE POLICY weapon_loadouts_select ON public.weapon_loadouts
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS weapon_loadouts_insert ON public.weapon_loadouts;
+CREATE POLICY weapon_loadouts_insert ON public.weapon_loadouts
+  FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS weapon_loadouts_update ON public.weapon_loadouts;
+CREATE POLICY weapon_loadouts_update ON public.weapon_loadouts
+  FOR UPDATE USING (created_by = auth.uid() OR public.get_my_tier() <= 4);
+DROP POLICY IF EXISTS weapon_loadouts_delete ON public.weapon_loadouts;
+CREATE POLICY weapon_loadouts_delete ON public.weapon_loadouts
+  FOR DELETE USING (created_by = auth.uid() OR public.get_my_tier() <= 3);
+
+CREATE TABLE IF NOT EXISTS public.armor_loadouts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL,
+  archetype   TEXT,
+  role        TEXT,
+  description TEXT,
+  components  JSONB DEFAULT '{}'::jsonb,
+  tags        TEXT[],
+  created_by  UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_armor_loadouts_created
+  ON public.armor_loadouts (created_at DESC);
+ALTER TABLE public.armor_loadouts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS armor_loadouts_select ON public.armor_loadouts;
+CREATE POLICY armor_loadouts_select ON public.armor_loadouts
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS armor_loadouts_insert ON public.armor_loadouts;
+CREATE POLICY armor_loadouts_insert ON public.armor_loadouts
+  FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS armor_loadouts_update ON public.armor_loadouts;
+CREATE POLICY armor_loadouts_update ON public.armor_loadouts
+  FOR UPDATE USING (created_by = auth.uid() OR public.get_my_tier() <= 4);
+DROP POLICY IF EXISTS armor_loadouts_delete ON public.armor_loadouts;
+CREATE POLICY armor_loadouts_delete ON public.armor_loadouts
+  FOR DELETE USING (created_by = auth.uid() OR public.get_my_tier() <= 3);
