@@ -26,6 +26,7 @@ export const NAV = [
 
   { section: 'RESOURCES' },
   { to: '/wiki',        icon: 'wiki',       label: 'KNOWLEDGE BASE'},
+  { to: '/updates',     icon: 'updates',    label: 'UPDATES'       },
   { to: '/messages',    icon: 'comms',      label: 'COMMS'         },
   { to: '/polls',       icon: 'polls',      label: 'POLLS'         },
   { to: '/referrals',   icon: 'referrals',  label: 'REFERRALS'     },

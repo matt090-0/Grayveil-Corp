@@ -96,12 +96,20 @@ export default function NotificationBell() {
       </button>
 
       {open && (
+        // Bell lives in the sidebar footer (bottom-left of viewport). Panel
+        // is `position: fixed` so it breaks out of the 220px-wide sidebar
+        // regardless of screen size: clamped to viewport width on mobile,
+        // seated to the right of the sidebar on desktop.
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-          width: 380, maxHeight: 500, background: 'var(--bg-raised)',
+          position: 'fixed',
+          bottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+          left: 'min(calc(var(--sidebar-w, 220px) + 12px), calc(100vw - 12px - min(380px, calc(100vw - 24px))))',
+          width: 'min(380px, calc(100vw - 24px))',
+          maxHeight: 'min(560px, calc(100vh - 24px))',
+          background: 'var(--bg-raised)',
           border: '1px solid var(--border-md)', borderRadius: 10,
           boxShadow: '0 16px 48px rgba(0,0,0,0.5)', overflow: 'hidden',
-          display: 'flex', flexDirection: 'column', zIndex: 200,
+          display: 'flex', flexDirection: 'column', zIndex: 1100,
         }}>
           {/* Header */}
           <div style={{

@@ -32,6 +32,7 @@ import OpTemplates from './pages/OpTemplates'
 import ShipCalendar from './pages/ShipCalendar'
 import Blacklist from './pages/Blacklist'
 import PublicOrg from './pages/PublicOrg'
+import Updates from './pages/Updates'
 
 function AppRoutes() {
   return (
@@ -155,6 +156,11 @@ function AppRoutes() {
       <Route path="/referrals" element={
         <ProtectedRoute>
           <Layout><Referrals /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/updates" element={
+        <ProtectedRoute>
+          <Layout><Updates /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/profile" element={

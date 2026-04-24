@@ -999,3 +999,50 @@ CREATE POLICY events_delete ON public.events
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND is_founder = true
   ));
+
+-- ── 6. Public changelog / release notes ──
+-- Every signed-in member can read; only tier<=1 (founder-level) can publish,
+-- edit, or delete. Entries are intentionally user-facing prose only — do NOT
+-- include credentials, infra details, exploit specifics, or internal URLs.
+CREATE TABLE IF NOT EXISTS public.releases (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  version       TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  summary       TEXT,
+  body          TEXT NOT NULL,
+  category      TEXT NOT NULL DEFAULT 'FEATURE'
+                  CHECK (category IN ('FEATURE','FIX','IMPROVEMENT','SECURITY','ANNOUNCEMENT')),
+  pinned        BOOLEAN NOT NULL DEFAULT false,
+  published_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  updated_by    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_releases_published_at ON public.releases (published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_releases_pinned       ON public.releases (pinned) WHERE pinned = true;
+
+ALTER TABLE public.releases ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS releases_read   ON public.releases;
+DROP POLICY IF EXISTS releases_insert ON public.releases;
+DROP POLICY IF EXISTS releases_update ON public.releases;
+DROP POLICY IF EXISTS releases_delete ON public.releases;
+
+CREATE POLICY releases_read   ON public.releases FOR SELECT TO authenticated USING (true);
+CREATE POLICY releases_insert ON public.releases FOR INSERT TO authenticated WITH CHECK (public.get_my_tier() <= 1);
+CREATE POLICY releases_update ON public.releases FOR UPDATE TO authenticated USING (public.get_my_tier() <= 1) WITH CHECK (public.get_my_tier() <= 1);
+CREATE POLICY releases_delete ON public.releases FOR DELETE TO authenticated USING (public.get_my_tier() <= 1);
+
+CREATE OR REPLACE FUNCTION public.releases_touch_updated_at()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_releases_touch_updated_at ON public.releases;
+CREATE TRIGGER trg_releases_touch_updated_at
+  BEFORE UPDATE ON public.releases
+  FOR EACH ROW EXECUTE FUNCTION public.releases_touch_updated_at();

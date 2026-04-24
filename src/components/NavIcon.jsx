@@ -166,6 +166,13 @@ const icons = {
     <line x1="4" y1="8.5" x2="12" y2="8.5" strokeWidth="0.8" />
     <line x1="4" y1="11" x2="9" y2="11" strokeWidth="0.8" />
   </I>,
+
+  // Circular refresh / changelog glyph — rotating arrow with a version pulse
+  updates: () => <I>
+    <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+    <polyline points="13.5,2.5 13.5,5 11,5" />
+    <circle cx="8" cy="8" r="1.4" fill="currentColor" />
+  </I>,
 }
 
 export default function NavIcon({ name }) {
