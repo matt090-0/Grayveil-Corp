@@ -18,9 +18,17 @@ export default function PWAStatus() {
     if (!('serviceWorker' in navigator)) return
 
     let registration
-    const onLoad = async () => {
+    let pollId
+    let cancelled = false
+
+    const register = async () => {
       try {
         registration = await navigator.serviceWorker.register('/sw.js')
+        if (cancelled) return
+
+        // Force an immediate update check — covers the case where Chrome
+        // cached the registration from a prior session and skipped refetch.
+        registration.update().catch(() => {})
 
         // If there's already a waiting worker at load time
         if (registration.waiting) setWaitingWorker(registration.waiting)
@@ -36,14 +44,30 @@ export default function PWAStatus() {
           })
         })
 
-        // Poll for updates hourly while the tab is open
-        const poll = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000)
-        return () => clearInterval(poll)
+        // Hourly background poll while the tab stays open
+        pollId = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000)
       } catch {
         // SW registration failed — not fatal, app still works
       }
     }
-    window.addEventListener('load', onLoad)
+
+    // Start immediately if the document is already interactive (React may
+    // have mounted AFTER the `load` event already fired, in which case the
+    // listener-only approach would never run).
+    if (document.readyState === 'complete') {
+      register()
+    } else {
+      window.addEventListener('load', register, { once: true })
+    }
+
+    // Also re-check whenever the PWA / tab is refocused. This catches the
+    // very common "installed PWA stayed open for days" scenario.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && registration) {
+        registration.update().catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     // Reload once when the active SW changes (user accepted update)
     let refreshing = false
@@ -55,7 +79,10 @@ export default function PWAStatus() {
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
 
     return () => {
-      window.removeEventListener('load', onLoad)
+      cancelled = true
+      if (pollId) clearInterval(pollId)
+      window.removeEventListener('load', register)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
     }
   }, [])
