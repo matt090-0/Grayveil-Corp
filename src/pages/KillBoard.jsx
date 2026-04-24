@@ -1,46 +1,74 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { SC_LOCATIONS } from '../lib/scdata'
-import { SC_SHIPS } from '../lib/ships'
-import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { discordKill } from '../lib/discord'
-import { exportCSV } from '../lib/csv'
+import {
+  UEE_AMBER, ClassificationBar, TabStrip, StatCell, FilterRow, Card,
+  StatusBadge, Field, EmptyState, UeeModal, SectionHeader, btnMicro, fmtDateTime,
+} from '../components/uee'
 
-const TYPES = ['PVP', 'PVE', 'BOUNTY', 'DEFENSE']
+const TYPES    = ['PVP', 'PVE', 'BOUNTY', 'DEFENSE']
 const OUTCOMES = ['KILL', 'ASSIST', 'DEATH']
-const OUTCOME_BADGE = { KILL: 'badge-green', ASSIST: 'badge-blue', DEATH: 'badge-red' }
 
-function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }
+const OUTCOME_META = {
+  KILL:   { color: '#5ce0a1', glyph: '◉', label: 'KILL' },
+  ASSIST: { color: '#5a80d9', glyph: '◎', label: 'ASSIST' },
+  DEATH:  { color: '#e05c5c', glyph: '✕', label: 'DEATH' },
+}
+const TYPE_COLOR = {
+  PVP:     '#e05c5c',
+  PVE:     '#c8a55a',
+  BOUNTY:  '#b566d9',
+  DEFENSE: '#5a80d9',
+}
+
+const RED = '#e05c5c'
 
 export default function KillBoard() {
   const { profile: me } = useAuth()
   const toast = useToast()
-  const [kills, setKills] = useState([])
+
+  const [kills, setKills]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('feed')
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({})
+  const [tab, setTab]       = useState('feed')
+  const [outcomeFilter, setOutcomeFilter] = useState('ALL')
+  const [search, setSearch] = useState('')
+  const [modal, setModal]   = useState(false)
+  const [form, setForm]     = useState({})
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]   = useState('')
 
   async function load() {
-    const { data } = await supabase.from('kill_log').select('*, reporter:profiles(handle)').order('created_at', { ascending: false }).limit(200)
-    setKills(data || []); setLoading(false)
+    const { data } = await supabase
+      .from('kill_log')
+      .select('*, reporter:profiles(handle)')
+      .order('created_at', { ascending: false })
+      .limit(200)
+    setKills(data || [])
+    setLoading(false)
   }
   useEffect(() => { load() }, [])
 
-  async function logKill() {
-    if (!form.target_name) { setError('Target name required.'); return }
-    setSaving(true)
-    await supabase.from('kill_log').insert({ reporter_id: me.id, target_name: form.target_name, target_org: form.target_org || null, location: form.location || null, ship_used: form.ship_used || null, target_ship: form.target_ship || null, engagement_type: form.engagement_type || 'PVP', outcome: form.outcome || 'KILL', notes: form.notes || null })
-    discordKill(me.handle, form.target_name, form.target_org, form.ship_used, form.location, form.outcome || 'KILL')
-    toast('Engagement logged', 'success')
-    setModal(false); setSaving(false); load()
-  }
+  const killCount   = useMemo(() => kills.filter(k => k.outcome === 'KILL').length,   [kills])
+  const assistCount = useMemo(() => kills.filter(k => k.outcome === 'ASSIST').length, [kills])
+  const deathCount  = useMemo(() => kills.filter(k => k.outcome === 'DEATH').length,  [kills])
+  const orgKD       = deathCount > 0 ? (killCount / deathCount).toFixed(2) : killCount > 0 ? '∞' : '—'
 
-  // Leaderboard
+  const filteredFeed = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return kills
+      .filter(k => outcomeFilter === 'ALL' || k.outcome === outcomeFilter)
+      .filter(k => !q
+        || (k.target_name || '').toLowerCase().includes(q)
+        || (k.target_org || '').toLowerCase().includes(q)
+        || (k.location || '').toLowerCase().includes(q)
+        || (k.ship_used || '').toLowerCase().includes(q)
+        || (k.target_ship || '').toLowerCase().includes(q)
+        || (k.reporter?.handle || '').toLowerCase().includes(q))
+  }, [kills, outcomeFilter, search])
+
   const leaderboard = useMemo(() => {
     const map = {}
     kills.forEach(k => {
@@ -52,86 +80,316 @@ export default function KillBoard() {
     return Object.values(map).sort((a, b) => b.kills - a.kills)
   }, [kills])
 
+  async function logKill() {
+    if (!form.target_name) { setError('Target name required.'); return }
+    setSaving(true)
+    await supabase.from('kill_log').insert({
+      reporter_id: me.id,
+      target_name: form.target_name,
+      target_org: form.target_org || null,
+      location: form.location || null,
+      ship_used: form.ship_used || null,
+      target_ship: form.target_ship || null,
+      engagement_type: form.engagement_type || 'PVP',
+      outcome: form.outcome || 'KILL',
+      notes: form.notes || null,
+    })
+    discordKill(me.handle, form.target_name, form.target_org, form.ship_used, form.location, form.outcome || 'KILL')
+    toast('Engagement logged', 'success')
+    setModal(false); setSaving(false); setForm({}); load()
+  }
+
   return (
     <>
+      <ClassificationBar
+        section="GRAYVEIL ENGAGEMENT ARCHIVE"
+        label={tab === 'feed' ? 'COMBAT FEED' : 'LEADERBOARD'}
+        accent={RED}
+        right={(
+          <>
+            <span style={{ color: OUTCOME_META.KILL.color }}>{killCount}K</span>
+            <span style={{ color: OUTCOME_META.ASSIST.color }}>{assistCount}A</span>
+            <span style={{ color: OUTCOME_META.DEATH.color }}>{deathCount}D</span>
+            <span style={{ color: UEE_AMBER }}>K/D · {orgKD}</span>
+          </>
+        )}
+      />
+
       <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <div className="page-title">KILL BOARD</div>
-            <div className="page-subtitle">{kills.filter(k => k.outcome === 'KILL').length} confirmed kills</div>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>KILL BOARD</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 620 }}>
+              Confirmed engagements across the fleet. Log every contact — kills, assists, and deaths count toward unit reputation.
+            </div>
           </div>
-          <button className="btn btn-primary" onClick={() => { setForm({ engagement_type: 'PVP', outcome: 'KILL' }); setError(''); setModal(true) }}>+ LOG ENGAGEMENT</button>
+          <button className="btn btn-primary" onClick={() => {
+            setForm({ engagement_type: 'PVP', outcome: 'KILL' }); setError(''); setModal(true)
+          }}>+ LOG ENGAGEMENT</button>
         </div>
-        <div className="flex gap-8">
-          <button className="btn btn-ghost btn-sm" style={tab === 'feed' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('feed')}>FEED</button>
-          <button className="btn btn-ghost btn-sm" style={tab === 'leaderboard' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('leaderboard')}>LEADERBOARD</button>
-        </div>
+
+        <TabStrip
+          active={tab} onChange={setTab}
+          tabs={[
+            { key: 'feed',        label: 'COMBAT FEED',  color: RED,       glyph: '◆', count: kills.length },
+            { key: 'leaderboard', label: 'LEADERBOARD',  color: UEE_AMBER, glyph: '▲', count: leaderboard.length },
+          ]}
+        />
       </div>
 
       <div className="page-body">
-        {loading ? <div className="loading">LOADING...</div> : tab === 'feed' ? (
-          kills.length === 0 ? <div className="empty-state">NO ENGAGEMENTS LOGGED</div> : (
-            <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
-              <thead><tr><th>DATE</th><th>OPERATIVE</th><th>TARGET</th><th>ORG</th><th>SHIP</th><th>VS</th><th>LOCATION</th><th>TYPE</th><th>RESULT</th></tr></thead>
-              <tbody>
-                {kills.map(k => (
-                  <tr key={k.id}>
-                    <td className="mono text-muted" style={{ fontSize: 11 }}>{fmt(k.created_at)}</td>
-                    <td style={{ fontWeight: 500 }}>{k.reporter?.handle}</td>
-                    <td style={{ color: 'var(--red)' }}>{k.target_name}</td>
-                    <td className="mono text-muted">{k.target_org || '—'}</td>
-                    <td className="mono text-muted" style={{ fontSize: 11 }}>{k.ship_used || '—'}</td>
-                    <td className="mono text-muted" style={{ fontSize: 11 }}>{k.target_ship || '—'}</td>
-                    <td className="text-muted">{k.location || '—'}</td>
-                    <td className="mono" style={{ fontSize: 10 }}>{k.engagement_type}</td>
-                    <td><span className={`badge ${OUTCOME_BADGE[k.outcome]}`}>{k.outcome}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div></div>
-          )
+        {loading ? <div className="loading">LOADING ARCHIVE...</div> : tab === 'feed' ? (
+          <>
+            {/* Stat strip */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 10, marginBottom: 18,
+            }}>
+              <StatCell label="KILLS"   value={killCount}   color={OUTCOME_META.KILL.color}   glyph="◉"
+                onClick={() => setOutcomeFilter(outcomeFilter === 'KILL' ? 'ALL' : 'KILL')}
+                active={outcomeFilter === 'KILL'} />
+              <StatCell label="ASSISTS" value={assistCount} color={OUTCOME_META.ASSIST.color} glyph="◎"
+                onClick={() => setOutcomeFilter(outcomeFilter === 'ASSIST' ? 'ALL' : 'ASSIST')}
+                active={outcomeFilter === 'ASSIST'} />
+              <StatCell label="DEATHS"  value={deathCount}  color={OUTCOME_META.DEATH.color}  glyph="✕"
+                onClick={() => setOutcomeFilter(outcomeFilter === 'DEATH' ? 'ALL' : 'DEATH')}
+                active={outcomeFilter === 'DEATH'} />
+              <StatCell label="K/D RATIO" value={orgKD} color={UEE_AMBER} glyph="◆" desc="Organisation-wide" />
+            </div>
+
+            <FilterRow
+              search={search} setSearch={setSearch}
+              placeholder="Search target, org, ship, location, operative..."
+              pills={[
+                { key: 'ALL',    label: 'ALL',     color: '#d4d8e0', count: kills.length },
+                { key: 'KILL',   label: 'KILLS',   color: OUTCOME_META.KILL.color,   glyph: '◉', count: killCount },
+                { key: 'ASSIST', label: 'ASSISTS', color: OUTCOME_META.ASSIST.color, glyph: '◎', count: assistCount },
+                { key: 'DEATH',  label: 'DEATHS',  color: OUTCOME_META.DEATH.color,  glyph: '✕', count: deathCount },
+              ]}
+              active={outcomeFilter} setActive={setOutcomeFilter}
+            />
+
+            {filteredFeed.length === 0 ? (
+              <EmptyState>No engagements match — clear a filter or log the next one.</EmptyState>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filteredFeed.map(k => <KillRow key={k.id} kill={k} />)}
+              </div>
+            )}
+          </>
         ) : (
-          <div style={{ maxWidth: 500 }}>
-            {leaderboard.map((p, i) => {
-              const kd = p.deaths > 0 ? (p.kills / p.deaths).toFixed(1) : p.kills > 0 ? '∞' : '—'
-              return (
-                <div key={p.handle} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ width: 28, fontSize: 14, fontFamily: 'var(--font-mono)', color: i < 3 ? 'var(--accent)' : 'var(--text-3)', fontWeight: 600 }}>#{i + 1}</span>
-                  <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{p.handle}</span>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-                    <span style={{ color: 'var(--green)' }}>{p.kills}K</span>
-                    <span style={{ color: 'var(--blue)' }}>{p.assists}A</span>
-                    <span style={{ color: 'var(--red)' }}>{p.deaths}D</span>
-                    <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{kd} K/D</span>
-                  </div>
-                </div>
-              )
-            })}
-            {leaderboard.length === 0 && <div className="empty-state">NO DATA</div>}
-          </div>
+          <LeaderboardView leaderboard={leaderboard} />
         )}
       </div>
 
       {modal && (
-        <Modal title="LOG ENGAGEMENT" onClose={() => setModal(false)}>
+        <UeeModal
+          accent={RED}
+          kicker="◆ COMBAT REPORT · NEW ENTRY"
+          title="LOG ENGAGEMENT"
+          onClose={() => setModal(false)}
+          maxWidth={640}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(false)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={logKill} disabled={saving}>
+                {saving ? 'LOGGING...' : 'LOG ENGAGEMENT'}
+              </button>
+            </>
+          )}
+        >
+          {/* Outcome selector — big visual buttons */}
+          <div className="form-group">
+            <label className="form-label">OUTCOME</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {OUTCOMES.map(o => {
+                const meta = OUTCOME_META[o]
+                const sel = (form.outcome || 'KILL') === o
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, outcome: o }))}
+                    style={{
+                      textAlign: 'left', cursor: 'pointer',
+                      background: sel ? `${meta.color}18` : 'var(--bg-raised)',
+                      border: `1px solid ${sel ? meta.color : 'var(--border)'}`,
+                      borderLeft: `3px solid ${meta.color}`,
+                      borderRadius: 3, padding: '8px 10px',
+                    }}
+                  >
+                    <div style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.22em', fontWeight: 600,
+                      color: meta.color, display: 'flex', alignItems: 'center', gap: 5,
+                    }}>
+                      <span>{meta.glyph}</span> {o}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="form-row">
-            <div className="form-group"><label className="form-label">TARGET NAME *</label><input className="form-input" value={form.target_name || ''} onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))} placeholder="Player or NPC name" /></div>
-            <div className="form-group"><label className="form-label">TARGET ORG</label><input className="form-input" value={form.target_org || ''} onChange={e => setForm(f => ({ ...f, target_org: e.target.value }))} placeholder="Org tag" /></div>
+            <div className="form-group">
+              <label className="form-label">TARGET NAME *</label>
+              <input className="form-input" value={form.target_name || ''}
+                onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))}
+                placeholder="Player or NPC name" autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label">TARGET ORG</label>
+              <input className="form-input" value={form.target_org || ''}
+                onChange={e => setForm(f => ({ ...f, target_org: e.target.value }))}
+                placeholder="Org tag" />
+            </div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">YOUR SHIP</label><input className="form-input" value={form.ship_used || ''} onChange={e => setForm(f => ({ ...f, ship_used: e.target.value }))} placeholder="Ship you were flying" /></div>
-            <div className="form-group"><label className="form-label">TARGET SHIP</label><input className="form-input" value={form.target_ship || ''} onChange={e => setForm(f => ({ ...f, target_ship: e.target.value }))} placeholder="What they were flying" /></div>
+            <div className="form-group">
+              <label className="form-label">YOUR SHIP</label>
+              <input className="form-input" value={form.ship_used || ''}
+                onChange={e => setForm(f => ({ ...f, ship_used: e.target.value }))}
+                placeholder="Ship you were flying" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">TARGET SHIP</label>
+              <input className="form-input" value={form.target_ship || ''}
+                onChange={e => setForm(f => ({ ...f, target_ship: e.target.value }))}
+                placeholder="What they were flying" />
+            </div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">LOCATION</label><select className="form-select" value={form.location || ''} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}><option value="">—</option>{SC_LOCATIONS.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">TYPE</label><select className="form-select" value={form.engagement_type} onChange={e => setForm(f => ({ ...f, engagement_type: e.target.value }))}>{TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+            <div className="form-group">
+              <label className="form-label">LOCATION</label>
+              <select className="form-select" value={form.location || ''}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
+                <option value="">—</option>
+                {SC_LOCATIONS.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">TYPE</label>
+              <select className="form-select" value={form.engagement_type}
+                onChange={e => setForm(f => ({ ...f, engagement_type: e.target.value }))}>
+                {TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="form-group"><label className="form-label">OUTCOME</label><select className="form-select" value={form.outcome} onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}>{OUTCOMES.map(o => <option key={o}>{o}</option>)}</select></div>
-          <div className="form-group"><label className="form-label">NOTES</label><textarea className="form-textarea" value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Combat details..." /></div>
+          <div className="form-group">
+            <label className="form-label">NOTES</label>
+            <textarea className="form-textarea" value={form.notes || ''}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Combat details — tactics, wingmates, relevant context..." />
+          </div>
           {error && <div className="form-error mb-8">{error}</div>}
-          <div className="modal-footer"><button className="btn btn-ghost" onClick={() => setModal(false)}>CANCEL</button><button className="btn btn-primary" onClick={logKill} disabled={saving}>{saving ? 'LOGGING...' : 'LOG ENGAGEMENT'}</button></div>
-        </Modal>
+        </UeeModal>
       )}
     </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+function KillRow({ kill }) {
+  const meta = OUTCOME_META[kill.outcome] || OUTCOME_META.KILL
+  const typeColor = TYPE_COLOR[kill.engagement_type] || 'var(--text-3)'
+  return (
+    <Card accent={meta.color}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <StatusBadge color={meta.color} glyph={meta.glyph} label={kill.outcome} />
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.22em',
+          color: typeColor, border: `1px solid ${typeColor}55`, padding: '2px 7px', borderRadius: 3,
+        }}>{kill.engagement_type}</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>
+          {kill.reporter?.handle || '—'}
+        </span>
+        <span style={{ color: 'var(--text-3)', fontSize: 11 }}>vs</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: meta.color }}>
+          {kill.target_name}
+        </span>
+        {kill.target_org && (
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--text-3)' }}>
+            [{kill.target_org}]
+          </span>
+        )}
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--text-3)' }}>
+          {fmtDateTime(kill.created_at)}
+        </span>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10,
+        padding: '8px 10px',
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid var(--border)',
+        borderRadius: 3,
+      }}>
+        <Field label="YOUR SHIP"  value={kill.ship_used || '—'}   mono />
+        <Field label="TARGET SHIP" value={kill.target_ship || '—'} mono color={kill.target_ship ? meta.color : undefined} />
+        <Field label="LOCATION"    value={kill.location || '—'} />
+      </div>
+      {kill.notes && (
+        <div style={{
+          fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5,
+          padding: '8px 10px',
+          borderLeft: `2px solid ${meta.color}55`,
+          background: `${meta.color}08`,
+          borderRadius: 2,
+          whiteSpace: 'pre-wrap',
+        }}>
+          {kill.notes}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+function LeaderboardView({ leaderboard }) {
+  if (leaderboard.length === 0) return <EmptyState>No combat data logged yet.</EmptyState>
+  const top = leaderboard[0]
+  return (
+    <div>
+      <SectionHeader label="FLEET LEADERBOARD" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+        {leaderboard.map((p, i) => {
+          const kd = p.deaths > 0 ? (p.kills / p.deaths).toFixed(2) : p.kills > 0 ? '∞' : '—'
+          const color = i === 0 ? UEE_AMBER : i < 3 ? '#5ce0a1' : 'var(--text-3)'
+          const isTop = p.handle === top?.handle
+          return (
+            <Card key={p.handle} accent={color}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 34, height: 34, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-display)', fontWeight: 700,
+                  color, background: `${color}14`, border: `1px solid ${color}55`,
+                  borderRadius: 3, fontSize: 13,
+                }}>
+                  #{i + 1}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: 'var(--text-1)' }}>
+                    {p.handle || '—'}
+                    {isTop && <span style={{ marginLeft: 6, color: UEE_AMBER, fontSize: 11 }}>★</span>}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.15em', color: 'var(--text-3)' }}>
+                    OPERATIVE
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: UEE_AMBER }}>
+                  {kd}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <Field label="KILLS"   value={p.kills}   mono color={OUTCOME_META.KILL.color} />
+                <Field label="ASSISTS" value={p.assists} mono color={OUTCOME_META.ASSIST.color} />
+                <Field label="DEATHS"  value={p.deaths}  mono color={OUTCOME_META.DEATH.color} />
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
   )
 }
