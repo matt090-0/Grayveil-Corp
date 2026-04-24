@@ -512,7 +512,11 @@ export default function Profile() {
                       <select className="form-select" value={form.division}
                         onChange={e => setForm(f => ({ ...f, division: e.target.value }))}>
                         <option value="">—</option>
-                        {SC_DIVISIONS.map(d => <option key={d}>{d}</option>)}
+                        {SC_DIVISIONS.map(d => (
+                          <option key={d} value={d} disabled={d === 'High Command' && !profile.is_head_founder}>
+                            {d}{d === 'High Command' && !profile.is_head_founder ? ' · head-only' : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="form-group">
@@ -520,7 +524,11 @@ export default function Profile() {
                       <select className="form-select" value={form.speciality}
                         onChange={e => setForm(f => ({ ...f, speciality: e.target.value }))}>
                         <option value="">—</option>
-                        {SC_SPECIALITIES.map(s => <option key={s}>{s}</option>)}
+                        {SC_SPECIALITIES.map(s => (
+                          <option key={s} value={s} disabled={s === 'Strategic Command' && !profile.is_head_founder}>
+                            {s}{s === 'Strategic Command' && !profile.is_head_founder ? ' · head-only' : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

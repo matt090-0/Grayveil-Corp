@@ -1140,3 +1140,55 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.set_credit_score(UUID, INTEGER, TEXT) TO authenticated;
+
+-- ── 8. Head founder + High Command gate ──
+-- Exactly one profile may carry is_head_founder = true (enforced by a
+-- partial unique index). That single account is the only one allowed to
+-- assign the 'High Command' division or the 'Strategic Command'
+-- speciality to any profile. The UI (Profile self-edit, Admin edit
+-- modal, Roster edit modal) additionally disables these options for
+-- everyone else, so users see the rung exists but can't pick it.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS is_head_founder BOOLEAN NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_one_head_founder
+  ON public.profiles ((1))
+  WHERE is_head_founder = true;
+
+-- BEFORE UPDATE trigger: rejects any transition of `division` to
+-- 'High Command' or `speciality` to 'Strategic Command' that doesn't
+-- come from the head founder (or from the service role during migrations).
+CREATE OR REPLACE FUNCTION public.guard_high_command_assignment()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public AS $$
+DECLARE
+  v_changing_division  BOOLEAN := NEW.division  IS DISTINCT FROM OLD.division;
+  v_changing_specialty BOOLEAN := NEW.speciality IS DISTINCT FROM OLD.speciality;
+  v_is_head            BOOLEAN;
+BEGIN
+  IF NOT v_changing_division AND NOT v_changing_specialty THEN
+    RETURN NEW;
+  END IF;
+
+  IF (v_changing_division  AND NEW.division   = 'High Command')
+     OR (v_changing_specialty AND NEW.speciality = 'Strategic Command')
+  THEN
+    IF auth.uid() IS NULL THEN
+      RETURN NEW;
+    END IF;
+    SELECT COALESCE(is_head_founder, false) INTO v_is_head
+    FROM public.profiles WHERE id = auth.uid();
+
+    IF NOT COALESCE(v_is_head, false) THEN
+      RAISE EXCEPTION 'Only the head founder may assign High Command / Strategic Command';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_high_command_assignment ON public.profiles;
+CREATE TRIGGER trg_guard_high_command_assignment
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_high_command_assignment();

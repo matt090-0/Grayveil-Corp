@@ -199,14 +199,22 @@ export default function Roster() {
               <label className="form-label">DIVISION</label>
               <select className="form-select" value={editData.division} onChange={e => setEditData(d => ({ ...d, division: e.target.value }))}>
                 <option value="">— Select —</option>
-                {SC_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                {SC_DIVISIONS.map(d => (
+                  <option key={d} value={d} disabled={d === 'High Command' && !me.is_head_founder}>
+                    {d}{d === 'High Command' && !me.is_head_founder ? ' · head-only' : ''}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">SPECIALITY</label>
               <select className="form-select" value={editData.speciality} onChange={e => setEditData(d => ({ ...d, speciality: e.target.value }))}>
                 <option value="">— Select —</option>
-                {SC_SPECIALITIES.map(s => <option key={s} value={s}>{s}</option>)}
+                {SC_SPECIALITIES.map(s => (
+                  <option key={s} value={s} disabled={s === 'Strategic Command' && !me.is_head_founder}>
+                    {s}{s === 'Strategic Command' && !me.is_head_founder ? ' · head-only' : ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

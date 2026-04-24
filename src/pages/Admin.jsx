@@ -931,7 +931,7 @@ export default function Admin() {
             </select>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">DIVISION</label><select className="form-select" value={form.division || ''} onChange={e => setForm(f => ({ ...f, division: e.target.value }))}><option value="">—</option>{SC_DIVISIONS.map(d => <option key={d}>{d}</option>)}</select></div>
+            <div className="form-group"><label className="form-label">DIVISION</label><select className="form-select" value={form.division || ''} onChange={e => setForm(f => ({ ...f, division: e.target.value }))}><option value="">—</option>{SC_DIVISIONS.map(d => <option key={d} value={d} disabled={d === 'High Command' && !me.is_head_founder}>{d}{d === 'High Command' && !me.is_head_founder ? ' · head-only' : ''}</option>)}</select></div>
             <div className="form-group"><label className="form-label">STATUS</label><select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>ACTIVE</option><option>INACTIVE</option><option>SUSPENDED</option><option>BANNED</option></select></div>
           </div>
           <div className="form-group">
