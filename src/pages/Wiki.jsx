@@ -22,7 +22,7 @@ export default function Wiki() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const canWrite = me.tier <= 6
+  const canWrite = me.tier <= 3
 
   async function load() {
     const { data } = await supabase.from('wiki_articles').select('*, author:profiles!wiki_articles_created_by_fkey(handle), editor:profiles!wiki_articles_updated_by_fkey(handle)').order('pinned', { ascending: false }).order('updated_at', { ascending: false })
