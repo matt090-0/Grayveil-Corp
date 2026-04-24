@@ -6,6 +6,7 @@ import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordMedal } from '../lib/discord'
+import { confirmAction } from '../lib/dialogs'
 
 const MAX_REASON_LEN = 500
 const RARITY_BADGE = { COMMON: 'badge-muted', UNCOMMON: 'badge-green', RARE: 'badge-blue', LEGENDARY: 'badge-accent' }
@@ -71,7 +72,7 @@ export default function Medals() {
   }
 
   async function revokeCert(id) {
-    if (!confirm('Revoke this certification?')) return
+    if (!(await confirmAction('Revoke this certification?'))) return
     await supabase.from('member_certifications').delete().eq('id', id)
     toast('Certification revoked', 'info'); load()
   }

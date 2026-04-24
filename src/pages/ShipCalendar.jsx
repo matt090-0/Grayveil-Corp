@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { timeAgo, fmtDateTime } from '../lib/dates'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { confirmAction } from '../lib/dialogs'
 
 function formatDateInput(d) {
   return new Date(d).toISOString().slice(0, 16)
@@ -107,7 +108,7 @@ export default function ShipCalendar() {
   }
 
   async function cancelReservation(id) {
-    if (!confirm('Cancel this reservation?')) return
+    if (!(await confirmAction('Cancel this reservation?'))) return
     await supabase.from('ship_reservations').update({ status: 'CANCELLED' }).eq('id', id)
     toast('Reservation cancelled', 'info'); load()
   }

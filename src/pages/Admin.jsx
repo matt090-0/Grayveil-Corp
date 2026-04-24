@@ -9,6 +9,7 @@ import { discordAnnouncement, discordModeration, testDiscordWebhook } from '../l
 import { exportCSV } from '../lib/csv'
 import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
 import { notifyMaintenanceChange } from '../hooks/useMaintenanceMap'
+import { confirmAction, promptAction } from '../lib/dialogs'
 
 const STRIKE_SUSPEND_THRESHOLD = 3
 const STRIKE_BAN_THRESHOLD = 5
@@ -119,7 +120,7 @@ export default function Admin() {
   async function disciplineMember(member, action) {
     if (!member?.id) return
     if (member.is_founder && action !== 'WARN') { flash('Founder account cannot be disciplined from this panel.'); return }
-    const reason = prompt(`${action} reason for ${member.handle}:`)
+    const reason = await promptAction(`${action} reason for ${member.handle}:`)
     if (!reason?.trim()) return
 
     if (action === 'WARN') {
@@ -164,7 +165,7 @@ export default function Admin() {
     }
 
     if (action === 'SUSPEND') {
-      const daysRaw = prompt('Suspend for how many days? (blank = indefinite)', '7')
+      const daysRaw = await promptAction('Suspend for how many days? (blank = indefinite)', '7')
       const days = parseInt(daysRaw)
       const suspendedUntil = Number.isFinite(days) && days > 0 ? new Date(Date.now() + (days * 86400000)).toISOString() : null
       const { error } = await supabase.from('profiles').update({ status: 'SUSPENDED', suspended_until: suspendedUntil, status_reason: reason.trim() }).eq('id', member.id)
@@ -177,8 +178,8 @@ export default function Admin() {
     }
 
     if (action === 'BAN') {
-      if (!confirm(`Ban ${member.handle}? This will remove access.`)) return
-      const daysRaw = prompt('Ban for how many days? (blank = permanent)', '')
+      if (!(await confirmAction(`Ban ${member.handle}? This will remove access.`))) return
+      const daysRaw = await promptAction('Ban for how many days? (blank = permanent)', '')
       const days = parseInt(daysRaw)
       const bannedUntil = Number.isFinite(days) && days > 0 ? new Date(Date.now() + (days * 86400000)).toISOString() : null
       await supabase.from('profiles').update({ status: 'BANNED', suspended_until: bannedUntil, status_reason: reason.trim() }).eq('id', member.id)
@@ -207,7 +208,7 @@ export default function Admin() {
   }
 
   async function resetStrikes(member) {
-    const reason = prompt(`Reason to reset strike count for ${member.handle}:`)
+    const reason = await promptAction(`Reason to reset strike count for ${member.handle}:`)
     if (!reason?.trim()) return
     const { error } = await supabase.from('profiles').update({ strike_count: 0 }).eq('id', member.id)
     if (error) { flash(`Reset failed: ${error.message}`); return }
@@ -226,7 +227,7 @@ export default function Admin() {
     setModal(null); setSaving(false); flash('Member updated.'); load()
   }
   async function deleteMember(m) {
-    if (!confirm(`PERMANENTLY DELETE ${m.handle}? This is irreversible.`)) return
+    if (!(await confirmAction(`PERMANENTLY DELETE ${m.handle}? This is irreversible.`))) return
     await supabase.from('profiles').delete().eq('id', m.id)
     await logAction('admin_delete_member', m.id, { handle: m.handle })
     flash(`${m.handle} removed.`); load()
@@ -274,7 +275,7 @@ export default function Admin() {
     setModal(null); setSaving(false); flash('Posted.'); load()
   }
   async function deleteAnnouncement(id) {
-    if (!confirm('Delete this announcement?')) return
+    if (!(await confirmAction('Delete this announcement?'))) return
     await supabase.from('announcements').delete().eq('id', id); flash('Deleted.'); load()
   }
 
@@ -292,7 +293,7 @@ export default function Admin() {
       reset_treasury: 'RESET treasury to 0',
     }
     const label = labels[type] || type
-    const reason = prompt(`Reason to request "${label}"?\n\nThis creates a pending request. Another founder must approve it (or you may self-approve after a 5-minute cool-off).`)
+    const reason = await promptAction(`Reason to request "${label}"?\n\nThis creates a pending request. Another founder must approve it (or you may self-approve after a 5-minute cool-off).`)
     if (!reason || reason.trim().length < 3) { if (reason !== null) flash('Reason must be at least 3 characters.'); return }
     const { error } = await supabase.rpc('request_admin_action', { p_action_type: type, p_reason: reason.trim() })
     if (error) { flash(`Request failed: ${error.message}`); return }
@@ -305,7 +306,7 @@ export default function Admin() {
     const ack = isSelf
       ? `Self-approve "${row.action_type}"?\n\nReason: ${row.reason}\n\nThis will execute the destructive action immediately.`
       : `Approve "${row.action_type}" requested by ${row.initiator?.handle || 'another founder'}?\n\nReason: ${row.reason}\n\nThis will execute the destructive action immediately.`
-    if (!confirm(ack)) return
+    if (!(await confirmAction(ack))) return
     const { data, error } = await supabase.rpc('approve_admin_action', { p_id: row.id })
     if (error) { flash(`Approve failed: ${error.message}`); return }
     flash(data || 'Action executed.')
@@ -313,7 +314,7 @@ export default function Admin() {
   }
 
   async function cancelPendingAction(row) {
-    if (!confirm(`Cancel pending request "${row.action_type}"?`)) return
+    if (!(await confirmAction(`Cancel pending request "${row.action_type}"?`))) return
     const { error } = await supabase.rpc('cancel_admin_action', { p_id: row.id })
     if (error) { flash(`Cancel failed: ${error.message}`); return }
     flash('Request cancelled.')
@@ -775,7 +776,7 @@ export default function Admin() {
               </button>
               <button className="btn btn-ghost" disabled={maintSaving}
                 onClick={async () => {
-                  if (!confirm('Clear all maintenance flags? Every section will be accessible again.')) return
+                  if (!(await confirmAction('Clear all maintenance flags? Every section will be accessible again.'))) return
                   setMaintSaving(true)
                   const { error } = await supabase.from('org_settings').upsert(
                     { key: 'page_maintenance', value: {}, updated_by: me.id },

@@ -5,6 +5,7 @@ import { timeAgo } from '../lib/dates'
 import { formatCredits } from '../lib/ranks'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { confirmAction } from '../lib/dialogs'
 
 const THREAT_STYLES = {
   LOW: { color: '#8a8f9c', bg: 'rgba(138,143,156,0.12)', border: 'rgba(138,143,156,0.3)' },
@@ -69,7 +70,7 @@ export default function Blacklist() {
   }
 
   async function deleteEntry(id) {
-    if (!confirm('Delete this entry permanently?')) return
+    if (!(await confirmAction('Delete this entry permanently?'))) return
     await supabase.from('blacklist').delete().eq('id', id)
     toast('Entry deleted', 'info'); load()
   }

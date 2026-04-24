@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordNewOp } from '../lib/discord'
 import ReactMarkdown from 'react-markdown'
+import { confirmAction } from '../lib/dialogs'
 
 const CATEGORIES = ['ALL', 'COMBAT', 'MINING', 'TRADE', 'ESCORT', 'RECON', 'SALVAGE', 'RACING', 'GENERAL']
 const CAT_BADGE = { COMBAT: 'badge-red', MINING: 'badge-amber', TRADE: 'badge-green', ESCORT: 'badge-blue', RECON: 'badge-purple', SALVAGE: 'badge-muted', RACING: 'badge-accent', GENERAL: 'badge-muted' }
@@ -94,7 +95,7 @@ export default function OpTemplates() {
   }
 
   async function deleteTemplate(id) {
-    if (!confirm('Delete this template?')) return
+    if (!(await confirmAction('Delete this template?'))) return
     await supabase.from('op_templates').delete().eq('id', id)
     toast('Template deleted', 'info'); setViewing(null); load()
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { timeAgo } from '../lib/dates'
+import { confirmAction } from '../lib/dialogs'
 
 const CATEGORY_COLORS = {
   GENERAL: { fg: 'var(--text-2)', bg: 'var(--bg-surface)' },
@@ -39,7 +40,7 @@ export default function MemberNotes({ memberId, canManage }) {
   }
 
   async function deleteNote(id) {
-    if (!confirm('Delete this note?')) return
+    if (!(await confirmAction('Delete this note?'))) return
     await supabase.from('member_notes').delete().eq('id', id); load()
   }
 

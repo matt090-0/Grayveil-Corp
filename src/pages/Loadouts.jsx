@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
+import { confirmAction } from '../lib/dialogs'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }
 
@@ -48,7 +49,7 @@ export default function Loadouts() {
   }
 
   async function deleteLoadout(id) {
-    if (!confirm('Delete this loadout?')) return
+    if (!(await confirmAction('Delete this loadout?'))) return
     await supabase.from('ship_loadouts').delete().eq('id', id); load()
   }
 

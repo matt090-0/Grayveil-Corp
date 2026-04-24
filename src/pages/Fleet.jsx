@@ -6,6 +6,7 @@ import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { exportCSV } from '../lib/csv'
+import { confirmAction } from '../lib/dialogs'
 
 const STATUS_BADGE = { AVAILABLE: 'badge-green', DEPLOYED: 'badge-amber', MAINTENANCE: 'badge-red', RESERVED: 'badge-blue' }
 const REQ_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', DENIED: 'badge-red' }
@@ -83,7 +84,7 @@ export default function Fleet() {
   }
 
   async function deleteShip(id) {
-    if (!confirm('Remove this vessel from the registry?')) return
+    if (!(await confirmAction('Remove this vessel from the registry?'))) return
     await supabase.from('fleet').delete().eq('id', id); load()
   }
 

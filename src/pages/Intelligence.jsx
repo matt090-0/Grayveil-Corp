@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { INTEL_CLASSES } from '../lib/ranks'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { confirmAction } from '../lib/dialogs'
 
 function timeAgo(ts) {
   const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
@@ -69,7 +70,7 @@ export default function Intelligence() {
   }
 
   async function deleteFile(id) {
-    if (!confirm('Permanently purge this intelligence file?')) return
+    if (!(await confirmAction('Permanently purge this intelligence file?'))) return
     await supabase.from('intelligence').delete().eq('id', id)
     setView(null)
     load()

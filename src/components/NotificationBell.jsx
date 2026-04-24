@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { timeAgo } from '../lib/dates'
+import { confirmAction } from '../lib/dialogs'
 
 const TYPE_ICONS = {
   promotion: '★',
@@ -65,7 +66,7 @@ export default function NotificationBell() {
   }
 
   async function clearAll() {
-    if (!confirm('Clear all notifications?')) return
+    if (!(await confirmAction('Clear all notifications?'))) return
     await supabase.from('notifications').delete().eq('recipient_id', me.id)
     load()
   }

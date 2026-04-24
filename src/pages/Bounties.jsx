@@ -6,6 +6,7 @@ import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { greenBurst } from '../lib/confetti'
 import { discordBounty, discordBountyClaimed } from '../lib/discord'
+import { confirmAction } from '../lib/dialogs'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 function timeLeft(ts) {
@@ -56,7 +57,7 @@ export default function Bounties() {
   }
 
   async function claimBounty(b) {
-    if (!confirm(`Claim bounty on ${b.target_name} for ${formatCredits(b.reward)}?`)) return
+    if (!(await confirmAction(`Claim bounty on ${b.target_name} for ${formatCredits(b.reward)}?`))) return
     const { error: err } = await supabase.rpc('claim_bounty', { p_bounty_id: b.id })
     if (err) { toast(err.message, 'error'); return }
     greenBurst()
@@ -66,7 +67,7 @@ export default function Bounties() {
   }
 
   async function cancelBounty(id) {
-    if (!confirm('Cancel this bounty?')) return
+    if (!(await confirmAction('Cancel this bounty?'))) return
     await supabase.from('bounties').update({ status: 'CANCELLED' }).eq('id', id)
     toast('Bounty cancelled', 'info'); load()
   }

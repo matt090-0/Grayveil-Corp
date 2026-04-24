@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import ReactMarkdown from 'react-markdown'
+import { confirmAction } from '../lib/dialogs'
 
 const CATEGORIES = ['GENERAL', 'SOP', 'COMBAT', 'TRADE', 'MINING', 'FITTING', 'RULES']
 const CAT_BADGE = { GENERAL: 'badge-muted', SOP: 'badge-accent', COMBAT: 'badge-red', TRADE: 'badge-green', MINING: 'badge-amber', FITTING: 'badge-blue', RULES: 'badge-purple' }
@@ -48,7 +49,7 @@ export default function Wiki() {
   }
 
   async function deleteArticle(id) {
-    if (!confirm('Delete this article?')) return
+    if (!(await confirmAction('Delete this article?'))) return
     await supabase.from('wiki_articles').delete().eq('id', id); setViewing(null); load()
   }
 

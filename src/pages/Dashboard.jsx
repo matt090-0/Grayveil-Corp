@@ -6,6 +6,7 @@ import { formatCredits } from '../lib/ranks'
 import { timeAgo } from '../lib/dates'
 import RankBadge from '../components/RankBadge'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { confirmAction } from '../lib/dialogs'
 
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -259,7 +260,7 @@ export default function Dashboard() {
                     {activity.length > 0 && profile.is_founder && (
                       <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, padding: '2px 8px', color: 'var(--text-3)' }}
                         onClick={async () => {
-                          if (!confirm('Clear entire activity feed?')) return
+                          if (!(await confirmAction('Clear entire activity feed?'))) return
                           await supabase.from('activity_log').delete().neq('id', '00000000-0000-0000-0000-000000000000')
                           setActivity([])
                         }}>CLEAR</button>

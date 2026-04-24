@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
+import { confirmAction } from '../lib/dialogs'
 
 const STAGES = ['PENDING', 'VETTING', 'APPROVED', 'REJECTED']
 const STAGE_BADGE = { PENDING: 'badge-muted', VETTING: 'badge-amber', APPROVED: 'badge-green', REJECTED: 'badge-red' }
@@ -64,7 +65,7 @@ export default function Recruitment() {
   }
 
   async function deleteProspect(id) {
-    if (!confirm('Remove this prospect?')) return
+    if (!(await confirmAction('Remove this prospect?'))) return
     await supabase.from('recruitment').delete().eq('id', id); load()
   }
 
@@ -76,7 +77,7 @@ export default function Recruitment() {
   }
 
   async function deleteInvite(id) {
-    if (!confirm('Delete this invite link?')) return
+    if (!(await confirmAction('Delete this invite link?'))) return
     await supabase.from('invite_links').delete().eq('id', id); load()
   }
 

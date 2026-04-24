@@ -6,6 +6,7 @@ import { SC_SHIPS } from '../lib/ships'
 import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { discordNewOp } from '../lib/discord'
+import { confirmAction } from '../lib/dialogs'
 
 const EVENT_TYPES = ['OPERATION', 'MINING', 'TRADE', 'PVP', 'TRAINING', 'SOCIAL', 'MEETING']
 const EVENT_BADGE = { SCHEDULED: 'badge-blue', LIVE: 'badge-green', COMPLETED: 'badge-muted', CANCELLED: 'badge-red' }
@@ -86,7 +87,7 @@ export default function Events() {
   }
 
   async function deleteEvent(id, title) {
-    if (!window.confirm(`Delete "${title}"? This removes the op and all signups. Cannot be undone.`)) return
+    if (!(await confirmAction(`Delete "${title}"? This removes the op and all signups. Cannot be undone.`))) return
     const { error } = await supabase.from('events').delete().eq('id', id)
     if (error) { toast(error.message || 'Delete failed', 'error'); return }
     await supabase.from('activity_log').insert({ actor_id: me.id, action: 'event_deleted', target_type: 'event', details: { title } })

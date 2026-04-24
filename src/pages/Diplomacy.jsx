@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
+import { confirmAction } from '../lib/dialogs'
 
 const STATUSES = ['ALLIED', 'FRIENDLY', 'NEUTRAL', 'UNFRIENDLY', 'HOSTILE', 'KOS']
 const STATUS_BADGE = { ALLIED: 'badge-green', FRIENDLY: 'badge-blue', NEUTRAL: 'badge-muted', UNFRIENDLY: 'badge-amber', HOSTILE: 'badge-red', KOS: 'badge-red' }
@@ -42,7 +43,7 @@ export default function Diplomacy() {
   }
 
   async function deleteOrg(id) {
-    if (!confirm('Remove this org from the tracker?')) return
+    if (!(await confirmAction('Remove this org from the tracker?'))) return
     await supabase.from('diplomacy').delete().eq('id', id); load()
   }
 

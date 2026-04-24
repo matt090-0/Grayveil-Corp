@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { greenBurst } from '../lib/confetti'
 import { formatCredits } from '../lib/ranks'
+import { confirmAction } from '../lib/dialogs'
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
 const OUTCOME_BADGE = { SUCCESS: 'badge-green', PARTIAL: 'badge-amber', FAILURE: 'badge-red', ABORTED: 'badge-muted' }
@@ -28,7 +29,7 @@ function LootDistributor({ aar, members, onDone }) {
     if (!total || total <= 0) { toast('Enter a loot total', 'error'); return }
     if (orgTax + shipOwnerPct > 100) { toast('Splits exceed 100%', 'error'); return }
     if (shipOwnerPct > 0 && !shipOwnerId) { toast('Select ship owner', 'error'); return }
-    if (!confirm(`Distribute ${formatCredits(total)} aUEC? This cannot be undone.`)) return
+    if (!(await confirmAction(`Distribute ${formatCredits(total)} aUEC? This cannot be undone.`))) return
     setDistributing(true)
     const { error } = await supabase.rpc('distribute_loot', {
       p_aar_id: aar.id, p_total: parseInt(total), p_org_tax_pct: orgTax,

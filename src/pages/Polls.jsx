@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { RANKS } from '../lib/ranks'
 import Modal from '../components/Modal'
+import { confirmAction } from '../lib/dialogs'
 
 function timeLeft(ts) {
   if (!ts) return null
@@ -107,7 +108,7 @@ export default function Polls() {
   }
 
   async function deletePoll(id) {
-    if (!confirm('Delete this poll and all votes?')) return
+    if (!(await confirmAction('Delete this poll and all votes?'))) return
     await supabase.from('polls').delete().eq('id', id)
     load()
   }
