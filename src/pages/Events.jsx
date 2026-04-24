@@ -85,6 +85,15 @@ export default function Events() {
     await supabase.from('events').update({ status }).eq('id', id); load()
   }
 
+  async function deleteEvent(id, title) {
+    if (!window.confirm(`Delete "${title}"? This removes the op and all signups. Cannot be undone.`)) return
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) { toast(error.message || 'Delete failed', 'error'); return }
+    await supabase.from('activity_log').insert({ actor_id: me.id, action: 'event_deleted', target_type: 'event', details: { title } })
+    toast('Operation deleted', 'success')
+    setDetail(null); load()
+  }
+
   function openDetail(e) {
     setDetail(e)
     setDetailSignups(signups.filter(s => s.event_id === e.id))
@@ -215,11 +224,12 @@ export default function Events() {
             )
           ) : null}
 
-          {canCreate && (
+          {(canCreate || me.is_founder) && (
             <div className="flex gap-8" style={{ marginTop: 16 }}>
-              {detail.status === 'SCHEDULED' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => { updateStatus(detail.id, 'LIVE'); setDetail({ ...detail, status: 'LIVE' }) }}>GO LIVE</button>}
-              {detail.status === 'LIVE' && <button className="btn btn-ghost btn-sm" onClick={() => { updateStatus(detail.id, 'COMPLETED'); setDetail({ ...detail, status: 'COMPLETED' }) }}>COMPLETE</button>}
-              {detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' && <button className="btn btn-danger btn-sm" onClick={() => { updateStatus(detail.id, 'CANCELLED'); setDetail({ ...detail, status: 'CANCELLED' }) }}>CANCEL</button>}
+              {canCreate && detail.status === 'SCHEDULED' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => { updateStatus(detail.id, 'LIVE'); setDetail({ ...detail, status: 'LIVE' }) }}>GO LIVE</button>}
+              {canCreate && detail.status === 'LIVE' && <button className="btn btn-ghost btn-sm" onClick={() => { updateStatus(detail.id, 'COMPLETED'); setDetail({ ...detail, status: 'COMPLETED' }) }}>COMPLETE</button>}
+              {canCreate && detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' && <button className="btn btn-danger btn-sm" onClick={() => { updateStatus(detail.id, 'CANCELLED'); setDetail({ ...detail, status: 'CANCELLED' }) }}>CANCEL</button>}
+              {me.is_founder && <button className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }} onClick={() => deleteEvent(detail.id, detail.title)}>DELETE</button>}
             </div>
           )}
         </Modal>

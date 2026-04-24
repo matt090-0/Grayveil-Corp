@@ -986,3 +986,16 @@ CREATE VIEW public.founder_count
   WITH (security_invoker = true)
   AS SELECT COUNT(*)::INT AS count FROM public.profiles WHERE is_founder = true;
 GRANT SELECT ON public.founder_count TO authenticated;
+
+-- ── 5. Events DELETE is founder-only ──
+-- Prior policy allowed the creator or any tier<=4 manager to delete an op.
+-- Deleting an op wipes signups and can't be undone, so restrict it to
+-- is_founder = true. Non-destructive state changes (LIVE / COMPLETE /
+-- CANCEL) still work for managers via the events_update policy.
+DROP POLICY IF EXISTS events_delete ON public.events;
+CREATE POLICY events_delete ON public.events
+  FOR DELETE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND is_founder = true
+  ));
