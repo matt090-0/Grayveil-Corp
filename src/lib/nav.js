@@ -20,6 +20,7 @@ export const NAV = [
   { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
   { to: '/blacklist',   icon: 'bounties',   label: 'WANTED LIST'   },
   { to: '/bank',        icon: 'bank',       label: 'BANK'          },
+  { to: '/market',      icon: 'market',     label: 'MARKETPLACE'   },
   { to: '/ledger',      icon: 'ledger',     label: 'LEDGER'        },
   { to: '/aars',        icon: 'aar',        label: 'AFTER ACTION'  },
   { to: '/recruitment', icon: 'recruitment',label: 'RECRUITMENT', minTier: 6 },

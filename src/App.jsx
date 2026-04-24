@@ -33,6 +33,7 @@ import ShipCalendar from './pages/ShipCalendar'
 import Blacklist from './pages/Blacklist'
 import PublicOrg from './pages/PublicOrg'
 import Updates from './pages/Updates'
+import Marketplace from './pages/Marketplace'
 
 function AppRoutes() {
   return (
@@ -86,6 +87,11 @@ function AppRoutes() {
       <Route path="/bank" element={
         <ProtectedRoute>
           <Layout><Bank /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/market" element={
+        <ProtectedRoute>
+          <Layout><Marketplace /></Layout>
         </ProtectedRoute>
       } />
       <Route path="/events" element={

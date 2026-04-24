@@ -1192,3 +1192,217 @@ DROP TRIGGER IF EXISTS trg_guard_high_command_assignment ON public.profiles;
 CREATE TRIGGER trg_guard_high_command_assignment
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_high_command_assignment();
+
+-- ── 9. Marketplace (member-to-member crafted goods) ──
+-- Members list items they've crafted in Star Citizen. Buyers purchase with
+-- in-app aUEC (profiles.wallet_balance). Purchases run through an atomic
+-- SECURITY DEFINER RPC that locks the listing + buyer wallet, transfers
+-- credits, decrements stock, writes a transactions row (so Bank history
+-- surfaces it), an activity_log row, and a notification to the seller.
+CREATE TABLE IF NOT EXISTS public.market_listings (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  title         TEXT NOT NULL,
+  category      TEXT NOT NULL CHECK (category IN (
+    'WEAPON','ARMOR','MEDICAL','TOOL','CONSUMABLE','AMMO','SHIP_COMP','OTHER'
+  )),
+  manufacturer  TEXT,
+  grade         TEXT CHECK (grade IN (
+    'STOCK','CIVILIAN','INDUSTRIAL','MILITARY','PROTOTYPE'
+  )),
+  description   TEXT,
+  quantity      INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0 AND quantity <= 10000),
+  unit_price    BIGINT  NOT NULL CHECK (unit_price >= 0 AND unit_price <= 1000000000),
+  location      TEXT,
+  status        TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN (
+    'ACTIVE','RESERVED','SOLD','CANCELLED','EXPIRED'
+  )),
+  reserved_by   UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reserved_at   TIMESTAMPTZ,
+  sold_to       UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  sold_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_status_created
+  ON public.market_listings (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_market_seller
+  ON public.market_listings (seller_id);
+CREATE INDEX IF NOT EXISTS idx_market_category
+  ON public.market_listings (category) WHERE status = 'ACTIVE';
+
+ALTER TABLE public.market_listings ENABLE ROW LEVEL SECURITY;
+
+-- Anyone signed in can browse the market.
+DROP POLICY IF EXISTS market_listings_select ON public.market_listings;
+CREATE POLICY market_listings_select ON public.market_listings
+  FOR SELECT USING (true);
+
+-- Sellers create listings for themselves, in ACTIVE state only.
+DROP POLICY IF EXISTS market_listings_insert ON public.market_listings;
+CREATE POLICY market_listings_insert ON public.market_listings
+  FOR INSERT WITH CHECK (seller_id = auth.uid() AND status = 'ACTIVE');
+
+-- Sellers may edit their own active/reserved listings; head founder can
+-- moderate anything.
+DROP POLICY IF EXISTS market_listings_update ON public.market_listings;
+CREATE POLICY market_listings_update ON public.market_listings
+  FOR UPDATE USING (
+    (seller_id = auth.uid() AND status IN ('ACTIVE','RESERVED'))
+    OR EXISTS (SELECT 1 FROM public.profiles
+               WHERE id = auth.uid() AND is_head_founder = true)
+  ) WITH CHECK (
+    seller_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.profiles
+               WHERE id = auth.uid() AND is_head_founder = true)
+  );
+
+-- Sellers can hard-delete their own non-sold listings.
+DROP POLICY IF EXISTS market_listings_delete ON public.market_listings;
+CREATE POLICY market_listings_delete ON public.market_listings
+  FOR DELETE USING (
+    seller_id = auth.uid()
+    AND status IN ('ACTIVE','CANCELLED','EXPIRED')
+  );
+
+-- Touch updated_at on every row edit.
+CREATE OR REPLACE FUNCTION public.market_listings_touch_updated_at()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN NEW.updated_at := NOW(); RETURN NEW; END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_market_listings_touch ON public.market_listings;
+CREATE TRIGGER trg_market_listings_touch
+  BEFORE UPDATE ON public.market_listings
+  FOR EACH ROW EXECUTE FUNCTION public.market_listings_touch_updated_at();
+
+-- Atomic purchase path. Locks the listing + buyer wallet, checks balance,
+-- transfers credits, decrements (or fully consumes) stock, records the
+-- transaction in Bank, logs activity, and notifies the seller.
+CREATE OR REPLACE FUNCTION public.purchase_market_listing(
+  p_listing_id UUID,
+  p_quantity   INTEGER
+) RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public AS $$
+DECLARE
+  v_buyer_id   UUID := auth.uid();
+  v_listing    public.market_listings%ROWTYPE;
+  v_total      BIGINT;
+  v_buyer_bal  BIGINT;
+BEGIN
+  IF v_buyer_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RAISE EXCEPTION 'Quantity must be positive';
+  END IF;
+
+  -- Lock the listing row to avoid two concurrent purchases.
+  SELECT * INTO v_listing FROM public.market_listings
+  WHERE id = p_listing_id FOR UPDATE;
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Listing not found'; END IF;
+  IF v_listing.status <> 'ACTIVE' THEN
+    RAISE EXCEPTION 'Listing is not available (%).', v_listing.status;
+  END IF;
+  IF v_listing.seller_id = v_buyer_id THEN
+    RAISE EXCEPTION 'Cannot buy your own listing';
+  END IF;
+  IF p_quantity > v_listing.quantity THEN
+    RAISE EXCEPTION 'Requested quantity exceeds listing stock';
+  END IF;
+
+  v_total := v_listing.unit_price * p_quantity;
+
+  -- Lock buyer wallet row to avoid over-spend in a race.
+  SELECT wallet_balance INTO v_buyer_bal
+  FROM public.profiles WHERE id = v_buyer_id FOR UPDATE;
+
+  IF v_buyer_bal < v_total THEN
+    RAISE EXCEPTION 'Insufficient aUEC balance';
+  END IF;
+
+  -- Move credits.
+  UPDATE public.profiles SET wallet_balance = wallet_balance - v_total WHERE id = v_buyer_id;
+  UPDATE public.profiles SET wallet_balance = wallet_balance + v_total WHERE id = v_listing.seller_id;
+
+  -- Decrement stock, or mark SOLD if depleted.
+  IF p_quantity = v_listing.quantity THEN
+    UPDATE public.market_listings
+       SET status = 'SOLD', sold_to = v_buyer_id, sold_at = NOW(), quantity = 0
+     WHERE id = p_listing_id;
+  ELSE
+    UPDATE public.market_listings
+       SET quantity = quantity - p_quantity
+     WHERE id = p_listing_id;
+  END IF;
+
+  -- Bank history row.
+  INSERT INTO public.transactions
+    (type, from_type, from_id, to_type, to_id, amount, description, recorded_by)
+  VALUES (
+    'MARKET_PURCHASE',
+    'profile', v_buyer_id,
+    'profile', v_listing.seller_id,
+    v_total,
+    'Market: ' || v_listing.title || ' × ' || p_quantity,
+    v_buyer_id
+  );
+
+  -- Activity log for transparency.
+  INSERT INTO public.activity_log (actor_id, action, target_type, target_id, metadata)
+  VALUES (
+    v_buyer_id,
+    'market_purchase',
+    'market_listing',
+    p_listing_id,
+    jsonb_build_object(
+      'title', v_listing.title,
+      'quantity', p_quantity,
+      'total', v_total,
+      'seller_id', v_listing.seller_id
+    )
+  );
+
+  -- Notify the seller.
+  INSERT INTO public.notifications (recipient_id, type, title, message, link)
+  VALUES (
+    v_listing.seller_id,
+    'market_sale',
+    'Listing sold',
+    'Your listing "' || v_listing.title || '" was purchased.',
+    '/market'
+  );
+
+  RETURN p_listing_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.purchase_market_listing(UUID, INTEGER) TO authenticated;
+
+-- Seller-initiated cancellation. Locks the row, verifies ownership +
+-- ACTIVE state, flips status to CANCELLED.
+CREATE OR REPLACE FUNCTION public.cancel_market_listing(
+  p_listing_id UUID
+) RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public AS $$
+DECLARE
+  v_actor   UUID := auth.uid();
+  v_listing public.market_listings%ROWTYPE;
+BEGIN
+  IF v_actor IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  SELECT * INTO v_listing FROM public.market_listings
+  WHERE id = p_listing_id FOR UPDATE;
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Listing not found'; END IF;
+  IF v_listing.seller_id <> v_actor THEN RAISE EXCEPTION 'Not your listing'; END IF;
+  IF v_listing.status <> 'ACTIVE' THEN RAISE EXCEPTION 'Listing is not active'; END IF;
+
+  UPDATE public.market_listings SET status = 'CANCELLED' WHERE id = p_listing_id;
+  RETURN p_listing_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.cancel_market_listing(UUID) TO authenticated;

@@ -167,6 +167,15 @@ const icons = {
     <line x1="4" y1="11" x2="9" y2="11" strokeWidth="0.8" />
   </I>,
 
+  // Storefront / market stall — awning + counter + goods
+  market: () => <I>
+    <path d="M2 5L3 2.5H13L14 5" />
+    <path d="M2.5 5V13H13.5V5" />
+    <line x1="2" y1="5" x2="14" y2="5" />
+    <rect x="5" y="7.5" width="6" height="5.5" rx="0.3" fill="currentColor" opacity="0.25" />
+    <line x1="5" y1="9.5" x2="11" y2="9.5" strokeWidth="0.8" />
+  </I>,
+
   // Circular refresh / changelog glyph — rotating arrow with a version pulse
   updates: () => <I>
     <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
