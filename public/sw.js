@@ -6,7 +6,7 @@
 //   - Supabase / API: pass-through (always network)
 // Updates: new SW installs but waits — client sends SKIP_WAITING when user accepts.
 
-const VERSION = 'v6'
+const VERSION = 'v7'
 const RUNTIME_CACHE = `grayveil-runtime-${VERSION}`
 const STATIC_CACHE  = `grayveil-static-${VERSION}`
 const CORE_ASSETS = [
@@ -25,11 +25,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then(cache => cache.addAll(CORE_ASSETS).catch(() => {}))
   )
-  // One-time auto-skip: recover clients stuck on a prior SW that cached
-  // HTML (Vercel's SPA fallback) in place of /assets/*.js during a deploy
-  // race. Holding back for a user banner click is pointless when the app
-  // can't boot to show the banner.
-  self.skipWaiting()
+  // New SW stays in "waiting" until the client posts SKIP_WAITING — that's
+  // how the "UPDATE READY — RELOAD" banner in PWAStatus.jsx gets a chance
+  // to show. The banner's button handler does the skipWaiting call.
 })
 
 self.addEventListener('activate', (event) => {
