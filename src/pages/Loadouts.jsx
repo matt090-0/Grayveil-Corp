@@ -12,6 +12,7 @@ import {
   WEAPON_ARCHETYPES,
   ARMOR_ARCHETYPES,
 } from '../lib/scgear'
+import { buildLoadoutBrief, openDossier, downloadDossier } from '../lib/dossier'
 
 // ── UEE visual language ────────────────────────────────────────────────────
 const UEE_AMBER = '#c8a55a'
@@ -509,6 +510,18 @@ function DetailModal({ row, kind, me, onClose, onEdit, onDelete, busy }) {
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>CLOSE</button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => {
+            const { html, filename } = buildLoadoutBrief(row, kind)
+            const w = openDossier(html)
+            if (!w) downloadDossier(html, filename)
+          }}
+          title="Opens a printable UEE-styled brief in a new tab."
+          style={{ color: '#c8a55a', border: '1px solid #c8a55a55' }}
+        >
+          ⎙ EXPORT BRIEF
+        </button>
         {canManage && <button className="btn btn-ghost" onClick={onEdit}>EDIT</button>}
         {canDelete && <button className="btn" onClick={onDelete} disabled={busy} style={{ color: 'var(--red)', border: '1px solid var(--red)' }}>DELETE</button>}
       </div>

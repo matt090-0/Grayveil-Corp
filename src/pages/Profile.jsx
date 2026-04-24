@@ -6,6 +6,7 @@ import { SC_DIVISIONS, SC_SPECIALITIES } from '../lib/scdata'
 import RankBadge from '../components/RankBadge'
 import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
+import { buildCitizenDossier, openDossier, downloadDossier } from '../lib/dossier'
 
 const AVATAR_COLORS = [
   '#d4d8e0', '#4a90d9', '#d94a4a', '#4ad980', '#d94ad9',
@@ -480,19 +481,45 @@ export default function Profile() {
                     Handle and rank are leadership-managed. You may amend division, tagline, ship, and personal note.
                   </div>
                 </div>
-                <button
-                  onClick={() => setEditing(!editing)}
-                  style={{
-                    background: editing ? `${accent}22` : 'transparent',
-                    border: `1px solid ${accent}`,
-                    color: accent, fontFamily: 'var(--font-mono)',
-                    fontSize: 10, letterSpacing: '.2em', fontWeight: 600,
-                    padding: '9px 18px', borderRadius: 3, cursor: 'pointer',
-                    whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                >
-                  {editing ? '◂ CLOSE' : 'AMEND ▸'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => {
+                      const { html, filename } = buildCitizenDossier(profile, { medals, certs, ships, stats })
+                      const w = openDossier(html)
+                      if (!w) {
+                        // Popup blocked — fall back to direct download.
+                        downloadDossier(html, filename)
+                        toast('Popup blocked — dossier downloaded', 'info')
+                      } else {
+                        toast('Dossier opened in new tab', 'success')
+                      }
+                    }}
+                    title="Opens a printable UEE-styled HTML dossier in a new tab. Use the browser print dialog to save as PDF."
+                    style={{
+                      background: 'transparent',
+                      border: `1px solid ${UEE_AMBER}`,
+                      color: UEE_AMBER, fontFamily: 'var(--font-mono)',
+                      fontSize: 10, letterSpacing: '.2em', fontWeight: 600,
+                      padding: '9px 14px', borderRadius: 3, cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ⎙ EXPORT DOSSIER
+                  </button>
+                  <button
+                    onClick={() => setEditing(!editing)}
+                    style={{
+                      background: editing ? `${accent}22` : 'transparent',
+                      border: `1px solid ${accent}`,
+                      color: accent, fontFamily: 'var(--font-mono)',
+                      fontSize: 10, letterSpacing: '.2em', fontWeight: 600,
+                      padding: '9px 18px', borderRadius: 3, cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {editing ? '◂ CLOSE' : 'AMEND ▸'}
+                  </button>
+                </div>
               </div>
 
               {editing && (
