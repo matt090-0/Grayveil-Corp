@@ -1,187 +1,111 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
-import Auth from './pages/Auth'
-import SetupProfile from './pages/SetupProfile'
-import Dashboard from './pages/Dashboard'
-import Roster from './pages/Roster'
-import Fleet from './pages/Fleet'
-import Contracts from './pages/Contracts'
-import Intelligence from './pages/Intelligence'
-import Ledger from './pages/Ledger'
-import Recruitment from './pages/Recruitment'
-import Polls from './pages/Polls'
-import Profile from './pages/Profile'
-import Admin from './pages/Admin'
-import Apply from './pages/Apply'
-import Bank from './pages/Bank'
-import Events from './pages/Events'
-import Diplomacy from './pages/Diplomacy'
-import KillBoard from './pages/KillBoard'
-import Wiki from './pages/Wiki'
-import Loadouts from './pages/Loadouts'
-import Medals from './pages/Medals'
-import Landing from './pages/Landing'
-import Messages from './pages/Messages'
-import Bounties from './pages/Bounties'
-import AARs from './pages/AARs'
-import Reputation from './pages/Reputation'
-import Referrals from './pages/Referrals'
-import OpTemplates from './pages/OpTemplates'
-import ShipCalendar from './pages/ShipCalendar'
-import Blacklist from './pages/Blacklist'
-import PublicOrg from './pages/PublicOrg'
-import Updates from './pages/Updates'
-import Marketplace from './pages/Marketplace'
+import RouteFallback from './components/RouteFallback'
+
+// ─────────────────────────────────────────────────────────────
+// Route-level code-splitting.
+// Each page is loaded on demand — the initial bundle now only
+// contains Layout + auth + the route shell. Heavy pages
+// (Dashboard with recharts, Wiki/OpTemplates with markdown,
+// Bank with the credit-card SVGs) only ship when visited.
+//
+// Suspense fallback matches the UEE chrome so transitions don't
+// look like a fail.
+// ─────────────────────────────────────────────────────────────
+const Auth         = lazy(() => import('./pages/Auth'))
+const SetupProfile = lazy(() => import('./pages/SetupProfile'))
+const Dashboard    = lazy(() => import('./pages/Dashboard'))
+const Roster       = lazy(() => import('./pages/Roster'))
+const Fleet        = lazy(() => import('./pages/Fleet'))
+const Contracts    = lazy(() => import('./pages/Contracts'))
+const Intelligence = lazy(() => import('./pages/Intelligence'))
+const Ledger       = lazy(() => import('./pages/Ledger'))
+const Recruitment  = lazy(() => import('./pages/Recruitment'))
+const Polls        = lazy(() => import('./pages/Polls'))
+const Profile      = lazy(() => import('./pages/Profile'))
+const Admin        = lazy(() => import('./pages/Admin'))
+const Apply        = lazy(() => import('./pages/Apply'))
+const Bank         = lazy(() => import('./pages/Bank'))
+const Events       = lazy(() => import('./pages/Events'))
+const Diplomacy    = lazy(() => import('./pages/Diplomacy'))
+const KillBoard    = lazy(() => import('./pages/KillBoard'))
+const Wiki         = lazy(() => import('./pages/Wiki'))
+const Loadouts     = lazy(() => import('./pages/Loadouts'))
+const Medals       = lazy(() => import('./pages/Medals'))
+const Landing      = lazy(() => import('./pages/Landing'))
+const Messages     = lazy(() => import('./pages/Messages'))
+const Bounties     = lazy(() => import('./pages/Bounties'))
+const AARs         = lazy(() => import('./pages/AARs'))
+const Reputation   = lazy(() => import('./pages/Reputation'))
+const Referrals    = lazy(() => import('./pages/Referrals'))
+const OpTemplates  = lazy(() => import('./pages/OpTemplates'))
+const ShipCalendar = lazy(() => import('./pages/ShipCalendar'))
+const Blacklist    = lazy(() => import('./pages/Blacklist'))
+const PublicOrg    = lazy(() => import('./pages/PublicOrg'))
+const Updates      = lazy(() => import('./pages/Updates'))
+const Marketplace  = lazy(() => import('./pages/Marketplace'))
+
+// Wraps the page tree in a Suspense boundary so each lazy-loaded
+// route gets a UEE-styled "incoming transmission" placeholder
+// while its chunk arrives.
+function Page({ children, gated, minTier }) {
+  const inner = (
+    <Layout>
+      <Suspense fallback={<RouteFallback />}>
+        {children}
+      </Suspense>
+    </Layout>
+  )
+  if (gated) {
+    return <ProtectedRoute minTier={minTier}>{inner}</ProtectedRoute>
+  }
+  return inner
+}
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/auth"  element={<Auth />} />
-      <Route path="/setup" element={<SetupProfile />} />
-      <Route path="/apply" element={<Apply />} />
-      <Route path="/welcome" element={<Landing />} />
-      <Route path="/org" element={<PublicOrg />} />
+    <Suspense fallback={<RouteFallback fullscreen />}>
+      <Routes>
+        <Route path="/auth"    element={<Auth />} />
+        <Route path="/setup"   element={<SetupProfile />} />
+        <Route path="/apply"   element={<Apply />} />
+        <Route path="/welcome" element={<Landing />} />
+        <Route path="/org"     element={<PublicOrg />} />
 
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Layout><Dashboard /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/roster" element={
-        <ProtectedRoute>
-          <Layout><Roster /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/fleet" element={
-        <ProtectedRoute>
-          <Layout><Fleet /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/contracts" element={
-        <ProtectedRoute>
-          <Layout><Contracts /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/intelligence" element={
-        <ProtectedRoute>
-          <Layout><Intelligence /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/ledger" element={
-        <ProtectedRoute>
-          <Layout><Ledger /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/recruitment" element={
-        <ProtectedRoute minTier={6}>
-          <Layout><Recruitment /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/polls" element={
-        <ProtectedRoute>
-          <Layout><Polls /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/bank" element={
-        <ProtectedRoute>
-          <Layout><Bank /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/market" element={
-        <ProtectedRoute>
-          <Layout><Marketplace /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/events" element={
-        <ProtectedRoute>
-          <Layout><Events /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/diplomacy" element={
-        <ProtectedRoute minTier={6}>
-          <Layout><Diplomacy /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/killboard" element={
-        <ProtectedRoute>
-          <Layout><KillBoard /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/wiki" element={
-        <ProtectedRoute>
-          <Layout><Wiki /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/loadouts" element={
-        <ProtectedRoute>
-          <Layout><Loadouts /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/medals" element={
-        <ProtectedRoute>
-          <Layout><Medals /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/messages" element={
-        <ProtectedRoute>
-          <Layout><Messages /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/bounties" element={
-        <ProtectedRoute>
-          <Layout><Bounties /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/templates" element={
-        <ProtectedRoute>
-          <Layout><OpTemplates /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/aars" element={
-        <ProtectedRoute>
-          <Layout><AARs /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/reputation" element={
-        <ProtectedRoute>
-          <Layout><Reputation /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/ships" element={
-        <ProtectedRoute>
-          <Layout><ShipCalendar /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/blacklist" element={
-        <ProtectedRoute>
-          <Layout><Blacklist /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/referrals" element={
-        <ProtectedRoute>
-          <Layout><Referrals /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/updates" element={
-        <ProtectedRoute>
-          <Layout><Updates /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/profile" element={
-        <ProtectedRoute>
-          <Layout><Profile /></Layout>
-        </ProtectedRoute>
-      } />
-      <Route path="/admin" element={
-        <ProtectedRoute minTier={1}>
-          <Layout><Admin /></Layout>
-        </ProtectedRoute>
-      } />
+        <Route path="/"             element={<Page gated><Dashboard /></Page>} />
+        <Route path="/roster"       element={<Page gated><Roster /></Page>} />
+        <Route path="/fleet"        element={<Page gated><Fleet /></Page>} />
+        <Route path="/contracts"    element={<Page gated><Contracts /></Page>} />
+        <Route path="/intelligence" element={<Page gated><Intelligence /></Page>} />
+        <Route path="/ledger"       element={<Page gated><Ledger /></Page>} />
+        <Route path="/recruitment"  element={<Page gated minTier={6}><Recruitment /></Page>} />
+        <Route path="/polls"        element={<Page gated><Polls /></Page>} />
+        <Route path="/bank"         element={<Page gated><Bank /></Page>} />
+        <Route path="/market"       element={<Page gated><Marketplace /></Page>} />
+        <Route path="/events"       element={<Page gated><Events /></Page>} />
+        <Route path="/diplomacy"    element={<Page gated minTier={6}><Diplomacy /></Page>} />
+        <Route path="/killboard"    element={<Page gated><KillBoard /></Page>} />
+        <Route path="/wiki"         element={<Page gated><Wiki /></Page>} />
+        <Route path="/loadouts"     element={<Page gated><Loadouts /></Page>} />
+        <Route path="/medals"       element={<Page gated><Medals /></Page>} />
+        <Route path="/messages"     element={<Page gated><Messages /></Page>} />
+        <Route path="/bounties"     element={<Page gated><Bounties /></Page>} />
+        <Route path="/templates"    element={<Page gated><OpTemplates /></Page>} />
+        <Route path="/aars"         element={<Page gated><AARs /></Page>} />
+        <Route path="/reputation"   element={<Page gated><Reputation /></Page>} />
+        <Route path="/ships"        element={<Page gated><ShipCalendar /></Page>} />
+        <Route path="/blacklist"    element={<Page gated><Blacklist /></Page>} />
+        <Route path="/referrals"    element={<Page gated><Referrals /></Page>} />
+        <Route path="/updates"      element={<Page gated><Updates /></Page>} />
+        <Route path="/profile"      element={<Page gated><Profile /></Page>} />
+        <Route path="/admin"        element={<Page gated minTier={1}><Admin /></Page>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 
