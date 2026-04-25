@@ -25,10 +25,23 @@ export default function Layout({ children }) {
   const canBypassMaint = profile?.tier <= MAINT_BYPASS_TIER
 
   // Global keyboard shortcut for search
+  // - Cmd+K (mac) / Ctrl+K (win/linux): standard "command palette" everywhere
+  // - "/": typing-friendly fallback (only when no input is focused)
   useEffect(() => {
     function handler(e) {
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-        e.preventDefault(); setSearchOpen(true)
+      // Cmd-K / Ctrl-K — works even when an input is focused, mirroring
+      // Slack/Linear/GitHub/etc. so muscle memory transfers.
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+      // "/" — keep the existing behaviour, but only when nothing is focused.
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey
+          && document.activeElement?.tagName !== 'INPUT'
+          && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault()
+        setSearchOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
@@ -59,10 +72,19 @@ export default function Layout({ children }) {
 
         {/* Search trigger */}
         <div style={{ padding: '0 10px 8px' }}>
-          <button className="btn btn-ghost btn-sm w-full" onClick={() => { setSearchOpen(true); setMobileOpen(false) }}
-            style={{ justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)' }}>
-            <span>⌕ Search...</span>
-            <span style={{ fontSize: 9, background: 'var(--bg-surface)', padding: '1px 5px', borderRadius: 3 }}>/</span>
+          <button
+            className="btn btn-ghost btn-sm w-full"
+            onClick={() => { setSearchOpen(true); setMobileOpen(false) }}
+            style={{ justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)' }}
+          >
+            <span>⌕ Search anything...</span>
+            <span style={{
+              fontSize: 9, fontFamily: 'var(--font-mono)', letterSpacing: '.05em',
+              background: 'var(--bg-surface)', border: '1px solid var(--border)',
+              padding: '1px 6px', borderRadius: 3,
+            }}>
+              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'CTRL K'}
+            </span>
           </button>
         </div>
 
