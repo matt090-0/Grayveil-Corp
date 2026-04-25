@@ -61,7 +61,7 @@ export function ClassificationBar({
   right,
 }) {
   return (
-    <div style={{
+    <div className="gv-classbar" style={{
       flexShrink: 0,
       background: 'linear-gradient(180deg, #0e0f14 0%, #0a0b0f 100%)',
       borderBottom: `1px solid ${accent}33`,
@@ -69,16 +69,20 @@ export function ClassificationBar({
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em',
       color: accent,
+      gap: 12,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="gv-classbar-section" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <span style={{
           width: 6, height: 6, borderRadius: '50%', background: accent,
           boxShadow: `0 0 8px ${accent}`, animation: 'pulse 2s ease-in-out infinite',
+          flexShrink: 0,
         }} />
-        {section}{label ? ` · ${label}` : ''}
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {section}{label ? ` · ${label}` : ''}
+        </span>
       </div>
       {right && (
-        <div style={{ display: 'flex', gap: 20, color: 'var(--text-3)' }}>
+        <div className="gv-classbar-right" style={{ display: 'flex', gap: 20, color: 'var(--text-3)' }}>
           {right}
         </div>
       )}
@@ -98,7 +102,7 @@ export function ClassificationBar({
 // ─────────────────────────────────────────────────────────────
 export function TabStrip({ tabs, active, onChange }) {
   return (
-    <div style={{ marginTop: 16, display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+    <div className="gv-tabstrip" style={{ marginTop: 16, display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
       {tabs.map(t => {
         const isActive = active === t.key
         const color = t.color || UEE_AMBER
@@ -153,6 +157,7 @@ export function StatCell({ label, value, color = UEE_AMBER, glyph, desc, onClick
   const clickable = !!onClick
   return (
     <div
+      className="gv-statcell"
       onClick={onClick}
       role={clickable ? 'button' : undefined}
       style={{
@@ -264,6 +269,7 @@ export function Card({ accent = UEE_AMBER, onClick, children, style, minHeight }
   const interactive = !!onClick
   return (
     <div
+      className="gv-card"
       onClick={onClick}
       style={{
         position: 'relative',
@@ -366,7 +372,7 @@ export function UeeModal({ accent = UEE_AMBER, kicker, title, onClose, children,
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal"
+        className="modal gv-uee-modal"
         style={{ maxWidth, padding: 0, overflow: 'hidden', clipPath: CLIP_CHAMFER }}
         onClick={e => e.stopPropagation()}
       >

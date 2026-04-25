@@ -213,7 +213,9 @@ export default function SearchBar({ onClose }) {
         position: 'fixed', inset: 0, zIndex: 99998,
         background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        paddingTop: '12vh', padding: '12vh 16px 16px',
+        // Top padding adapts to viewport height so the palette
+        // doesn't crowd the keyboard on short phones.
+        padding: 'min(12vh, 80px) 12px 12px',
         animation: 'searchFade .12s ease',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}

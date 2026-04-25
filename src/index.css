@@ -736,3 +736,85 @@ table.data-table {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.55; transform: scale(0.85); }
 }
+
+/* ════════════════════════════════════════
+   UEE PRIMITIVE MOBILE PASS
+   Adapts the chamfered chrome (classification bar, tab strip,
+   stat cells, cards, modals) to narrow viewports so they don't
+   overflow or wrap awkwardly.
+   ════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Classification bar — drop horizontal padding and let the
+     right-side info wrap below the section label. */
+  .gv-classbar {
+    padding: 6px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 4px 12px !important;
+    font-size: 9px !important;
+    letter-spacing: .15em !important;
+  }
+  .gv-classbar-right {
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+    width: 100%;
+  }
+
+  /* Tab strip — switch wrap to horizontal scroll so a long row
+     of tabs (Bank, Inbox) doesn't take three lines. */
+  .gv-tabstrip {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .gv-tabstrip::-webkit-scrollbar { height: 3px; }
+  .gv-tabstrip::-webkit-scrollbar-thumb { background: var(--border); }
+  .gv-tabstrip > button {
+    flex-shrink: 0;
+    padding: 9px 12px !important;
+  }
+
+  /* Stat cells — slightly tighter padding so a 2-col grid still
+     fits clean values like "1,234,567 aUEC" without truncation. */
+  .gv-statcell {
+    padding: 10px 12px !important;
+  }
+
+  /* Cards — same chamfer, but less aggressive padding. */
+  .gv-card {
+    padding: 12px 14px !important;
+  }
+
+  /* UEE modals — let them breathe to the viewport edges with
+     a tiny chamfer cut so corners still read as UEE. */
+  .gv-uee-modal {
+    width: calc(100vw - 16px) !important;
+    max-height: calc(100vh - 24px) !important;
+    margin: 8px !important;
+    overflow-y: auto !important;
+  }
+
+  /* Page header — let the right-side action button row drop
+     under the title instead of squeezing alongside it. */
+  .page-header > div:first-child {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .page-header > div:first-child > div:last-child {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* On tiny phones, hide the right-side "TRACKED · 12 · ALLIED · 4"
+     summary so the section label stays on one line. The same data
+     is visible in the page body via stat cells anyway. */
+  .gv-classbar-right { display: none !important; }
+  .gv-classbar { font-size: 8.5px !important; padding: 5px 12px !important; }
+}
