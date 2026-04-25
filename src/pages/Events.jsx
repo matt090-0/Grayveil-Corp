@@ -506,6 +506,30 @@ function EventDetail({ event: e, eventSignups, isSigned, canCreate, isFounder, f
         <Field label="SLOTS"    value={`${confirmed}${e.max_slots ? `/${e.max_slots}` : ''}${tentative > 0 ? ` · ${tentative} maybe` : ''}`} mono />
       </div>
 
+      {/* Auto-reminder status — shows the ops lead which reminder
+          windows have already fired so they know the cron is wired. */}
+      {e.status === 'SCHEDULED' && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14,
+          fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+        }}>
+          <span style={{
+            color: e.reminder_24h_sent_at ? '#5ce0a1' : 'var(--text-3)',
+            border: `1px solid ${e.reminder_24h_sent_at ? '#5ce0a1' : 'var(--border)'}`,
+            padding: '3px 8px', borderRadius: 3,
+          }}>
+            {e.reminder_24h_sent_at ? '✓ T-24H NOTIFIED' : '◐ T-24H AUTO'}
+          </span>
+          <span style={{
+            color: e.reminder_1h_sent_at ? '#5ce0a1' : 'var(--text-3)',
+            border: `1px solid ${e.reminder_1h_sent_at ? '#5ce0a1' : 'var(--border)'}`,
+            padding: '3px 8px', borderRadius: 3,
+          }}>
+            {e.reminder_1h_sent_at ? '✓ T-1H NOTIFIED' : '◐ T-1H AUTO'}
+          </span>
+        </div>
+      )}
+
       <SectionHeader label={`ROSTER · ${eventSignups.length}`} color={OPS_BLUE} />
       {eventSignups.length === 0 ? (
         <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-3)', marginBottom: 16 }}>
