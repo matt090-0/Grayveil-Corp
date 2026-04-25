@@ -1,18 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import Modal from '../components/Modal'
 import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordMedal } from '../lib/discord'
 import { confirmAction } from '../lib/dialogs'
+import {
+  UEE_AMBER, ClassificationBar, TabStrip, StatCell, FilterRow, Card,
+  StatusBadge, EmptyState, UeeModal, SectionHeader, btnMicro,
+  fmtDate, timeAgo,
+} from '../components/uee'
 
 const MAX_REASON_LEN = 500
-const RARITY_BADGE = { COMMON: 'badge-muted', UNCOMMON: 'badge-green', RARE: 'badge-blue', LEGENDARY: 'badge-accent' }
-const CERT_CAT_BADGE = { GENERAL: 'badge-muted', COMBAT: 'badge-red', MINING: 'badge-amber', MEDICAL: 'badge-green', CAPITAL: 'badge-purple', RECON: 'badge-blue', TRADE: 'badge-accent' }
 
-function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+const RARITY_META = {
+  LEGENDARY: { color: UEE_AMBER, glyph: '✦', label: 'LEGENDARY' },
+  RARE:      { color: '#5a80d9', glyph: '◆', label: 'RARE' },
+  UNCOMMON:  { color: '#5ce0a1', glyph: '◇', label: 'UNCOMMON' },
+  COMMON:    { color: '#9099a8', glyph: '◯', label: 'COMMON' },
+}
+
+const CERT_CAT_META = {
+  GENERAL:  { color: '#9099a8', glyph: '○' },
+  COMBAT:   { color: '#e05c5c', glyph: '⚔' },
+  MINING:   { color: UEE_AMBER, glyph: '⬢' },
+  MEDICAL:  { color: '#5ce0a1', glyph: '✚' },
+  CAPITAL:  { color: '#b566d9', glyph: '◆' },
+  RECON:    { color: '#5a80d9', glyph: '◐' },
+  TRADE:    { color: UEE_AMBER, glyph: '◇' },
+}
 
 export default function Medals() {
   const { profile: me } = useAuth()
@@ -28,16 +45,20 @@ export default function Medals() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   const canAward = me.tier <= 4
-  const canCreate = me.tier <= 3
 
   async function load() {
     const [{ data: med }, { data: mm }, { data: cer }, { data: mc }, { data: mem }] = await Promise.all([
       supabase.from('medals').select('*').order('rarity').order('name'),
-      supabase.from('member_medals').select('*, medal:medals(*), member:profiles(handle), awarder:profiles!member_medals_awarded_by_fkey(handle)').order('awarded_at', { ascending: false }),
+      supabase.from('member_medals')
+        .select('*, medal:medals(*), member:profiles(handle), awarder:profiles!member_medals_awarded_by_fkey(handle)')
+        .order('awarded_at', { ascending: false }),
       supabase.from('certifications').select('*').order('category').order('name'),
-      supabase.from('member_certifications').select('*, cert:certifications(*), member:profiles(handle), certifier:profiles!member_certifications_certified_by_fkey(handle)').order('certified_at', { ascending: false }),
+      supabase.from('member_certifications')
+        .select('*, cert:certifications(*), member:profiles(handle), certifier:profiles!member_certifications_certified_by_fkey(handle)')
+        .order('certified_at', { ascending: false }),
       supabase.from('profiles').select('id, handle').eq('status', 'ACTIVE').order('handle'),
     ])
     setMedals(med || []); setMM(mm || []); setCerts(cer || []); setMC(mc || []); setMembers(mem || []); setLoading(false)
@@ -47,14 +68,35 @@ export default function Medals() {
   const myMedals = memberMedals.filter(m => m.member_id === me.id)
   const myCerts = memberCerts.filter(c => c.member_id === me.id)
 
+  const byRarity = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return ['LEGENDARY', 'RARE', 'UNCOMMON', 'COMMON'].map(r => ({
+      rarity: r,
+      items: medals.filter(m => m.rarity === r && (
+        !q
+        || (m.name || '').toLowerCase().includes(q)
+        || (m.description || '').toLowerCase().includes(q)
+        || (m.category || '').toLowerCase().includes(q)
+      )),
+    })).filter(g => g.items.length > 0)
+  }, [medals, search])
+
   async function awardMedal() {
     if (!form.member_id || !form.medal_id) { setError('Select member and medal.'); return }
     const reason = (form.reason || '').trim().slice(0, MAX_REASON_LEN) || null
     setSaving(true)
-    await supabase.from('member_medals').insert({ member_id: form.member_id, medal_id: form.medal_id, awarded_by: me.id, reason })
+    await supabase.from('member_medals').insert({
+      member_id: form.member_id, medal_id: form.medal_id,
+      awarded_by: me.id, reason,
+    })
     const medal = medals.find(m => m.id === form.medal_id)
     const member = members.find(m => m.id === form.member_id)
-    await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Medal: ${medal?.name || 'Award'}`, message: `Awarded by ${me.handle}${reason ? ' — ' + reason : ''}`, link: '/medals' })
+    await supabase.from('notifications').insert({
+      recipient_id: form.member_id, type: 'promotion',
+      title: `Medal: ${medal?.name || 'Award'}`,
+      message: `Awarded by ${me.handle}${reason ? ' — ' + reason : ''}`,
+      link: '/medals',
+    })
     goldBurst()
     discordMedal(member?.handle || 'Unknown', medal?.name, medal?.rarity, me.handle)
     toast(`${medal?.name} awarded`, 'success')
@@ -64,9 +106,16 @@ export default function Medals() {
   async function grantCert() {
     if (!form.member_id || !form.cert_id) { setError('Select member and certification.'); return }
     setSaving(true)
-    await supabase.from('member_certifications').upsert({ member_id: form.member_id, cert_id: form.cert_id, certified_by: me.id }, { onConflict: 'member_id,cert_id' })
+    await supabase.from('member_certifications').upsert({
+      member_id: form.member_id, cert_id: form.cert_id, certified_by: me.id,
+    }, { onConflict: 'member_id,cert_id' })
     const cert = certs.find(c => c.id === form.cert_id)
-    await supabase.from('notifications').insert({ recipient_id: form.member_id, type: 'promotion', title: `Certified: ${cert?.name || ''}`, message: `Signed off by ${me.handle}`, link: '/medals' })
+    await supabase.from('notifications').insert({
+      recipient_id: form.member_id, type: 'promotion',
+      title: `Certified: ${cert?.name || ''}`,
+      message: `Signed off by ${me.handle}`,
+      link: '/medals',
+    })
     toast(`${cert?.name} granted`, 'success')
     setModal(null); setSaving(false); load()
   }
@@ -77,179 +126,272 @@ export default function Medals() {
     toast('Certification revoked', 'info'); load()
   }
 
-  // Group medals by rarity for display
-  const byRarity = ['LEGENDARY', 'RARE', 'UNCOMMON', 'COMMON'].map(r => ({
-    rarity: r, items: medals.filter(m => m.rarity === r),
-  })).filter(g => g.items.length > 0)
-
   return (
     <>
+      <ClassificationBar
+        section="GRAYVEIL HONOURS & QUALIFICATIONS"
+        label={tab === 'medals' ? 'COMMENDATIONS' : tab === 'certs' ? 'CERTIFICATIONS' : 'PERSONAL RECORD'}
+        right={(
+          <>
+            <span>MEDALS · {medals.length}</span>
+            <span>CERTS · {certs.length}</span>
+            <span style={{ color: UEE_AMBER }}>YOUR RECORD · {myMedals.length}M / {myCerts.length}C</span>
+          </>
+        )}
+      />
+
       <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <div className="page-title">COMMENDATIONS</div>
-            <div className="page-subtitle">{medals.length} medals · {certs.length} certifications</div>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>COMMENDATIONS</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 640 }}>
+              Awards, decorations, and skill certifications. Medals recognise valour; certifications gate operational duties.
+            </div>
           </div>
           {canAward && (
-            <div className="flex gap-8">
-              <button className="btn btn-primary" onClick={() => { setForm({}); setError(''); setModal('award') }}>AWARD MEDAL</button>
-              <button className="btn btn-ghost" onClick={() => { setForm({}); setError(''); setModal('cert') }}>GRANT CERT</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={() => { setForm({}); setError(''); setModal('award') }}>+ AWARD MEDAL</button>
+              <button className="btn btn-ghost" onClick={() => { setForm({}); setError(''); setModal('cert') }}>+ GRANT CERT</button>
             </div>
           )}
         </div>
-        <div className="flex gap-8">
-          <button className="btn btn-ghost btn-sm" style={tab === 'medals' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('medals')}>MEDALS</button>
-          <button className="btn btn-ghost btn-sm" style={tab === 'certs' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('certs')}>CERTIFICATIONS</button>
-          <button className="btn btn-ghost btn-sm" style={tab === 'mine' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('mine')}>MY RECORD</button>
-        </div>
+
+        <TabStrip
+          active={tab} onChange={setTab}
+          tabs={[
+            { key: 'medals', label: 'MEDALS',         color: UEE_AMBER, glyph: '✦', count: medals.length },
+            { key: 'certs',  label: 'CERTIFICATIONS', color: '#5a80d9', glyph: '◆', count: certs.length },
+            { key: 'mine',   label: 'MY RECORD',      color: '#5ce0a1', glyph: '◉', count: myMedals.length + myCerts.length },
+          ]}
+        />
       </div>
 
       <div className="page-body">
         {loading ? <div className="loading">LOADING...</div> : (
           <>
-            {/* ══════════ ALL MEDALS ══════════ */}
             {tab === 'medals' && (
               <>
-                {byRarity.map(group => (
-                  <div key={group.rarity} style={{ marginBottom: 28 }}>
-                    <div style={{
-                      fontSize: 11, letterSpacing: '.2em', fontFamily: 'var(--font-mono)', marginBottom: 12,
-                      color: group.rarity === 'LEGENDARY' ? 'var(--accent)' : group.rarity === 'RARE' ? '#4a7ad9' : group.rarity === 'UNCOMMON' ? '#5ab870' : 'var(--text-3)',
-                      paddingBottom: 6, borderBottom: '1px solid var(--border)',
-                    }}>
-                      {group.rarity} — {group.items.length} medals
-                    </div>
+                <FilterRow
+                  search={search} setSearch={setSearch}
+                  placeholder="Search medal name, description, category..."
+                />
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
-                      {group.items.map(m => (
-                        <div key={m.id} className="card" style={{
-                          display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px',
-                        }}>
-                          {/* Patch */}
-                          <div style={{ flexShrink: 0, paddingTop: 2 }}>
-                            <MedalPatch name={m.name} rarity={m.rarity} size={64} />
-                          </div>
-
-                          {/* Text */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{m.name}</div>
-                            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                              <span className={`badge ${RARITY_BADGE[m.rarity]}`} style={{ fontSize: 10 }}>{m.rarity}</span>
-                              <span className="badge badge-muted" style={{ fontSize: 10 }}>{m.category}</span>
+                {byRarity.length === 0 ? (
+                  <EmptyState>NO MEDALS MATCH</EmptyState>
+                ) : byRarity.map(group => {
+                  const rm = RARITY_META[group.rarity]
+                  return (
+                    <div key={group.rarity} style={{ marginBottom: 28 }}>
+                      <SectionHeader label={`${rm.label} · ${group.items.length} MEDAL${group.items.length === 1 ? '' : 'S'}`} color={rm.color} glyph={rm.glyph} />
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                        gap: 10,
+                      }}>
+                        {group.items.map(m => (
+                          <Card key={m.id} accent={rm.color} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: '14px 16px' }}>
+                            <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                              <MedalPatch name={m.name} rarity={m.rarity} size={64} />
                             </div>
-                            {m.description && (
-                              <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>{m.description}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Recent Awards */}
-                <div style={{ fontSize: 11, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>RECENT AWARDS</div>
-                {memberMedals.length === 0 ? <div className="empty-state">NO AWARDS YET</div> : (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {memberMedals.slice(0, 20).map(mm => (
-                      <div key={mm.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={48} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <strong>{mm.member?.handle}</strong>
-                            <span style={{ color: 'var(--text-2)' }}>received</span>
-                            <strong style={{ color: RARITY_BADGE[mm.medal?.rarity] === 'badge-accent' ? 'var(--accent)' : 'var(--text-1)' }}>{mm.medal?.name}</strong>
-                            {!mm.awarded_by && (
-                              <span style={{
-                                fontSize: 9, letterSpacing: '.2em',
-                                fontFamily: 'var(--font-mono)',
-                                color: 'var(--accent)',
-                                border: '1px solid var(--accent-dim)',
-                                borderRadius: 4, padding: '1px 6px',
-                              }}>AUTO</span>
-                            )}
-                          </div>
-                          {mm.reason && <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 2 }}>{mm.reason}</div>}
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmt(mm.awarded_at)}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14.5,
+                                marginBottom: 4, lineHeight: 1.3, color: 'var(--text-1)',
+                              }}>{m.name}</div>
+                              <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
+                                <StatusBadge color={rm.color} glyph={rm.glyph} label={rm.label} />
+                                <span style={{
+                                  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                                  color: 'var(--text-3)', border: '1px solid var(--border)',
+                                  padding: '1px 6px', borderRadius: 3,
+                                }}>{m.category}</span>
+                              </div>
+                              {m.description && (
+                                <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.55 }}>
+                                  {m.description}
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )
+                })}
+
+                <SectionHeader label="RECENT AWARDS" color={UEE_AMBER} />
+                {memberMedals.length === 0 ? <EmptyState>NO AWARDS YET</EmptyState> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {memberMedals.slice(0, 20).map(mm => {
+                      const rm = RARITY_META[mm.medal?.rarity] || RARITY_META.COMMON
+                      return (
+                        <Card key={mm.id} accent={rm.color} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: '10px 14px' }}>
+                          <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={44} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <strong style={{ color: 'var(--text-1)' }}>{mm.member?.handle}</strong>
+                              <span style={{ color: 'var(--text-3)' }}>received</span>
+                              <strong style={{ color: rm.color }}>{mm.medal?.name}</strong>
+                              {!mm.awarded_by && <StatusBadge color={UEE_AMBER} label="AUTO" />}
+                            </div>
+                            {mm.reason && (
+                              <div style={{
+                                fontSize: 11.5, color: 'var(--text-3)',
+                                fontFamily: 'var(--font-mono)', marginTop: 2, lineHeight: 1.5,
+                              }}>
+                                "{mm.reason}"
+                              </div>
+                            )}
+                          </div>
+                          <span style={{
+                            fontSize: 10, color: 'var(--text-3)',
+                            fontFamily: 'var(--font-mono)', letterSpacing: '.15em', flexShrink: 0,
+                          }}>{fmtDate(mm.awarded_at)}</span>
+                        </Card>
+                      )
+                    })}
                   </div>
                 )}
               </>
             )}
 
-            {/* ══════════ CERTIFICATIONS ══════════ */}
             {tab === 'certs' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginBottom: 28 }}>
-                  {certs.map(c => {
-                    const holders = memberCerts.filter(mc => mc.cert_id === c.id).length
-                    return (
-                      <div key={c.id} className="card" style={{ padding: '16px 18px' }}>
-                        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                          <span style={{ fontWeight: 600, fontSize: 15 }}>{c.name}</span>
-                          <span className={`badge ${CERT_CAT_BADGE[c.category]}`} style={{ fontSize: 10 }}>{c.category}</span>
-                        </div>
-                        {c.description && <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 8, lineHeight: 1.6 }}>{c.description}</div>}
-                        <div style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{holders} certified member{holders !== 1 ? 's' : ''}</div>
-                      </div>
-                    )
-                  })}
+                <FilterRow
+                  search={search} setSearch={setSearch}
+                  placeholder="Search certification..."
+                />
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                  gap: 12, marginBottom: 28,
+                }}>
+                  {certs
+                    .filter(c => !search.trim() || (c.name + ' ' + (c.description||'') + ' ' + c.category).toLowerCase().includes(search.toLowerCase()))
+                    .map(c => {
+                      const cm = CERT_CAT_META[c.category] || CERT_CAT_META.GENERAL
+                      const holders = memberCerts.filter(mc => mc.cert_id === c.id).length
+                      return (
+                        <Card key={c.id} accent={cm.color} minHeight={140}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{
+                              fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14.5,
+                              color: 'var(--text-1)',
+                            }}>{c.name}</span>
+                            <StatusBadge color={cm.color} glyph={cm.glyph} label={c.category} />
+                          </div>
+                          {c.description && (
+                            <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                              {c.description}
+                            </div>
+                          )}
+                          <div style={{ flex: 1 }} />
+                          <div style={{
+                            paddingTop: 6, borderTop: '1px dashed var(--border)',
+                            fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.15em',
+                            color: holders > 0 ? cm.color : 'var(--text-3)',
+                          }}>
+                            ◆ {holders} CERTIFIED
+                          </div>
+                        </Card>
+                      )
+                    })}
                 </div>
 
-                <div style={{ fontSize: 11, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>ALL CERTIFICATIONS GRANTED</div>
-                {memberCerts.length === 0 ? <div className="empty-state">NO CERTIFICATIONS</div> : (
-                  <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
-                    <thead><tr><th>MEMBER</th><th>CERTIFICATION</th><th>CATEGORY</th><th>CERTIFIED BY</th><th>DATE</th><th></th></tr></thead>
-                    <tbody>
-                      {memberCerts.map(mc => (
-                        <tr key={mc.id}>
-                          <td style={{ fontWeight: 500, fontSize: 13 }}>{mc.member?.handle}</td>
-                          <td style={{ fontSize: 13 }}>{mc.cert?.name}</td>
-                          <td><span className={`badge ${CERT_CAT_BADGE[mc.cert?.category]}`} style={{ fontSize: 10 }}>{mc.cert?.category}</span></td>
-                          <td className="text-muted" style={{ fontSize: 13 }}>{mc.certifier?.handle || '—'}</td>
-                          <td className="mono text-muted" style={{ fontSize: 12 }}>{fmt(mc.certified_at)}</td>
-                          <td>{canAward && <button className="btn btn-danger btn-sm btn-icon" onClick={() => revokeCert(mc.id)}>✕</button>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table></div></div>
+                <SectionHeader label="ALL CERTIFICATIONS GRANTED" color="#5a80d9" />
+                {memberCerts.length === 0 ? <EmptyState>NO CERTIFICATIONS GRANTED</EmptyState> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {memberCerts.map(mc => {
+                      const cm = CERT_CAT_META[mc.cert?.category] || CERT_CAT_META.GENERAL
+                      return (
+                        <div key={mc.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px',
+                          background: 'var(--bg-raised)',
+                          border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${cm.color}`,
+                          borderRadius: 3, fontSize: 12,
+                        }}>
+                          <span style={{ fontWeight: 600, minWidth: 110, color: 'var(--text-1)' }}>{mc.member?.handle}</span>
+                          <span style={{ flex: 1 }}>{mc.cert?.name}</span>
+                          <StatusBadge color={cm.color} glyph={cm.glyph} label={mc.cert?.category} />
+                          <span style={{
+                            fontSize: 10, color: 'var(--text-3)',
+                            fontFamily: 'var(--font-mono)', letterSpacing: '.15em',
+                          }}>
+                            BY {(mc.certifier?.handle || '—').toUpperCase()} · {fmtDate(mc.certified_at)}
+                          </span>
+                          {canAward && (
+                            <button onClick={() => revokeCert(mc.id)} style={btnMicro('#e05c5c')}>✕</button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </>
             )}
 
-            {/* ══════════ MY RECORD ══════════ */}
             {tab === 'mine' && (
               <>
-                <div style={{ fontSize: 11, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>MY MEDALS ({myMedals.length})</div>
-                {myMedals.length === 0 ? <div className="empty-state" style={{ padding: '20px 0' }}>NO MEDALS EARNED YET</div> : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10, marginBottom: 32 }}>
-                    {myMedals.map(mm => (
-                      <div key={mm.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px' }}>
-                        <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={56} />
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{mm.medal?.name}</div>
-                          <div style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
-                            <span className={`badge ${RARITY_BADGE[mm.medal?.rarity]}`} style={{ fontSize: 10 }}>{mm.medal?.rarity}</span>
+                <SectionHeader label={`MY MEDALS · ${myMedals.length}`} color={UEE_AMBER} glyph="✦" />
+                {myMedals.length === 0 ? (
+                  <EmptyState>NO MEDALS EARNED YET</EmptyState>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                    gap: 10, marginBottom: 28,
+                  }}>
+                    {myMedals.map(mm => {
+                      const rm = RARITY_META[mm.medal?.rarity] || RARITY_META.COMMON
+                      return (
+                        <Card key={mm.id} accent={rm.color} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: '12px 16px' }}>
+                          <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={56} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}>
+                              {mm.medal?.name}
+                            </div>
+                            <div style={{ marginTop: 4 }}>
+                              <StatusBadge color={rm.color} glyph={rm.glyph} label={rm.label} />
+                            </div>
+                            <div style={{
+                              fontSize: 10, color: 'var(--text-3)', marginTop: 4,
+                              fontFamily: 'var(--font-mono)', letterSpacing: '.15em',
+                            }}>{fmtDate(mm.awarded_at)}</div>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmt(mm.awarded_at)}</div>
-                        </div>
-                      </div>
-                    ))}
+                        </Card>
+                      )
+                    })}
                   </div>
                 )}
 
-                <div style={{ fontSize: 11, letterSpacing: '.2em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>MY CERTIFICATIONS ({myCerts.length})</div>
-                {myCerts.length === 0 ? <div className="empty-state" style={{ padding: '20px 0' }}>NO CERTIFICATIONS YET</div> : (
+                <SectionHeader label={`MY CERTIFICATIONS · ${myCerts.length}`} color="#5a80d9" glyph="◆" />
+                {myCerts.length === 0 ? (
+                  <EmptyState>NO CERTIFICATIONS YET</EmptyState>
+                ) : (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {myCerts.map(mc => (
-                      <div key={mc.id} className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{mc.cert?.name}</span>
-                        <span className={`badge ${CERT_CAT_BADGE[mc.cert?.category]}`} style={{ fontSize: 10 }}>{mc.cert?.category}</span>
-                      </div>
-                    ))}
+                    {myCerts.map(mc => {
+                      const cm = CERT_CAT_META[mc.cert?.category] || CERT_CAT_META.GENERAL
+                      return (
+                        <div key={mc.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px',
+                          background: 'var(--bg-raised)',
+                          border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${cm.color}`,
+                          borderRadius: 3,
+                        }}>
+                          <span style={{ color: cm.color, fontSize: 14 }}>{cm.glyph}</span>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{mc.cert?.name}</span>
+                          <span style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                            color: cm.color, border: `1px solid ${cm.color}55`,
+                            padding: '1px 6px', borderRadius: 3,
+                          }}>{mc.cert?.category}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -258,64 +400,107 @@ export default function Medals() {
         )}
       </div>
 
-      {/* ══════════ MODALS ══════════ */}
+      {/* AWARD MEDAL */}
       {modal === 'award' && (
-        <Modal title="AWARD COMMENDATION" onClose={() => setModal(null)}>
+        <UeeModal
+          accent={UEE_AMBER}
+          kicker="◆ AWARD COMMENDATION"
+          title="AWARD MEDAL"
+          onClose={() => setModal(null)}
+          maxWidth={580}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={awardMedal} disabled={saving}>
+                {saving ? 'AWARDING...' : 'AWARD MEDAL'}
+              </button>
+            </>
+          )}
+        >
           <div className="form-group">
             <label className="form-label">OPERATIVE</label>
-            <select className="form-select" value={form.member_id || ''} onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
+            <select className="form-select" value={form.member_id || ''}
+              onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
               <option value="">— Select Member —</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">MEDAL</label>
-            <select className="form-select" value={form.medal_id || ''} onChange={e => setForm(f => ({ ...f, medal_id: e.target.value }))}>
+            <select className="form-select" value={form.medal_id || ''}
+              onChange={e => setForm(f => ({ ...f, medal_id: e.target.value }))}>
               <option value="">— Select Medal —</option>
               {medals.map(m => <option key={m.id} value={m.id}>[{m.rarity}] {m.name}</option>)}
             </select>
           </div>
-          {form.medal_id && (
-            <div style={{ textAlign: 'center', padding: 12 }}>
-              <MedalPatch name={medals.find(m => m.id === form.medal_id)?.name} rarity={medals.find(m => m.id === form.medal_id)?.rarity} size={100} />
-              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 6 }}>{medals.find(m => m.id === form.medal_id)?.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{medals.find(m => m.id === form.medal_id)?.description}</div>
-            </div>
-          )}
+          {form.medal_id && (() => {
+            const m = medals.find(x => x.id === form.medal_id)
+            const rm = RARITY_META[m?.rarity] || RARITY_META.COMMON
+            return (
+              <div style={{
+                textAlign: 'center', padding: 16,
+                background: `${rm.color}0a`, border: `1px solid ${rm.color}33`,
+                borderRadius: 3, marginBottom: 12,
+              }}>
+                <MedalPatch name={m?.name} rarity={m?.rarity} size={100} />
+                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>{m?.name}</div>
+                <div style={{ marginTop: 4 }}>
+                  <StatusBadge color={rm.color} glyph={rm.glyph} label={rm.label} />
+                </div>
+                {m?.description && (
+                  <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.6 }}>
+                    {m.description}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           <div className="form-group">
-            <label className="form-label">CITATION (optional — max {MAX_REASON_LEN} chars)</label>
-            <input className="form-input" maxLength={MAX_REASON_LEN} value={form.reason || ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value.slice(0, MAX_REASON_LEN) }))} placeholder="For conspicuous bravery during..." />
+            <label className="form-label">CITATION (max {MAX_REASON_LEN} chars)</label>
+            <input className="form-input" maxLength={MAX_REASON_LEN}
+              value={form.reason || ''}
+              onChange={e => setForm(f => ({ ...f, reason: e.target.value.slice(0, MAX_REASON_LEN) }))}
+              placeholder="For conspicuous bravery during..." />
           </div>
           {error && <div className="form-error mb-8">{error}</div>}
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={awardMedal} disabled={saving}>{saving ? 'AWARDING...' : 'AWARD MEDAL'}</button>
-          </div>
-        </Modal>
+        </UeeModal>
       )}
 
+      {/* GRANT CERT */}
       {modal === 'cert' && (
-        <Modal title="GRANT CERTIFICATION" onClose={() => setModal(null)}>
+        <UeeModal
+          accent="#5a80d9"
+          kicker="◆ GRANT CERTIFICATION"
+          title="GRANT CERTIFICATION"
+          onClose={() => setModal(null)}
+          maxWidth={520}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={grantCert} disabled={saving}>
+                {saving ? 'GRANTING...' : 'GRANT CERT'}
+              </button>
+            </>
+          )}
+        >
           <div className="form-group">
             <label className="form-label">OPERATIVE</label>
-            <select className="form-select" value={form.member_id || ''} onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
+            <select className="form-select" value={form.member_id || ''}
+              onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
               <option value="">— Select Member —</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">CERTIFICATION</label>
-            <select className="form-select" value={form.cert_id || ''} onChange={e => setForm(f => ({ ...f, cert_id: e.target.value }))}>
+            <select className="form-select" value={form.cert_id || ''}
+              onChange={e => setForm(f => ({ ...f, cert_id: e.target.value }))}>
               <option value="">— Select —</option>
               {certs.map(c => <option key={c.id} value={c.id}>[{c.category}] {c.name}</option>)}
             </select>
           </div>
           {error && <div className="form-error mb-8">{error}</div>}
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={grantCert} disabled={saving}>{saving ? 'GRANTING...' : 'GRANT CERT'}</button>
-          </div>
-        </Modal>
+        </UeeModal>
       )}
     </>
   )

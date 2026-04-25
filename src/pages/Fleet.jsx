@@ -1,15 +1,31 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { SHIP_STATUSES } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
-import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { exportCSV } from '../lib/csv'
 import { confirmAction } from '../lib/dialogs'
+import {
+  UEE_AMBER, ClassificationBar, TabStrip, StatCell, FilterRow, Card,
+  StatusBadge, Field, EmptyState, UeeModal, btnMicro,
+  timeAgo,
+} from '../components/uee'
 
-const STATUS_BADGE = { AVAILABLE: 'badge-green', DEPLOYED: 'badge-amber', MAINTENANCE: 'badge-red', RESERVED: 'badge-blue' }
-const REQ_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', DENIED: 'badge-red' }
+const STATUS_META = {
+  AVAILABLE:   { color: '#5ce0a1', glyph: '◉', label: 'AVAILABLE' },
+  DEPLOYED:    { color: UEE_AMBER, glyph: '⬢', label: 'DEPLOYED' },
+  MAINTENANCE: { color: '#e05c5c', glyph: '⚠', label: 'MAINTENANCE' },
+  RESERVED:    { color: '#5a80d9', glyph: '◇', label: 'RESERVED' },
+}
+
+const REQ_META = {
+  PENDING:  { color: UEE_AMBER, glyph: '◐', label: 'PENDING' },
+  APPROVED: { color: '#5ce0a1', glyph: '✓', label: 'APPROVED' },
+  DENIED:   { color: '#e05c5c', glyph: '✕', label: 'DENIED' },
+}
+
+const FLEET_BLUE = '#5a80d9'
 
 export default function Fleet() {
   const { profile: me } = useAuth()
@@ -22,16 +38,17 @@ export default function Fleet() {
   const [form, setForm]         = useState({})
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
-  const [tab, setTab]           = useState('registry')
+  const [tab, setTab]           = useState('REGISTRY')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [search, setSearch]     = useState('')
   const [reqModal, setReqModal] = useState(null)
   const [reqReason, setReqReason] = useState('')
-  // Ship selector
   const [shipSearch, setShipSearch] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
 
   const canManage = me.tier <= 4
 
-  const filteredShips = useMemo(() => {
+  const filteredShipOptions = useMemo(() => {
     if (!shipSearch.trim()) return SC_SHIPS.slice(0, 20)
     const q = shipSearch.toLowerCase()
     return SC_SHIPS.filter(s =>
@@ -45,27 +62,54 @@ export default function Fleet() {
     const [{ data: s }, { data: m }, { data: r }] = await Promise.all([
       supabase.from('fleet').select('*, assigned:profiles(id, handle)').order('vessel_name'),
       supabase.from('profiles').select('id, handle').eq('status', 'ACTIVE').order('handle'),
-      supabase.from('fleet_requests').select('*, vessel:fleet(vessel_name, ship_class), requester:profiles!fleet_requests_requester_id_fkey(handle), reviewer:profiles!fleet_requests_reviewed_by_fkey(handle)').order('created_at', { ascending: false }),
+      supabase.from('fleet_requests')
+        .select('*, vessel:fleet(vessel_name, ship_class), requester:profiles!fleet_requests_requester_id_fkey(handle), reviewer:profiles!fleet_requests_reviewed_by_fkey(handle)')
+        .order('created_at', { ascending: false }),
     ])
-    setShips(s || []); setMembers(m || []); setRequests(r || []); setLoading(false)
+    setShips(s || [])
+    setMembers(m || [])
+    setRequests(r || [])
+    setLoading(false)
   }
-
   useEffect(() => { load() }, [])
+
+  const counts = useMemo(() => {
+    const c = { ALL: ships.length }
+    Object.keys(STATUS_META).forEach(s => {
+      c[s] = ships.filter(x => x.status === s).length
+    })
+    return c
+  }, [ships])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return ships
+      .filter(s => statusFilter === 'ALL' || s.status === statusFilter)
+      .filter(s => !q
+        || (s.vessel_name || '').toLowerCase().includes(q)
+        || (s.ship_class || '').toLowerCase().includes(q)
+        || (s.manufacturer || '').toLowerCase().includes(q)
+        || (s.role || '').toLowerCase().includes(q)
+        || (s.assigned?.handle || '').toLowerCase().includes(q))
+  }, [ships, statusFilter, search])
+
+  const pendingRequests = useMemo(() => requests.filter(r => r.status === 'PENDING'), [requests])
 
   function openAdd() {
     setForm({ vessel_name: '', ship_class: '', manufacturer: '', role: '', assigned_to: '', status: 'AVAILABLE', notes: '' })
     setShipSearch(''); setError(''); setModal('add')
   }
-
   function openEdit(s) {
-    setForm({ vessel_name: s.vessel_name, ship_class: s.ship_class, manufacturer: s.manufacturer||'', role: s.role||'', assigned_to: s.assigned_to||'', status: s.status, notes: s.notes||'' })
+    setForm({
+      vessel_name: s.vessel_name, ship_class: s.ship_class,
+      manufacturer: s.manufacturer || '', role: s.role || '',
+      assigned_to: s.assigned_to || '', status: s.status, notes: s.notes || '',
+    })
     setShipSearch(s.ship_class || ''); setError(''); setModal(s)
   }
-
   function selectShip(ship) {
     setForm(f => ({ ...f, ship_class: ship.name, manufacturer: ship.manufacturer, role: ship.role }))
-    setShipSearch(ship.name)
-    setShowDropdown(false)
+    setShipSearch(ship.name); setShowDropdown(false)
   }
 
   async function save() {
@@ -78,134 +122,210 @@ export default function Fleet() {
       : await supabase.from('fleet').update(payload).eq('id', modal.id).select().single()
     if (error) { setError(error.message); setSaving(false); return }
     if (isAdd) {
-      await supabase.from('activity_log').insert({ actor_id: me.id, action: 'fleet_added', target_type: 'fleet', target_id: data.id, details: { title: `${form.vessel_name} (${form.ship_class})` } })
+      await supabase.from('activity_log').insert({
+        actor_id: me.id, action: 'fleet_added',
+        target_type: 'fleet', target_id: data.id,
+        details: { title: `${form.vessel_name} (${form.ship_class})` },
+      })
     }
+    toast(isAdd ? 'Vessel registered' : 'Vessel updated', 'success')
     setModal(null); setSaving(false); load()
   }
 
   async function deleteShip(id) {
     if (!(await confirmAction('Remove this vessel from the registry?'))) return
-    await supabase.from('fleet').delete().eq('id', id); load()
+    await supabase.from('fleet').delete().eq('id', id)
+    toast('Vessel decommissioned', 'success')
+    load()
   }
 
   async function submitRequest(ship) {
     if (!reqReason.trim()) return
     setSaving(true)
-    await supabase.from('fleet_requests').insert({ vessel_id: ship.id, requester_id: me.id, reason: reqReason.trim() })
+    await supabase.from('fleet_requests').insert({
+      vessel_id: ship.id, requester_id: me.id, reason: reqReason.trim(),
+    })
+    toast('Request submitted', 'success')
     setReqModal(null); setReqReason(''); setSaving(false); load()
   }
 
   async function reviewRequest(reqId, status) {
-    await supabase.from('fleet_requests').update({ status, reviewed_by: me.id }).eq('id', reqId); load()
+    await supabase.from('fleet_requests').update({ status, reviewed_by: me.id }).eq('id', reqId)
+    toast(status === 'APPROVED' ? 'Request approved' : 'Request denied', 'info')
+    load()
   }
 
-  const pendingRequests = requests.filter(r => r.status === 'PENDING')
+  function exportFleet() {
+    exportCSV(ships.map(s => ({
+      vessel: s.vessel_name, class: s.ship_class, status: s.status,
+      manufacturer: s.manufacturer || '', role: s.role || '',
+      assigned: s.assigned?.handle || '',
+    })), 'grayveil_fleet')
+    toast('Fleet exported', 'info')
+  }
 
   return (
     <>
+      <ClassificationBar
+        section="GRAYVEIL FLEET REGISTRY"
+        label={tab === 'REQUESTS' ? 'REQUEST QUEUE' : (statusFilter === 'ALL' ? 'ALL VESSELS' : statusFilter)}
+        accent={FLEET_BLUE}
+        right={(
+          <>
+            <span>VESSELS · {ships.length}</span>
+            <span style={{ color: STATUS_META.AVAILABLE.color }}>READY · {counts.AVAILABLE || 0}</span>
+            {pendingRequests.length > 0 && (
+              <span style={{ color: UEE_AMBER }}>QUEUE · {pendingRequests.length}</span>
+            )}
+          </>
+        )}
+      />
+
       <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <div className="page-title">FLEET REGISTRY</div>
-            <div className="page-subtitle">{ships.length} vessels on record</div>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>FLEET REGISTRY</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 640 }}>
+              Org-owned vessels and operative assignments. Request a vessel to lock it for an op; officers review.
+            </div>
           </div>
-          <div className="flex gap-8">
+          <div style={{ display: 'flex', gap: 8 }}>
             {canManage && <button className="btn btn-primary" onClick={openAdd}>+ ADD VESSEL</button>}
-            <button className="btn btn-ghost btn-sm" onClick={() => {
-              exportCSV(ships.map(s => ({ vessel: s.vessel_name, class: s.ship_class, status: s.status, manufacturer: s.manufacturer || '', role: s.role || '' })), 'grayveil_fleet')
-              toast('Fleet exported', 'info')
-            }}>EXPORT</button>
+            <button className="btn btn-ghost btn-sm" onClick={exportFleet}>EXPORT</button>
           </div>
         </div>
-        <div className="flex gap-8">
-          <button className="btn btn-ghost btn-sm" style={tab === 'registry' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('registry')}>REGISTRY</button>
-          <button className="btn btn-ghost btn-sm" style={tab === 'requests' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}} onClick={() => setTab('requests')}>
-            REQUESTS {pendingRequests.length > 0 && <span style={{ color: 'var(--amber)', marginLeft: 4 }}>({pendingRequests.length})</span>}
-          </button>
-        </div>
+
+        <TabStrip
+          active={tab} onChange={setTab}
+          tabs={[
+            { key: 'REGISTRY', label: 'REGISTRY', color: FLEET_BLUE, glyph: '◎', count: ships.length },
+            { key: 'REQUESTS', label: 'REQUESTS', color: UEE_AMBER, glyph: '◐', count: requests.length, attention: pendingRequests.length },
+          ]}
+        />
       </div>
 
       <div className="page-body">
-        {loading ? <div className="loading">LOADING FLEET DATA...</div> : tab === 'registry' ? (
-          ships.length === 0 ? <div className="empty-state">NO VESSELS REGISTERED</div> : (
-            <div className="card" style={{ padding: 0 }}>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr><th>VESSEL NAME</th><th>CLASS</th><th>MANUFACTURER</th><th>ROLE</th><th>ASSIGNED TO</th><th>STATUS</th><th></th></tr></thead>
-                  <tbody>
-                    {ships.map(s => (
-                      <tr key={s.id}>
-                        <td style={{ fontWeight: 500 }}>{s.vessel_name}</td>
-                        <td className="mono">{s.ship_class}</td>
-                        <td className="text-muted">{s.manufacturer || '—'}</td>
-                        <td className="text-muted">{s.role || '—'}</td>
-                        <td>{s.assigned?.handle || <span className="text-muted">—</span>}</td>
-                        <td><span className={`badge ${STATUS_BADGE[s.status] || 'badge-muted'}`}>{s.status}</span></td>
-                        <td>
-                          <div className="flex gap-8">
-                            {s.status === 'AVAILABLE' && <button className="btn btn-ghost btn-sm" onClick={() => { setReqModal(s); setReqReason('') }}>REQUEST</button>}
-                            {canManage && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>EDIT</button>}
-                            {me.tier <= 3 && <button className="btn btn-danger btn-sm" onClick={() => deleteShip(s.id)}>✕</button>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        {loading ? <div className="loading">LOADING FLEET DATA...</div> : tab === 'REGISTRY' ? (
+          <>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 10, marginBottom: 16,
+            }}>
+              {Object.keys(STATUS_META).map(s => {
+                const m = STATUS_META[s]
+                return (
+                  <StatCell
+                    key={s}
+                    label={m.label}
+                    value={counts[s] || 0}
+                    color={m.color}
+                    glyph={m.glyph}
+                    onClick={() => setStatusFilter(statusFilter === s ? 'ALL' : s)}
+                    active={statusFilter === s}
+                  />
+                )
+              })}
             </div>
-          )
-        ) : (
-          requests.length === 0 ? <div className="empty-state">NO FLEET REQUESTS</div> : (
-            <div className="card" style={{ padding: 0 }}>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr><th>VESSEL</th><th>REQUESTED BY</th><th>REASON</th><th>STATUS</th><th>REVIEWED BY</th><th></th></tr></thead>
-                  <tbody>
-                    {requests.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ fontWeight: 500 }}>{r.vessel?.vessel_name || '—'}<br/><span className="text-muted mono" style={{ fontSize: 11 }}>{r.vessel?.ship_class}</span></td>
-                        <td>{r.requester?.handle || '—'}</td>
-                        <td style={{ maxWidth: 200 }}><span style={{ fontSize: 12, color: 'var(--text-2)' }}>{r.reason || '—'}</span></td>
-                        <td><span className={`badge ${REQ_BADGE[r.status]}`}>{r.status}</span></td>
-                        <td className="text-muted">{r.reviewer?.handle || '—'}</td>
-                        <td>
-                          {canManage && r.status === 'PENDING' && (
-                            <div className="flex gap-8">
-                              <button className="btn btn-primary btn-sm" onClick={() => reviewRequest(r.id, 'APPROVED')}>APPROVE</button>
-                              <button className="btn btn-danger btn-sm" onClick={() => reviewRequest(r.id, 'DENIED')}>DENY</button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+            <FilterRow
+              search={search} setSearch={setSearch}
+              placeholder="Search vessel name, class, manufacturer, role, operator..."
+            />
+
+            {filtered.length === 0 ? (
+              <EmptyState>
+                {canManage
+                  ? <>No vessels match. <a onClick={openAdd} style={{ color: FLEET_BLUE, cursor: 'pointer', textDecoration: 'underline' }}>Register one</a>.</>
+                  : 'No vessels registered.'}
+              </EmptyState>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                gap: 12,
+              }}>
+                {filtered.map(s => (
+                  <FleetCard
+                    key={s.id} ship={s}
+                    canManage={canManage}
+                    canDelete={me.tier <= 3}
+                    onRequest={() => { setReqModal(s); setReqReason('') }}
+                    onEdit={() => openEdit(s)}
+                    onDelete={() => deleteShip(s.id)}
+                  />
+                ))}
               </div>
+            )}
+          </>
+        ) : (
+          requests.length === 0 ? (
+            <EmptyState>NO FLEET REQUESTS LOGGED</EmptyState>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 12,
+            }}>
+              {requests.map(r => (
+                <RequestCard
+                  key={r.id} request={r}
+                  canReview={canManage && r.status === 'PENDING'}
+                  onApprove={() => reviewRequest(r.id, 'APPROVED')}
+                  onDeny={() => reviewRequest(r.id, 'DENIED')}
+                />
+              ))}
             </div>
           )
         )}
       </div>
 
-      {/* Request modal */}
+      {/* REQUEST MODAL */}
       {reqModal && (
-        <Modal title={`REQUEST — ${reqModal.vessel_name}`} onClose={() => setReqModal(null)}>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>Requesting <strong>{reqModal.vessel_name}</strong> ({reqModal.ship_class}). An officer will review.</p>
+        <UeeModal
+          accent={FLEET_BLUE}
+          kicker={`◆ FLEET REQUEST · ${reqModal.ship_class.toUpperCase()}`}
+          title={`Request ${reqModal.vessel_name}`}
+          onClose={() => setReqModal(null)}
+          maxWidth={520}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setReqModal(null)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={() => submitRequest(reqModal)} disabled={saving || !reqReason.trim()}>
+                {saving ? 'SUBMITTING...' : 'SUBMIT REQUEST'}
+              </button>
+            </>
+          )}
+        >
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
+            Requesting <strong style={{ color: 'var(--text-1)' }}>{reqModal.vessel_name}</strong> ({reqModal.ship_class}). An officer will review and approve or deny.
+          </p>
           <div className="form-group">
             <label className="form-label">REASON / OPERATION</label>
-            <textarea className="form-textarea" value={reqReason} onChange={e => setReqReason(e.target.value)} placeholder="What operation is this for?" />
+            <textarea className="form-textarea" value={reqReason}
+              onChange={e => setReqReason(e.target.value)}
+              placeholder="What operation is this for? Expected return window?" />
           </div>
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setReqModal(null)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={() => submitRequest(reqModal)} disabled={saving || !reqReason.trim()}>{saving ? 'SUBMITTING...' : 'SUBMIT REQUEST'}</button>
-          </div>
-        </Modal>
+        </UeeModal>
       )}
 
-      {/* Add/Edit vessel modal */}
+      {/* ADD/EDIT MODAL */}
       {(modal === 'add' || (modal && typeof modal === 'object')) && (
-        <Modal title={modal === 'add' ? 'REGISTER VESSEL' : 'EDIT VESSEL'} onClose={() => setModal(null)} size="modal-lg">
-          {/* VESSEL NAME — the only thing the user types */}
+        <UeeModal
+          accent={FLEET_BLUE}
+          kicker={modal === 'add' ? '◆ NEW VESSEL · FLEET REGISTRY' : `◆ EDIT · ${modal.vessel_name}`}
+          title={modal === 'add' ? 'REGISTER VESSEL' : 'EDIT VESSEL'}
+          onClose={() => setModal(null)}
+          maxWidth={680}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>
+                {saving ? 'SAVING...' : modal === 'add' ? 'REGISTER' : 'UPDATE'}
+              </button>
+            </>
+          )}
+        >
           <div className="form-group">
             <label className="form-label">VESSEL NAME *</label>
             <input className="form-input" value={form.vessel_name}
@@ -214,42 +334,56 @@ export default function Fleet() {
             <div className="form-hint">Your custom name for this vessel.</div>
           </div>
 
-          {/* SHIP SELECTOR — searchable dropdown auto-fills class, manufacturer, role */}
           <div className="form-group" style={{ position: 'relative' }}>
-            <label className="form-label">SHIP *</label>
+            <label className="form-label">SHIP CLASS *</label>
             <input className="form-input" value={shipSearch}
               onChange={e => { setShipSearch(e.target.value); setShowDropdown(true) }}
               onFocus={() => setShowDropdown(true)}
               placeholder="Search ships... e.g. Cutlass, Carrack, Aurora"
               autoComplete="off" />
             {form.ship_class && (
-              <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span className="badge badge-accent">{form.ship_class}</span>
-                <span className="badge badge-muted">{form.manufacturer}</span>
-                <span className="badge badge-muted">{form.role}</span>
+              <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <StatusBadge color={UEE_AMBER} label={form.ship_class.toUpperCase()} />
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                  color: 'var(--text-3)', border: '1px solid var(--border)',
+                  padding: '3px 8px', borderRadius: 3,
+                }}>{form.manufacturer}</span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                  color: 'var(--text-3)', border: '1px solid var(--border)',
+                  padding: '3px 8px', borderRadius: 3,
+                }}>{form.role}</span>
               </div>
             )}
-            {showDropdown && filteredShips.length > 0 && (
+            {showDropdown && filteredShipOptions.length > 0 && (
               <div style={{
                 position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                background: 'var(--bg-raised)', border: '1px solid var(--border-md)',
-                borderRadius: 'var(--radius-sm)', maxHeight: 240, overflowY: 'auto',
+                background: 'var(--bg-raised)', border: `1px solid ${FLEET_BLUE}55`,
+                borderRadius: 3, maxHeight: 240, overflowY: 'auto',
                 boxShadow: '0 8px 24px rgba(0,0,0,.4)', marginTop: 4,
               }}>
-                {filteredShips.map(s => (
+                {filteredShipOptions.map(s => (
                   <div key={s.name} onClick={() => selectShip(s)}
                     style={{
-                      padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                      padding: '8px 12px', cursor: 'pointer',
+                      borderBottom: '1px solid var(--border)',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      transition: 'background .1s',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                    onMouseEnter={e => e.currentTarget.style.background = `${FLEET_BLUE}11`}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.manufacturer} · {s.role}</div>
+                      <div style={{
+                        fontSize: 10, color: 'var(--text-3)',
+                        fontFamily: 'var(--font-mono)', letterSpacing: '.1em',
+                      }}>{s.manufacturer} · {s.role}</div>
                     </div>
-                    <span className="badge badge-muted" style={{ fontSize: 9 }}>{s.size}</span>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                      color: FLEET_BLUE, border: `1px solid ${FLEET_BLUE}55`,
+                      padding: '2px 6px', borderRadius: 3,
+                    }}>{s.size}</span>
                   </div>
                 ))}
               </div>
@@ -259,14 +393,16 @@ export default function Fleet() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">ASSIGNED TO</label>
-              <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+              <select className="form-select" value={form.assigned_to}
+                onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
                 <option value="">Unassigned</option>
                 {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">STATUS</label>
-              <select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              <select className="form-select" value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                 {SHIP_STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
@@ -274,16 +410,134 @@ export default function Fleet() {
 
           <div className="form-group">
             <label className="form-label">NOTES</label>
-            <textarea className="form-textarea" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Loadout, insurance tier, special equipment..." />
+            <textarea className="form-textarea" value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Loadout, insurance tier, special equipment..." />
           </div>
 
           {error && <div className="form-error mb-8">{error}</div>}
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'SAVING...' : 'CONFIRM'}</button>
-          </div>
-        </Modal>
+        </UeeModal>
       )}
     </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+function FleetCard({ ship: s, canManage, canDelete, onRequest, onEdit, onDelete }) {
+  const meta = STATUS_META[s.status] || STATUS_META.AVAILABLE
+  return (
+    <Card accent={meta.color} minHeight={170}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600,
+            color: 'var(--text-1)', lineHeight: 1.25,
+          }}>
+            {s.vessel_name}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+            <span style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+              color: UEE_AMBER, border: `1px solid ${UEE_AMBER}55`,
+              padding: '1px 6px', borderRadius: 3,
+            }}>{s.ship_class}</span>
+            {s.manufacturer && (
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                color: 'var(--text-3)',
+              }}>{s.manufacturer}</span>
+            )}
+          </div>
+        </div>
+        <StatusBadge color={meta.color} glyph={meta.glyph} label={meta.label} />
+      </div>
+
+      {s.notes && (
+        <div style={{
+          fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}>
+          {s.notes}
+        </div>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+        paddingTop: 8, borderTop: '1px dashed var(--border)',
+      }}>
+        <Field label="ROLE" value={s.role || '—'} />
+        <Field label="OPERATOR" value={s.assigned?.handle || 'UNASSIGNED'} mono />
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        {s.status === 'AVAILABLE' && (
+          <button onClick={onRequest} style={btnMicro(meta.color, true)}>◆ REQUEST</button>
+        )}
+        {canManage && (
+          <button onClick={onEdit} style={btnMicro(UEE_AMBER, !canDelete)}>✎ EDIT</button>
+        )}
+        {canDelete && (
+          <button onClick={onDelete} style={btnMicro('#9099a8')}>✕</button>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+function RequestCard({ request: r, canReview, onApprove, onDeny }) {
+  const meta = REQ_META[r.status] || REQ_META.PENDING
+  return (
+    <Card accent={meta.color} minHeight={140}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+            color: 'var(--text-1)',
+          }}>
+            {r.vessel?.vessel_name || '—'}
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em',
+            color: 'var(--text-3)', marginTop: 2,
+          }}>
+            {r.vessel?.ship_class}
+          </div>
+        </div>
+        <StatusBadge color={meta.color} glyph={meta.glyph} label={meta.label} />
+      </div>
+
+      {r.reason && (
+        <div style={{
+          fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6,
+          padding: '8px 10px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid var(--border)', borderRadius: 3,
+        }}>
+          {r.reason}
+        </div>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em',
+        color: 'var(--text-3)', paddingTop: 6, borderTop: '1px dashed var(--border)',
+      }}>
+        <span>{(r.requester?.handle || '—').toUpperCase()}</span>
+        <span>{r.reviewer ? `BY ${r.reviewer.handle.toUpperCase()}` : timeAgo(r.created_at)}</span>
+      </div>
+
+      {canReview && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={onApprove} style={btnMicro('#5ce0a1', true)}>✓ APPROVE</button>
+          <button onClick={onDeny}    style={btnMicro('#e05c5c', true)}>✕ DENY</button>
+        </div>
+      )}
+    </Card>
   )
 }

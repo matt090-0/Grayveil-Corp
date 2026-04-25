@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
-import Modal from '../components/Modal'
-
-function fmt(ts) {
-  return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
+import {
+  UEE_AMBER, ClassificationBar, StatCell, FilterRow, Card,
+  EmptyState, UeeModal,
+  fmtDate, timeAgo,
+} from '../components/uee'
 
 export default function Ledger() {
   const { profile: me } = useAuth()
@@ -14,6 +14,7 @@ export default function Ledger() {
   const [members, setMembers]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [viewMember, setViewMember] = useState(me.id)
+  const [search, setSearch]     = useState('')
   const [modal, setModal]       = useState(false)
   const [form, setForm]         = useState({})
   const [saving, setSaving]     = useState(false)
@@ -35,17 +36,23 @@ export default function Ledger() {
     setMembers(mem || [])
     setLoading(false)
   }
-
   useEffect(() => { load() }, [viewMember])
 
-  const balance = entries.reduce((sum, e) => sum + e.amount, 0)
-  const earned  = entries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0)
-  const spent   = entries.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0)
+  const balance = useMemo(() => entries.reduce((s, e) => s + e.amount, 0), [entries])
+  const earned  = useMemo(() => entries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0), [entries])
+  const spent   = useMemo(() => entries.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0), [entries])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter(e =>
+      (e.description || '').toLowerCase().includes(q)
+      || (e.recorded_by?.handle || '').toLowerCase().includes(q))
+  }, [entries, search])
 
   function openAdd() {
     setForm({ member_id: viewMember, amount: '', description: '', type: 'credit' })
-    setError('')
-    setModal(true)
+    setError(''); setModal(true)
   }
 
   async function save() {
@@ -63,88 +70,116 @@ export default function Ledger() {
     setModal(false); setSaving(false); load()
   }
 
-  const currentMember = members.find(m => m.id === viewMember)
+  const currentMember = members.find(m => m.id === viewMember) || me
+  const handle = (currentMember?.handle || me.handle).toUpperCase()
 
   return (
     <>
-      <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16 }}>
-          <div>
-            <div className="page-title">LEDGER</div>
-            <div className="page-subtitle">Credits & earnings register</div>
-          </div>
-          {isAdmin && <button className="btn btn-primary" onClick={openAdd}>+ ADD ENTRY</button>}
-        </div>
-        {isAdmin && members.length > 0 && (
-          <div className="flex items-center gap-8" style={{ paddingBottom: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>VIEWING:</span>
-            <select className="form-select" value={viewMember} onChange={e => setViewMember(e.target.value)}
-              style={{ maxWidth: 220 }}>
-              {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
-            </select>
-          </div>
+      <ClassificationBar
+        section="GRAYVEIL EARNINGS LEDGER"
+        label={isAdmin && viewMember !== me.id ? `OPERATIVE · ${handle}` : 'PERSONAL RECORD'}
+        right={(
+          <>
+            <span style={{ color: balance >= 0 ? '#5ce0a1' : '#e05c5c' }}>BALANCE · {formatCredits(balance)}</span>
+            <span>EARNED · {formatCredits(earned)}</span>
+            <span>SPENT · {formatCredits(Math.abs(spent))}</span>
+          </>
         )}
+      />
+
+      <div className="page-header">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>EARNINGS LEDGER</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 640 }}>
+              Per-operative running balance. Credit and debit entries with running totals — your contract payouts, payouts in, fines out.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {isAdmin && members.length > 0 && (
+              <select className="form-select" value={viewMember}
+                onChange={e => setViewMember(e.target.value)}
+                style={{ maxWidth: 240 }}>
+                {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
+              </select>
+            )}
+            {isAdmin && <button className="btn btn-primary" onClick={openAdd}>+ ADD ENTRY</button>}
+          </div>
+        </div>
       </div>
 
       <div className="page-body">
         {loading ? <div className="loading">LOADING LEDGER...</div> : (
           <>
-            <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))', marginBottom: 20 }}>
-              <div className="stat-card">
-                <div className="stat-label">BALANCE</div>
-                <div className="stat-value" style={{ color: balance >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {formatCredits(balance)}
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">TOTAL EARNED</div>
-                <div className="stat-value" style={{ fontSize: 20 }}>{formatCredits(earned)}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">TOTAL SPENT</div>
-                <div className="stat-value" style={{ fontSize: 20, color: 'var(--red)' }}>{formatCredits(spent)}</div>
-              </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 10, marginBottom: 16,
+            }}>
+              <StatCell label="BALANCE"      value={formatCredits(balance)}        color={balance >= 0 ? '#5ce0a1' : '#e05c5c'} glyph="◆" desc="net standing" />
+              <StatCell label="TOTAL EARNED" value={formatCredits(earned)}         color="#5ce0a1" glyph="↓" desc="credits in" />
+              <StatCell label="TOTAL SPENT"  value={formatCredits(Math.abs(spent))} color="#e05c5c" glyph="↑" desc="debits out" />
+              <StatCell label="ENTRIES"      value={entries.length}                color={UEE_AMBER} glyph="◎" desc="line items" />
             </div>
 
-            {entries.length === 0 ? (
-              <div className="empty-state">NO LEDGER ENTRIES</div>
+            <FilterRow
+              search={search} setSearch={setSearch}
+              placeholder="Search description, recorder..."
+            />
+
+            {filtered.length === 0 ? (
+              <EmptyState>NO LEDGER ENTRIES</EmptyState>
             ) : (
-              <div className="card" style={{ padding: 0 }}>
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>DATE</th>
-                        <th>DESCRIPTION</th>
-                        <th>RECORDED BY</th>
-                        <th style={{ textAlign: 'right' }}>AMOUNT</th>
-                        <th style={{ textAlign: 'right' }}>RUNNING BALANCE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        let running = balance
-                        return entries.map(e => {
-                          const row = (
-                            <tr key={e.id}>
-                              <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmt(e.created_at)}</td>
-                              <td>{e.description}</td>
-                              <td className="text-muted">{e.recorded_by?.handle || '—'}</td>
-                              <td className="mono" style={{ textAlign: 'right', color: e.amount >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                                {e.amount >= 0 ? '+' : ''}{formatCredits(e.amount)}
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
-                                {formatCredits(running)}
-                              </td>
-                            </tr>
-                          )
-                          running -= e.amount
-                          return row
-                        })
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(() => {
+                  let running = balance
+                  // Adjust running for any entries filtered out — keep the running total accurate
+                  // for the *unfiltered* list since that's the actual balance trajectory
+                  return entries.map((e, idx) => {
+                    const isCredit = e.amount >= 0
+                    const accent = isCredit ? '#5ce0a1' : '#e05c5c'
+                    const row = (
+                      <Card key={e.id} accent={accent} style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 14,
+                        padding: '8px 14px',
+                        display: filtered.includes(e) ? 'flex' : 'none',
+                      }}>
+                        <div style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em',
+                          color: 'var(--text-3)', minWidth: 90, flexShrink: 0,
+                        }}>
+                          {fmtDate(e.created_at)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: 'var(--text-1)' }}>
+                            {e.description}
+                          </div>
+                          <div style={{
+                            fontSize: 10, color: 'var(--text-3)',
+                            fontFamily: 'var(--font-mono)', letterSpacing: '.1em', marginTop: 1,
+                          }}>
+                            BY {(e.recorded_by?.handle || '—').toUpperCase()} · {timeAgo(e.created_at)}
+                          </div>
+                        </div>
+                        <div style={{
+                          fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700,
+                          color: accent, minWidth: 110, textAlign: 'right', flexShrink: 0,
+                        }}>
+                          {isCredit ? '+' : ''}{formatCredits(e.amount)}
+                        </div>
+                        <div style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.05em',
+                          color: 'var(--text-2)', minWidth: 100, textAlign: 'right', flexShrink: 0,
+                          paddingLeft: 12, borderLeft: '1px dashed var(--border)',
+                        }}>
+                          {formatCredits(running)}
+                        </div>
+                      </Card>
+                    )
+                    running -= e.amount
+                    return row
+                  })
+                })()}
               </div>
             )}
           </>
@@ -152,43 +187,72 @@ export default function Ledger() {
       </div>
 
       {modal && (
-        <Modal title="ADD LEDGER ENTRY" onClose={() => setModal(false)}>
+        <UeeModal
+          accent={form.type === 'debit' ? '#e05c5c' : '#5ce0a1'}
+          kicker="◆ NEW LEDGER ENTRY"
+          title={`Record ${form.type === 'debit' ? 'Debit' : 'Credit'}`}
+          onClose={() => setModal(false)}
+          maxWidth={520}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(false)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>
+                {saving ? 'SAVING...' : 'ADD ENTRY'}
+              </button>
+            </>
+          )}
+        >
           {isAdmin && members.length > 0 && (
             <div className="form-group">
               <label className="form-label">MEMBER</label>
-              <select className="form-select" value={form.member_id} onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
+              <select className="form-select" value={form.member_id}
+                onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
                 {members.map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
               </select>
             </div>
           )}
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">TYPE</label>
-              <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                <option value="credit">CREDIT (+)</option>
-                <option value="debit">DEBIT (−)</option>
-              </select>
+          <div className="form-group">
+            <label className="form-label">TYPE</label>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              {[
+                { v: 'credit', label: 'CREDIT (+)', color: '#5ce0a1', glyph: '↓' },
+                { v: 'debit',  label: 'DEBIT (−)',  color: '#e05c5c', glyph: '↑' },
+              ].map(t => {
+                const active = form.type === t.v
+                return (
+                  <button
+                    key={t.v}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, type: t.v }))}
+                    style={{
+                      flex: 1,
+                      background: active ? `${t.color}1f` : 'var(--bg-raised)',
+                      border: `1px solid ${active ? t.color : 'var(--border)'}`,
+                      borderLeft: `3px solid ${t.color}`,
+                      color: active ? t.color : 'var(--text-2)',
+                      fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.18em', fontWeight: 600,
+                      padding: '10px 12px', borderRadius: 3, cursor: 'pointer',
+                    }}
+                  >{t.glyph} {t.label}</button>
+                )
+              })}
             </div>
-            <div className="form-group">
-              <label className="form-label">AMOUNT (aUEC) *</label>
-              <input className="form-input" type="number" min="1" value={form.amount}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" />
-            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">AMOUNT (aUEC) *</label>
+            <input className="form-input" type="number" min="1" value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              placeholder="0" autoFocus
+              style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }} />
           </div>
           <div className="form-group">
             <label className="form-label">DESCRIPTION *</label>
             <input className="form-input" value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Contract payout, equipment, etc." />
+              placeholder="Contract payout, equipment, fine, etc." />
           </div>
           {error && <div className="form-error mb-8">{error}</div>}
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setModal(false)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? 'SAVING...' : 'ADD ENTRY'}
-            </button>
-          </div>
-        </Modal>
+        </UeeModal>
       )}
     </>
   )

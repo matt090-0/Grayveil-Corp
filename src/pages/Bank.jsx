@@ -9,6 +9,7 @@ import GrayveilLogo from '../components/GrayveilLogo'
 import { greenBurst } from '../lib/confetti'
 import { useToast } from '../components/Toast'
 import { timeAgo, fmtDate as fmt } from '../lib/dates'
+import { UEE_AMBER, ClassificationBar, TabStrip } from '../components/uee'
 
 // Card number derived from profile ID — 16 digits in 4 groups of 4.
 // Deterministic so a member's card number is stable.
@@ -468,28 +469,61 @@ export default function Bank() {
     [form.recipient, members]
   )
 
-  const TABS = ['overview', 'my card', 'credit', 'transactions', 'transfers', 'loans', 'ship funds', 'budgets']
+  const TABS = [
+    { key: 'overview',     label: 'OVERVIEW',     glyph: '◆' },
+    { key: 'my card',      label: 'MY CARD',      glyph: '◈' },
+    { key: 'credit',       label: 'CREDIT',       glyph: '✦' },
+    { key: 'transactions', label: 'TRANSACTIONS', glyph: '◎' },
+    { key: 'transfers',    label: 'TRANSFERS',    glyph: '⇄' },
+    { key: 'loans',        label: 'LOANS',        glyph: '◐' },
+    { key: 'ship funds',   label: 'SHIP FUNDS',   glyph: '◉' },
+    { key: 'budgets',      label: 'BUDGETS',      glyph: '◇' },
+  ]
+  const myCreditTier = creditTier(me.credit_score)
 
   return (
     <>
+      <ClassificationBar
+        section="GRAYVEIL RESERVE · FINANCIAL CONTROL"
+        label={tab.toUpperCase()}
+        right={(
+          <>
+            <span>WALLET · <span style={{ color: UEE_AMBER }}>{formatCredits(me.wallet_balance || 0)}</span></span>
+            <span style={{ color: myCreditTier.color }}>CREDIT · {me.credit_score || 0} ({myCreditTier.label})</span>
+            {isOfficer && <span style={{ color: UEE_AMBER }}>TREASURY · {formatCredits(treasury)}</span>}
+          </>
+        )}
+      />
+
       <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <div className="page-title">BANK</div>
-            <div className="page-subtitle">Grayveil financial operations</div>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>GRAYVEIL RESERVE</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 640 }}>
+              Wallet operations, credit standing, treasury control, ship-fund pooling, and division budgets.
+            </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>YOUR WALLET</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--accent)' }}>{formatCredits(me.wallet_balance || 0)}</div>
+          <div style={{
+            textAlign: 'right',
+            background: 'var(--bg-raised)', border: '1px solid var(--border)',
+            borderLeft: `3px solid ${UEE_AMBER}`,
+            borderRadius: 3, padding: '8px 14px',
+          }}>
+            <div style={{
+              fontSize: 9, letterSpacing: '.22em', color: 'var(--text-3)',
+              fontFamily: 'var(--font-mono)',
+            }}>◆ YOUR WALLET</div>
+            <div style={{
+              fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700,
+              color: UEE_AMBER, lineHeight: 1.1,
+            }}>{formatCredits(me.wallet_balance || 0)}</div>
           </div>
         </div>
-        <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
-          {TABS.map(t => (
-            <button key={t} className="btn btn-ghost btn-sm"
-              style={tab === t ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}}
-              onClick={() => setTab(t)}>{t.toUpperCase()}</button>
-          ))}
-        </div>
+
+        <TabStrip
+          active={tab} onChange={setTab}
+          tabs={TABS.map(t => ({ ...t, color: UEE_AMBER }))}
+        />
       </div>
 
       <div className="page-body">

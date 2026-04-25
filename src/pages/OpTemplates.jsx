@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import Modal from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordNewOp } from '../lib/discord'
 import ReactMarkdown from 'react-markdown'
 import { confirmAction } from '../lib/dialogs'
+import {
+  UEE_AMBER, ClassificationBar, FilterPill, UeeModal, SectionHeader,
+  StatusBadge,
+} from '../components/uee'
 
 // Category → accent color, icon glyph, badge class.
 // Colors are set once here so every surface (chip, stripe, icon, hover glow)
@@ -19,7 +22,7 @@ const CAT = {
   ESCORT:   { color: '#5a80d9', glyph: '⟶',  badge: 'badge-blue',   blurb: 'Convoy, VIP, and evac work.' },
   RECON:    { color: '#a860e0', glyph: '◎',  badge: 'badge-purple', blurb: 'Scouting, intel, infiltration.' },
   SALVAGE:  { color: '#9aa0ac', glyph: '✦',  badge: 'badge-muted',  blurb: 'Strip derelicts and battlefields.' },
-  RACING:   { color: '#c8a55a', glyph: '◢',  badge: 'badge-accent', blurb: 'Circuit races and time trials.' },
+  RACING:   { color: UEE_AMBER, glyph: '◢',  badge: 'badge-accent', blurb: 'Circuit races and time trials.' },
   GENERAL:  { color: '#b4b8c4', glyph: '●',  badge: 'badge-muted',  blurb: 'Social, training, multi-crew practice.' },
 }
 const CATEGORIES = Object.keys(CAT)
@@ -148,16 +151,29 @@ export default function OpTemplates() {
   }
 
   const selectedCat = filter === 'ALL' ? null : CAT[filter]
+  const totalUses = templates.reduce((s, t) => s + (t.use_count || 0), 0)
 
   return (
     <>
+      <ClassificationBar
+        section="GRAYVEIL OPERATIONS PLAYBOOK"
+        label={selectedCat ? filter : 'ALL CATEGORIES'}
+        accent={selectedCat?.color || UEE_AMBER}
+        right={(
+          <>
+            <span>TEMPLATES · {templates.length}</span>
+            <span style={{ color: UEE_AMBER }}>LAUNCHES · {totalUses}</span>
+            {selectedCat && <span style={{ color: selectedCat.color }}>{selectedCat.blurb}</span>}
+          </>
+        )}
+      />
+
       <div className="page-header">
-        <div className="flex items-center justify-between" style={{ paddingBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <div className="page-title">OP TEMPLATES</div>
-            <div className="page-subtitle">
-              {templates.length} saved briefings · one-click launch
-              {selectedCat && <> · viewing <span style={{ color: selectedCat.color }}>{filter}</span> — <span style={{ color: 'var(--text-3)' }}>{selectedCat.blurb}</span></>}
+            <h1 className="page-title" style={{ marginBottom: 4 }}>OPERATIONS PLAYBOOK</h1>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 640 }}>
+              Pre-baked briefings with roles, ships, and full procedures. Hit LAUNCH to schedule the op for an hour from now.
             </div>
           </div>
           {canCreate && (
@@ -174,59 +190,54 @@ export default function OpTemplates() {
         </div>
 
         {/* Search + Sort */}
-        <div className="flex gap-8 mb-12" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             className="form-input"
-            style={{ maxWidth: 260, flex: '1 1 200px' }}
+            style={{ maxWidth: 320, flex: '1 1 220px' }}
             placeholder="Search name, description, location..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <div className="flex gap-4" style={{ marginLeft: 'auto', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', alignSelf: 'center', marginRight: 4 }}>
-              SORT
+          <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{
+              fontSize: 9, letterSpacing: '.22em', color: 'var(--text-3)',
+              fontFamily: 'var(--font-mono)', marginRight: 4,
+            }}>
+              SORT ◆
             </span>
             {SORTS.map(s => (
-              <button
+              <FilterPill
                 key={s.id}
-                className="btn btn-ghost btn-sm"
-                style={sort === s.id ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}}
+                active={sort === s.id}
                 onClick={() => setSort(s.id)}
-              >
-                {s.label}
-              </button>
+                color={UEE_AMBER}
+                label={s.label}
+              />
             ))}
           </div>
         </div>
 
         {/* Category chips with counts + color dots */}
-        <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            style={filter === 'ALL' ? { background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent)' } : {}}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <FilterPill
+            active={filter === 'ALL'}
             onClick={() => setFilter('ALL')}
-          >
-            ALL <span style={{ opacity: 0.55, marginLeft: 6 }}>{counts.ALL || 0}</span>
-          </button>
+            color="#d4d8e0"
+            label="ALL"
+            count={counts.ALL || 0}
+          />
           {CATEGORIES.map(c => {
-            const active = filter === c
             const meta = CAT[c]
             return (
-              <button
+              <FilterPill
                 key={c}
-                className="btn btn-ghost btn-sm"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  ...(active
-                    ? { background: `${meta.color}22`, color: meta.color, borderColor: meta.color }
-                    : {}),
-                }}
+                active={filter === c}
                 onClick={() => setFilter(c)}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.color, opacity: active ? 1 : 0.65 }} />
-                {c}
-                <span style={{ opacity: 0.55 }}>{counts[c] || 0}</span>
-              </button>
+                color={meta.color}
+                glyph={meta.glyph}
+                label={c}
+                count={counts[c] || 0}
+              />
             )
           })}
         </div>
@@ -264,174 +275,239 @@ export default function OpTemplates() {
       {viewing && (() => {
         const meta = CAT[viewing.category] || CAT.GENERAL
         return (
-          <Modal title="" onClose={() => setViewing(null)} size="modal-lg">
-            <div style={{ margin: '-20px -24px -16px' }}>
-              {/* Category-coloured header strip */}
-              <div style={{
-                background: `linear-gradient(135deg, ${meta.color}22, ${meta.color}08 60%, transparent)`,
-                borderBottom: `1px solid ${meta.color}55`,
-                padding: '22px 28px 20px',
-                position: 'relative',
-              }}>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: `radial-gradient(circle at 90% 20%, ${meta.color}18, transparent 55%)`,
-                  pointerEvents: 'none',
-                }} />
-                <div style={{ position: 'relative' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 10,
-                        background: `${meta.color}22`,
-                        border: `1px solid ${meta.color}66`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18, color: meta.color,
-                      }}>{meta.glyph}</div>
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, lineHeight: 1.15 }}>
-                          {viewing.name}
-                        </div>
-                        <div style={{ marginTop: 4 }}>
-                          <span className={`badge ${meta.badge}`} style={{ fontSize: 10 }}>{viewing.category}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
-                      {canCreate && <button className="btn btn-primary btn-sm" onClick={() => launchOp(viewing)}>LAUNCH OP</button>}
-                      {(viewing.created_by === me.id || me.tier <= 3) && (
-                        <>
-                          <button className="btn btn-ghost btn-sm" onClick={() => { openEdit(viewing); setViewing(null) }}>EDIT</button>
-                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => deleteTemplate(viewing.id)}>DELETE</button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {viewing.description && (
-                    <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.55 }}>
-                      {viewing.description}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', flexWrap: 'wrap' }}>
-                    <span>{viewing.min_slots}-{viewing.max_slots} players</span>
-                    <span>{viewing.duration_hours}h estimated</span>
-                    <span>{viewing.location || 'Location TBD'}</span>
-                    <span>Min tier: {viewing.min_tier}</span>
-                    <span>Used {viewing.use_count || 0}×</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ padding: '20px 28px 24px' }}>
-                {/* Required roles + ships */}
-                {((viewing.required_roles || []).length > 0 || (viewing.required_ships || []).length > 0) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                    {(viewing.required_roles || []).length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 9, letterSpacing: '.2em', color: meta.color, fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${meta.color}33` }}>
-                          REQUIRED ROLES
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {viewing.required_roles.map((r, i) => (
-                            <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
-                              {r}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {(viewing.required_ships || []).length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 9, letterSpacing: '.2em', color: meta.color, fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${meta.color}33` }}>
-                          RECOMMENDED SHIPS
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {viewing.required_ships.map((s, i) => (
-                            <span key={i} style={{ fontSize: 11, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 8px' }}>{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+          <UeeModal
+            accent={meta.color}
+            kicker={`◆ TEMPLATE · ${viewing.category}`}
+            title={viewing.name}
+            onClose={() => setViewing(null)}
+            maxWidth={760}
+            footer={(
+              <>
+                {(viewing.created_by === me.id || me.tier <= 3) && (
+                  <>
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteTemplate(viewing.id)}>DELETE</button>
+                    <button className="btn btn-ghost" onClick={() => { openEdit(viewing); setViewing(null) }}>EDIT</button>
+                  </>
                 )}
+                {canCreate && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => launchOp(viewing)}
+                    style={{ background: meta.color, borderColor: meta.color, color: '#0a0b0f' }}
+                  >
+                    {meta.glyph} LAUNCH OP
+                  </button>
+                )}
+              </>
+            )}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <StatusBadge color={meta.color} glyph={meta.glyph} label={viewing.category} />
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.2em',
+                color: 'var(--text-3)', border: '1px solid var(--border)',
+                padding: '2px 7px', borderRadius: 3,
+              }}>{viewing.event_type || 'OPERATION'}</span>
+              {viewing.min_tier < 9 && (
+                <StatusBadge color="#b566d9" glyph="◆" label={`TIER ${viewing.min_tier}+`} />
+              )}
+              <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-3)' }}>
+                LAUNCHED {viewing.use_count || 0}× · {viewing.creator?.handle ? `@${viewing.creator.handle}` : '—'}
+              </span>
+            </div>
 
-                {/* Briefing */}
-                <div style={{ fontSize: 9, letterSpacing: '.2em', color: meta.color, fontFamily: 'var(--font-mono)', marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${meta.color}33` }}>
-                  OPERATION BRIEFING
-                </div>
-                <div className="wiki-content" style={{
-                  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
-                  padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8,
-                  fontFamily: 'var(--font-mono)', maxHeight: 400, overflowY: 'auto', whiteSpace: 'pre-wrap',
-                }}>
-                  <ReactMarkdown>{viewing.briefing}</ReactMarkdown>
-                </div>
+            {viewing.description && (
+              <div style={{
+                fontSize: 13, color: 'var(--text-2)', lineHeight: 1.65,
+                marginBottom: 14,
+              }}>
+                {viewing.description}
+              </div>
+            )}
 
-                <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 12 }}>
-                  Created by {viewing.creator?.handle || '—'}
-                </div>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8,
+              padding: '10px 12px', marginBottom: 18,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.05em',
+            }}>
+              <div>
+                <div style={{ fontSize: 8.5, letterSpacing: '.22em', color: 'var(--text-3)', marginBottom: 2 }}>SLOTS</div>
+                <div style={{ color: 'var(--text-2)' }}>{viewing.min_slots}–{viewing.max_slots}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 8.5, letterSpacing: '.22em', color: 'var(--text-3)', marginBottom: 2 }}>DURATION</div>
+                <div style={{ color: 'var(--text-2)' }}>{viewing.duration_hours}h</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 8.5, letterSpacing: '.22em', color: 'var(--text-3)', marginBottom: 2 }}>LOCATION</div>
+                <div style={{ color: 'var(--text-2)' }}>{viewing.location || 'TBD'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 8.5, letterSpacing: '.22em', color: 'var(--text-3)', marginBottom: 2 }}>MIN TIER</div>
+                <div style={{ color: 'var(--text-2)' }}>T-{viewing.min_tier}</div>
               </div>
             </div>
-          </Modal>
+
+            {/* Required roles + ships */}
+            {((viewing.required_roles || []).length > 0 || (viewing.required_ships || []).length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                {(viewing.required_roles || []).length > 0 && (
+                  <div>
+                    <SectionHeader label="REQUIRED ROLES" color={meta.color} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {viewing.required_roles.map((r, i) => (
+                        <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(viewing.required_ships || []).length > 0 && (
+                  <div>
+                    <SectionHeader label="RECOMMENDED SHIPS" color={meta.color} />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {viewing.required_ships.map((s, i) => (
+                        <span key={i} style={{
+                          fontSize: 11, fontFamily: 'var(--font-mono)', letterSpacing: '.05em',
+                          background: 'var(--bg-raised)', border: '1px solid var(--border)',
+                          borderRadius: 3, padding: '3px 8px',
+                        }}>{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <SectionHeader label="OPERATION BRIEFING" color={meta.color} />
+            <div className="wiki-content" style={{
+              background: 'rgba(0,0,0,0.25)',
+              border: `1px solid ${meta.color}33`,
+              borderLeft: `3px solid ${meta.color}`,
+              borderRadius: 3,
+              padding: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8,
+              fontFamily: 'var(--font-mono)', maxHeight: 380, overflowY: 'auto', whiteSpace: 'pre-wrap',
+            }}>
+              <ReactMarkdown>{viewing.briefing}</ReactMarkdown>
+            </div>
+          </UeeModal>
         )
       })()}
 
       {/* ═══ CREATE/EDIT TEMPLATE ═══ */}
       {modal === 'create' && (
-        <Modal title={form.editing_id ? 'EDIT TEMPLATE' : 'NEW OP TEMPLATE'} onClose={() => setModal(null)} size="modal-lg">
-          <form onSubmit={saveTemplate}>
-            <div className="form-row">
-              <div className="form-group" style={{ flex: 2 }}>
-                <label className="form-label">TEMPLATE NAME *</label>
-                <input className="form-input" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Jumptown Lockdown" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">CATEGORY</label>
-                <select className="form-select" value={form.category || 'GENERAL'} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
+        <UeeModal
+          accent={CAT[form.category]?.color || UEE_AMBER}
+          kicker={form.editing_id ? `◆ EDIT · ${form.category}` : '◆ NEW TEMPLATE · OPS PLAYBOOK'}
+          title={form.editing_id ? 'EDIT TEMPLATE' : 'NEW OP TEMPLATE'}
+          onClose={() => setModal(null)}
+          maxWidth={760}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
+              <button className="btn btn-primary" onClick={saveTemplate} disabled={saving}>
+                {saving ? 'SAVING...' : form.editing_id ? 'UPDATE TEMPLATE' : 'CREATE TEMPLATE'}
+              </button>
+            </>
+          )}
+        >
+          <div className="form-row">
+            <div className="form-group" style={{ flex: 2 }}>
+              <label className="form-label">TEMPLATE NAME *</label>
+              <input className="form-input" value={form.name || ''}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Jumptown Lockdown" autoFocus />
             </div>
-
             <div className="form-group">
-              <label className="form-label">SHORT DESCRIPTION</label>
-              <input className="form-input" value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="One-line summary of this operation type" />
+              <label className="form-label">CATEGORY</label>
+              <select className="form-select" value={form.category || 'GENERAL'}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
             </div>
+          </div>
 
-            <div className="form-row">
-              <div className="form-group"><label className="form-label">TYPE</label>
-                <select className="form-select" value={form.event_type || 'OPERATION'} onChange={e => setForm(f => ({ ...f, event_type: e.target.value }))}>
-                  <option>OPERATION</option><option>TRAINING</option><option>SOCIAL</option><option>MEETING</option>
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">LOCATION</label><input className="form-input" value={form.location || ''} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Yela Belt" /></div>
-              <div className="form-group"><label className="form-label">DURATION (h)</label><input className="form-input" type="number" step="0.5" value={form.duration_hours || ''} onChange={e => setForm(f => ({ ...f, duration_hours: e.target.value }))} /></div>
-            </div>
+          <div className="form-group">
+            <label className="form-label">SHORT DESCRIPTION</label>
+            <input className="form-input" value={form.description || ''}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="One-line summary of this operation type" />
+          </div>
 
-            <div className="form-row">
-              <div className="form-group"><label className="form-label">MIN PLAYERS</label><input className="form-input" type="number" value={form.min_slots || ''} onChange={e => setForm(f => ({ ...f, min_slots: e.target.value }))} /></div>
-              <div className="form-group"><label className="form-label">MAX PLAYERS</label><input className="form-input" type="number" value={form.max_slots || ''} onChange={e => setForm(f => ({ ...f, max_slots: e.target.value }))} /></div>
-              <div className="form-group"><label className="form-label">MIN TIER</label><input className="form-input" type="number" min="1" max="9" value={form.min_tier || ''} onChange={e => setForm(f => ({ ...f, min_tier: e.target.value }))} /></div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group"><label className="form-label">REQUIRED ROLES (one per line)</label><textarea className="form-textarea" style={{ minHeight: 60 }} value={form.roles_text || ''} onChange={e => setForm(f => ({ ...f, roles_text: e.target.value }))} placeholder="Fighter Escort x3&#10;Ground Team x2&#10;Cargo Hauler x1" /></div>
-              <div className="form-group"><label className="form-label">RECOMMENDED SHIPS (one per line)</label><textarea className="form-textarea" style={{ minHeight: 60 }} value={form.ships_text || ''} onChange={e => setForm(f => ({ ...f, ships_text: e.target.value }))} placeholder="Gladius&#10;Arrow&#10;Cutlass Black" /></div>
-            </div>
-
+          <div className="form-row">
             <div className="form-group">
-              <label className="form-label">FULL BRIEFING *</label>
-              <textarea className="form-textarea" style={{ minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.briefing || ''} onChange={e => setForm(f => ({ ...f, briefing: e.target.value }))} placeholder="Full operation briefing — phases, procedures, contingencies, payout..." />
+              <label className="form-label">TYPE</label>
+              <select className="form-select" value={form.event_type || 'OPERATION'}
+                onChange={e => setForm(f => ({ ...f, event_type: e.target.value }))}>
+                <option>OPERATION</option><option>TRAINING</option><option>SOCIAL</option><option>MEETING</option>
+              </select>
             </div>
+            <div className="form-group">
+              <label className="form-label">LOCATION</label>
+              <input className="form-input" value={form.location || ''}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="e.g. Yela Belt" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">DURATION (h)</label>
+              <input className="form-input" type="number" step="0.5"
+                value={form.duration_hours || ''}
+                onChange={e => setForm(f => ({ ...f, duration_hours: e.target.value }))} />
+            </div>
+          </div>
 
-            {error && <div className="form-error mb-8">{error}</div>}
-            <div className="modal-footer">
-              <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>CANCEL</button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'SAVING...' : form.editing_id ? 'UPDATE TEMPLATE' : 'CREATE TEMPLATE'}</button>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">MIN PLAYERS</label>
+              <input className="form-input" type="number" value={form.min_slots || ''}
+                onChange={e => setForm(f => ({ ...f, min_slots: e.target.value }))} />
             </div>
-          </form>
-        </Modal>
+            <div className="form-group">
+              <label className="form-label">MAX PLAYERS</label>
+              <input className="form-input" type="number" value={form.max_slots || ''}
+                onChange={e => setForm(f => ({ ...f, max_slots: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">MIN TIER</label>
+              <input className="form-input" type="number" min="1" max="9"
+                value={form.min_tier || ''}
+                onChange={e => setForm(f => ({ ...f, min_tier: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">REQUIRED ROLES (one per line)</label>
+              <textarea className="form-textarea" style={{ minHeight: 60 }}
+                value={form.roles_text || ''}
+                onChange={e => setForm(f => ({ ...f, roles_text: e.target.value }))}
+                placeholder={'Fighter Escort x3\nGround Team x2\nCargo Hauler x1'} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">RECOMMENDED SHIPS (one per line)</label>
+              <textarea className="form-textarea" style={{ minHeight: 60 }}
+                value={form.ships_text || ''}
+                onChange={e => setForm(f => ({ ...f, ships_text: e.target.value }))}
+                placeholder={'Gladius\nArrow\nCutlass Black'} />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">FULL BRIEFING *</label>
+            <textarea className="form-textarea"
+              style={{ minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+              value={form.briefing || ''}
+              onChange={e => setForm(f => ({ ...f, briefing: e.target.value }))}
+              placeholder="Full operation briefing — phases, procedures, contingencies, payout..." />
+          </div>
+
+          {error && <div className="form-error mb-8">{error}</div>}
+        </UeeModal>
       )}
     </>
   )
