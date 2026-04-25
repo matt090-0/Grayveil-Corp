@@ -5,6 +5,7 @@ import { SC_LOCATIONS } from '../lib/scdata'
 import { useToast } from '../components/Toast'
 import { discordNewOp } from '../lib/discord'
 import { confirmAction } from '../lib/dialogs'
+import { buildOpBriefing, openDossier, downloadDossier } from '../lib/dossier'
 import {
   UEE_AMBER, ClassificationBar, TabStrip, StatCell, Card,
   StatusBadge, Field, EmptyState, UeeModal, SectionHeader, btnMicro,
@@ -583,6 +584,28 @@ function EventDetail({ event: e, eventSignups, isSigned, canCreate, isFounder, f
           )}
         </>
       )}
+
+      {/* Briefing export — available to anyone who can see the op,
+          since the briefing is the same info already visible here. */}
+      <div style={{
+        display: 'flex', gap: 6, flexWrap: 'wrap',
+        paddingTop: 12, borderTop: '1px dashed var(--border)', marginTop: 12,
+      }}>
+        <button
+          onClick={() => {
+            const { html } = buildOpBriefing(e, eventSignups, { organizerHandle: e.organizer?.handle })
+            openDossier(html)
+          }}
+          style={btnMicro(UEE_AMBER)}
+        >⎙ PRINT BRIEFING</button>
+        <button
+          onClick={() => {
+            const { html, filename } = buildOpBriefing(e, eventSignups, { organizerHandle: e.organizer?.handle })
+            downloadDossier(html, filename)
+          }}
+          style={btnMicro('#9099a8')}
+        >↓ SAVE .HTML</button>
+      </div>
 
       {(canCreate || isFounder) && (
         <div style={{

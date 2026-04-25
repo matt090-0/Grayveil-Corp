@@ -209,6 +209,38 @@ const BASE_CSS = /* css */ `
     text-transform: uppercase; margin-top: 4px;
   }
 
+  /* Roster table — used by op briefings to list signups
+     with handle, role, ship, and RSVP status. */
+  .roster {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .roster th, .roster td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .roster th {
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 8.5px; letter-spacing: .22em; color: var(--amber-d);
+    text-transform: uppercase; font-weight: 700;
+    background: rgba(200,165,90,.08);
+    border-bottom: 2px solid var(--amber);
+  }
+  .roster td.handle { font-weight: 600; color: var(--ink-1); }
+  .roster td.role,
+  .roster td.ship  { font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace; color: var(--ink-2); font-size: 10.5px; letter-spacing: .04em; }
+  .roster td.rsvp  {
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 9px; letter-spacing: .2em; font-weight: 700;
+    text-transform: uppercase;
+  }
+  .roster td.rsvp.go    { color: var(--accent-grn); }
+  .roster td.rsvp.maybe { color: var(--amber-d); }
+  .roster td.rsvp.other { color: var(--ink-3); }
+  .roster tr:last-child td { border-bottom: none; }
+
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
     display: inline-flex; align-items: center; gap: 6px;
@@ -317,6 +349,34 @@ function buildDossierHTML({ title, subtitle, kicker, watermark, sealText, fileNu
     if (s.type === 'slots') return `<div class="section"><div class="section-h">${esc(s.heading)}</div><div class="slots">${s.items.map(it => `<div class="slot ${it.v ? 'filled' : 'empty'}"><div class="k">${esc(it.k)}</div><div class="v">${esc(it.v || '— empty —')}</div></div>`).join('')}</div></div>`
     if (s.type === 'stats') return `<div class="section"><div class="section-h">${esc(s.heading)}</div><div class="grid-4">${s.items.map(it => `<div class="cell"><div class="num ${it.amber ? 'amber' : ''}">${esc(it.v)}</div><div class="lbl">${esc(it.k)}</div></div>`).join('')}</div></div>`
     if (s.type === 'chips') return `<div class="section"><div class="section-h">${esc(s.heading)}</div><div class="chip-row">${s.items.map(it => `<span class="chip">${esc(it)}</span>`).join('') || '<span style="font-size:11px;color:var(--ink-3);font-style:italic">— none on file —</span>'}</div></div>`
+    if (s.type === 'roster') {
+      // Multi-column table — handle / role / ship / rsvp.
+      // Used by op briefings to print the confirmed-going list.
+      if (!s.items.length) {
+        return `<div class="section"><div class="section-h">${esc(s.heading)}</div><div style="font-size:11px;color:var(--ink-3);font-style:italic">— roster empty —</div></div>`
+      }
+      const rsvpClass = v => {
+        const u = (v || '').toUpperCase()
+        if (u === 'CONFIRMED' || u === 'GOING')  return 'go'
+        if (u === 'TENTATIVE' || u === 'MAYBE')  return 'maybe'
+        return 'other'
+      }
+      const rows = s.items.map(it => `<tr>
+        <td class="handle">${esc(it.handle)}</td>
+        <td class="role">${esc(it.role || '—')}</td>
+        <td class="ship">${esc(it.ship || '—')}</td>
+        <td class="rsvp ${rsvpClass(it.rsvp)}">${esc((it.rsvp || '').toUpperCase() || 'PENDING')}</td>
+      </tr>`).join('')
+      return `<div class="section">
+        <div class="section-h">${esc(s.heading)}</div>
+        <table class="roster">
+          <thead><tr>
+            <th>OPERATIVE</th><th>ROLE</th><th>SHIP</th><th>RSVP</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`
+    }
     return ''
   }).join('\n')
 
@@ -532,6 +592,112 @@ export function buildLoadoutBrief(loadout, kind) {
       sections,
     }),
     filename: `${(loadout.name || 'loadout').replace(/[^\w.-]+/g, '_')}_brief_${new Date().toISOString().slice(0,10)}.html`,
+  }
+}
+
+/**
+ * Op Briefing — printable handout for a scheduled operation.
+ * Includes meta strip (type, location, launch, T-minus, tier),
+ * the full briefing prose, optional ship list chips, and a
+ * roster table broken into CONFIRMED / TENTATIVE.
+ *
+ * @param {Object} event   row from `events`
+ * @param {Array}  signups rows from `event_signups` for this event
+ * @param {Object} opts    { organizerHandle, location }
+ */
+export function buildOpBriefing(event, signups = [], opts = {}) {
+  const { organizerHandle } = opts
+  const fileNumber = fileNo('OP', event.id)
+  const launch = event.starts_at ? new Date(event.starts_at) : null
+  const ends   = event.ends_at   ? new Date(event.ends_at)   : null
+
+  const tMinus = (() => {
+    if (!launch) return '—'
+    const diff = launch - Date.now()
+    if (diff <= 0) {
+      // Already started: show how long the op has been running, or "underway"
+      const elapsed = Math.abs(diff)
+      const h = Math.floor(elapsed / 3600000)
+      return h > 0 ? `LIVE · T+${h}H` : 'LIVE · NOW'
+    }
+    const h = Math.floor(diff / 3600000)
+    const d = Math.floor(h / 24)
+    if (d > 0) return `T-${d}D ${h % 24}H`
+    if (h > 0) return `T-${h}H ${Math.floor((diff % 3600000) / 60000)}M`
+    return `T-${Math.floor(diff / 60000)}M`
+  })()
+
+  const sections = [
+    {
+      type: 'meta',
+      items: [
+        { k: 'STATUS',     v: event.status || 'SCHEDULED' },
+        { k: 'TYPE',       v: event.event_type || 'OPERATION' },
+        { k: 'LOCATION',   v: event.location || '— TBD —' },
+        { k: 'LAUNCH',     v: launch ? launch.toLocaleString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase() : '— TBD —' },
+        { k: 'T-MINUS',    v: tMinus },
+        { k: 'WINDOW',     v: ends ? `→ ${ends.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : '— OPEN —' },
+        { k: 'MIN TIER',   v: `T-${event.min_tier ?? 9}` },
+        { k: 'ORGANIZER',  v: organizerHandle || '—' },
+      ],
+    },
+  ]
+
+  if (event.description) {
+    sections.push({ type: 'prose', heading: 'Operation Briefing', body: event.description })
+  }
+
+  // Slot/capacity strip — quick read on roster fill rate.
+  const confirmed = signups.filter(s => s.status === 'CONFIRMED')
+  const tentative = signups.filter(s => s.status === 'TENTATIVE')
+  const cap = event.max_slots
+  sections.push({
+    type: 'stats',
+    heading: 'Roster Status',
+    items: [
+      { k: 'CONFIRMED', v: String(confirmed.length), amber: true },
+      { k: 'TENTATIVE', v: String(tentative.length) },
+      { k: 'CAPACITY',  v: cap ? String(cap) : '∞' },
+      { k: 'OPEN',      v: cap ? String(Math.max(cap - confirmed.length, 0)) : '∞' },
+    ],
+  })
+
+  if (confirmed.length > 0) {
+    sections.push({
+      type: 'roster',
+      heading: 'Confirmed Roster',
+      items: confirmed.map(s => ({
+        handle: s.member?.handle || (s.member_id || '').slice(0, 8),
+        role:   s.role,
+        ship:   s.ship_class,
+        rsvp:   'CONFIRMED',
+      })),
+    })
+  }
+  if (tentative.length > 0) {
+    sections.push({
+      type: 'roster',
+      heading: 'Tentative Roster',
+      items: tentative.map(s => ({
+        handle: s.member?.handle || (s.member_id || '').slice(0, 8),
+        role:   s.role,
+        ship:   s.ship_class,
+        rsvp:   'TENTATIVE',
+      })),
+    })
+  }
+
+  return {
+    html: buildDossierHTML({
+      kicker:    'Operation Briefing',
+      title:     event.title || 'UNTITLED OPERATION',
+      subtitle:  `${(event.event_type || 'OPERATION').toUpperCase()}${event.location ? ' · ' + event.location.toUpperCase() : ''}`,
+      sealText:  '◉',
+      fileNumber,
+      watermark: 'OP BRIEF',
+      sections,
+    }),
+    filename: `${(event.title || 'operation').replace(/[^\w.-]+/g, '_')}_briefing_${new Date().toISOString().slice(0,10)}.html`,
   }
 }
 
