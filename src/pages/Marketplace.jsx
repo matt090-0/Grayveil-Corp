@@ -12,6 +12,7 @@ import {
   catalogFor,
   getGrade,
 } from '../lib/craftables'
+import InquiryThread, { InquiryList } from '../components/InquiryThread'
 
 const UEE_AMBER = '#c8a55a'
 
@@ -512,7 +513,7 @@ function DetailModal({ listing, me, busy, onClose, onPurchase, onCancel }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
-        style={{ maxWidth: 560, padding: 0, overflow: 'hidden', clipPath: CLIP_CHAMFER }}
+        style={{ maxWidth: 720, padding: 0, overflow: 'hidden', clipPath: CLIP_CHAMFER }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header strip — category colour */}
@@ -638,6 +639,34 @@ function DetailModal({ listing, me, busy, onClose, onPurchase, onCancel }) {
                 {canAfford ? 'PURCHASE' : 'INSUFFICIENT FUNDS'}
               </button>
             </>
+          )}
+
+          {/* INQUIRIES SECTION
+              - buyers: see/start their thread with the seller
+              - sellers: see all open buyer threads on this listing */}
+          {!isMine && isActive && (
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.22em',
+                color: UEE_AMBER, marginBottom: 8, paddingBottom: 4,
+                borderBottom: `1px solid ${UEE_AMBER}33`,
+              }}>
+                ◆ CONTACT SELLER
+              </div>
+              <InquiryThread listing={listing} me={me} />
+            </div>
+          )}
+          {isMine && (
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.22em',
+                color: UEE_AMBER, marginBottom: 8, paddingBottom: 4,
+                borderBottom: `1px solid ${UEE_AMBER}33`,
+              }}>
+                ◆ BUYER INQUIRIES
+              </div>
+              <InquiryList listingId={listing.id} me={me} />
+            </div>
           )}
 
           {isMine && listing.status === 'ACTIVE' && (
