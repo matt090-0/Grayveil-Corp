@@ -14,6 +14,7 @@ export const NAV = [
   { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
   { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
   { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
+  { to: '/analytics',   icon: 'reputation', label: 'ANALYTICS'     },
   { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
 
   { section: 'OPERATIONS' },

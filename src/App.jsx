@@ -48,6 +48,7 @@ const PublicOrg    = lazy(() => import('./pages/PublicOrg'))
 const Updates      = lazy(() => import('./pages/Updates'))
 const Marketplace  = lazy(() => import('./pages/Marketplace'))
 const Inbox        = lazy(() => import('./pages/Inbox'))
+const Analytics    = lazy(() => import('./pages/Analytics'))
 
 // Wraps the page tree in a Suspense boundary so each lazy-loaded
 // route gets a UEE-styled "incoming transmission" placeholder
@@ -102,6 +103,7 @@ function AppRoutes() {
         <Route path="/referrals"    element={<Page gated><Referrals /></Page>} />
         <Route path="/updates"      element={<Page gated><Updates /></Page>} />
         <Route path="/inbox"        element={<Page gated><Inbox /></Page>} />
+        <Route path="/analytics"    element={<Page gated><Analytics /></Page>} />
         <Route path="/profile"      element={<Page gated><Profile /></Page>} />
         <Route path="/admin"        element={<Page gated minTier={1}><Admin /></Page>} />
 
