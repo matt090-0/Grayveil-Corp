@@ -6,6 +6,7 @@ import { formatCredits } from '../lib/ranks'
 import RankBadge from '../components/RankBadge'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { confirmAction } from '../lib/dialogs'
+import AnnualReportButton from '../components/AnnualReportButton'
 import {
   UEE_AMBER, ClassificationBar, StatCell, Card,
   StatusBadge, EmptyState, SectionHeader,
@@ -289,6 +290,8 @@ export default function Dashboard() {
                     }}
                   >+ {a.label}</button>
                 ))}
+                <span style={{ flex: 1 }} />
+                <AnnualReportButton />
               </div>
             )}
 

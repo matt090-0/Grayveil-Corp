@@ -701,6 +701,153 @@ export function buildOpBriefing(event, signups = [], opts = {}) {
   }
 }
 
+/**
+ * Annual Report — org-wide year-end summary.
+ *
+ * Pulls org totals, top operatives by metric, division roll-ups,
+ * and the headline ops of the year. Designed for one-page print
+ * or sharing as an HTML attachment.
+ *
+ * @param {Object} data    — pre-aggregated stats from the caller
+ *   {
+ *     year, generated_by,
+ *     totals: {
+ *       members_active, members_joined,
+ *       ops_run, ops_cancelled,
+ *       contracts_completed, contracts_pool,
+ *       kills, assists, deaths,
+ *       bounties_collected, bounty_pool,
+ *       intel_filed, aars_filed,
+ *       loot_distributed, treasury_balance,
+ *       medals_awarded
+ *     },
+ *     top: {
+ *       kills:     [{ handle, value }],
+ *       contracts: [{ handle, value }],
+ *       loot:      [{ handle, value }],
+ *       rep:       [{ handle, value }]
+ *     },
+ *     divisions: [{ name, members }],
+ *     headlineOps: [{ title, outcome, attendees, loot }]
+ *   }
+ */
+export function buildAnnualReport(data) {
+  const { year, generated_by, totals = {}, top = {}, divisions = [], headlineOps = [] } = data
+  const fileNumber = fileNo('UEE-AR', `${year}-grayveil`)
+
+  const sections = [
+    // ─── Headline corp totals ───────────────────────────────
+    {
+      type: 'stats',
+      heading: 'Year At A Glance',
+      items: [
+        { k: 'ACTIVE OPS',   v: String(totals.members_active ?? 0), amber: true },
+        { k: 'NEW JOINS',    v: String(totals.members_joined ?? 0) },
+        { k: 'OPS RUN',      v: String(totals.ops_run        ?? 0), amber: true },
+        { k: 'CONTRACTS',    v: String(totals.contracts_completed ?? 0) },
+        { k: 'KILLS',        v: String(totals.kills          ?? 0) },
+        { k: 'ASSISTS',      v: String(totals.assists        ?? 0) },
+        { k: 'BOUNTIES',     v: String(totals.bounties_collected ?? 0) },
+        { k: 'AARs FILED',   v: String(totals.aars_filed     ?? 0) },
+      ],
+    },
+
+    // ─── Treasury + economic activity ──────────────────────
+    {
+      type: 'stats',
+      heading: 'Economic Activity',
+      items: [
+        { k: 'CONTRACT POOL',   v: (totals.contracts_pool   ?? 0).toLocaleString(), amber: true },
+        { k: 'LOOT DISTRIBUTED', v: (totals.loot_distributed ?? 0).toLocaleString(), amber: true },
+        { k: 'BOUNTY POOL',     v: (totals.bounty_pool      ?? 0).toLocaleString() },
+        { k: 'TREASURY',        v: (totals.treasury_balance ?? 0).toLocaleString() },
+      ],
+    },
+  ]
+
+  if (totals.intel_filed || totals.medals_awarded || totals.ops_cancelled) {
+    sections.push({
+      type: 'meta',
+      items: [
+        { k: 'INTEL FILED',    v: String(totals.intel_filed   ?? 0) },
+        { k: 'MEDALS AWARDED', v: String(totals.medals_awarded ?? 0) },
+        { k: 'OPS CANCELLED',  v: String(totals.ops_cancelled  ?? 0) },
+        { k: 'DEATHS',         v: String(totals.deaths        ?? 0) },
+      ],
+    })
+  }
+
+  // ─── Top performers per category ─────────────────────────
+  const topRosterRows = (label, rows, format = String) =>
+    rows.length ? {
+      type: 'roster',
+      heading: label,
+      items: rows.slice(0, 5).map((r, i) => ({
+        handle: `#${i + 1}  ${r.handle}`,
+        role:   '',
+        ship:   '',
+        rsvp:   format(r.value),
+      })),
+    } : null
+
+  const fmtNum = v => v.toLocaleString()
+  const fmtCred = v => v.toLocaleString() + ' aUEC'
+
+  const topSecs = [
+    topRosterRows('Top — Combat Engagements (KILLS)', top.kills || [], fmtNum),
+    topRosterRows('Top — Contracts Completed', top.contracts || [], fmtNum),
+    topRosterRows('Top — Loot Earned', top.loot || [], fmtCred),
+    topRosterRows('Top — Reputation', top.rep || [], fmtNum),
+  ].filter(Boolean)
+  sections.push(...topSecs)
+
+  // ─── Division strength ───────────────────────────────────
+  if (divisions.length > 0) {
+    sections.push({
+      type: 'chips',
+      heading: 'Division Roll-Up',
+      items: divisions.map(d => `${d.name.toUpperCase()} · ${d.members}`),
+    })
+  }
+
+  // ─── Headline ops (most-attended successful ops) ────────
+  if (headlineOps.length > 0) {
+    sections.push({
+      type: 'roster',
+      heading: 'Headline Operations',
+      items: headlineOps.slice(0, 8).map(op => ({
+        handle: op.title,
+        role:   `${op.attendees || 0} ops`,
+        ship:   op.loot ? `${(op.loot || 0).toLocaleString()} aUEC` : '',
+        rsvp:   op.outcome || '—',
+      })),
+    })
+  }
+
+  if (generated_by) {
+    sections.push({
+      type: 'prose',
+      heading: 'Filing Officer',
+      body: `This report was compiled by ${generated_by} on ${todayStr()}. ` +
+            `Figures sourced live from the Grayveil registry — contracts, kills, AARs, ` +
+            `intel, bounties, ledger, treasury. End of fiscal record for ${year}.`,
+    })
+  }
+
+  return {
+    html: buildDossierHTML({
+      kicker:    `Annual Report · ${year}`,
+      title:     `Grayveil Corporation`,
+      subtitle:  `FISCAL YEAR ${year} · COMPLETE`,
+      sealText:  '◆',
+      fileNumber,
+      watermark: 'AR ' + year,
+      sections,
+    }),
+    filename: `grayveil_annual_report_${year}.html`,
+  }
+}
+
 // ─── Output helpers ────────────────────────────────────────────────────────
 
 /**
