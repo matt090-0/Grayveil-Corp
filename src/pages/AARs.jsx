@@ -230,6 +230,17 @@ export default function AARs() {
     for (const mid of (form.attendees || [])) {
       await supabase.rpc('award_rep', { p_member_id: mid, p_amount: 5, p_reason: 'Op attendance' })
     }
+    // Notify each attendee that they got rep + the AAR was filed
+    const attendees = (form.attendees || []).filter(mid => mid && mid !== me.id)
+    if (attendees.length > 0) {
+      await supabase.from('notifications').insert(attendees.map(mid => ({
+        recipient_id: mid,
+        type: 'aar',
+        title: `AAR filed: ${form.title}`,
+        message: `${me.handle} filed an after-action report. You earned +5 rep for attendance.`,
+        link: '/aars',
+      })))
+    }
     await supabase.from('activity_log').insert({
       actor_id: me.id, action: 'aar_filed',
       target_type: 'aar', details: { title: form.title },

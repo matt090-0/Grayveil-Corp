@@ -96,6 +96,16 @@ export default function Bounties() {
     if (err) { toast(err.message, 'error'); return }
     greenBurst()
     discordBountyClaimed(b.target_name, formatCredits(b.reward), me.handle)
+    // Notify the poster the bounty was collected
+    if (b.posted_by && b.posted_by !== me.id) {
+      await supabase.from('notifications').insert({
+        recipient_id: b.posted_by,
+        type: 'bounty',
+        title: `Bounty collected on ${b.target_name}`,
+        message: `${me.handle} claimed your bounty (${formatCredits(b.reward)} aUEC).`,
+        link: '/bounties',
+      })
+    }
     toast(`Bounty claimed — ${formatCredits(b.reward)} deposited`, 'success')
     load()
   }

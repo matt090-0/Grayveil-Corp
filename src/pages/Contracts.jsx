@@ -44,7 +44,7 @@ export default function Contracts() {
 
   async function load() {
     const [{ data: c }, { data: cl }] = await Promise.all([
-      supabase.from('contracts').select('*, posted_by:profiles(handle, tier)').order('created_at', { ascending: false }),
+      supabase.from('contracts').select('*, posted_by:profiles(id, handle, tier)').order('created_at', { ascending: false }),
       supabase.from('contract_claims').select('*, member:profiles(handle)').eq('member_id', me.id),
     ])
     setContracts(c || [])
@@ -114,6 +114,16 @@ export default function Contracts() {
       target_type: 'contract', target_id: id,
       details: { title: c?.title },
     })
+    // Notify the poster that someone took their contract
+    if (c?.posted_by?.handle && c.posted_by.id !== me.id) {
+      await supabase.from('notifications').insert({
+        recipient_id: c.posted_by.id || c.posted_by_id,
+        type: 'contract',
+        title: `Contract claimed: ${c.title}`,
+        message: `${me.handle} has claimed your contract and started work.`,
+        link: '/contracts',
+      })
+    }
     toast('Contract claimed', 'success')
     load()
   }
@@ -125,6 +135,16 @@ export default function Contracts() {
       if (error) { toast(error.message, 'error'); return }
       greenBurst()
       discordContract(c?.title, c?.contract_type, c?.reward, 'COMPLETE', me.handle)
+      // Notify the poster of completion
+      if (c?.posted_by?.id && c.posted_by.id !== me.id) {
+        await supabase.from('notifications').insert({
+          recipient_id: c.posted_by.id,
+          type: 'contract',
+          title: `Contract complete: ${c.title}`,
+          message: `${me.handle} has marked the contract complete and the payout has been released.`,
+          link: '/contracts',
+        })
+      }
       toast('Contract complete — payout released', 'success')
     } else {
       await supabase.from('contracts').update({ status }).eq('id', id)

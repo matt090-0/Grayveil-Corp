@@ -110,11 +110,22 @@ export default function Events() {
   }
 
   async function signup(eventId, role, ship, status) {
+    const ev = events.find(e => e.id === eventId)
     await supabase.from('event_signups').insert({
       event_id: eventId, member_id: me.id,
       role: role || null, ship_class: ship || null,
       status: status || 'CONFIRMED',
     })
+    // Notify the op organizer that someone joined the roster
+    if (ev?.created_by && ev.created_by !== me.id) {
+      await supabase.from('notifications').insert({
+        recipient_id: ev.created_by,
+        type: 'op_signup',
+        title: `${me.handle} signed up for ${ev.title}`,
+        message: `${(status || 'CONFIRMED') === 'CONFIRMED' ? 'Confirmed going' : 'Marked as maybe'}${role ? ' as ' + role : ''}${ship ? ' (' + ship + ')' : ''}.`,
+        link: '/events',
+      })
+    }
     load()
     if (detail && detail.id === eventId) {
       setDetail(events.find(e => e.id === eventId))
@@ -129,6 +140,25 @@ export default function Events() {
   async function updateStatus(id, status) {
     await supabase.from('events').update({ status }).eq('id', id)
     if (detail && detail.id === id) setDetail({ ...detail, status })
+    // Notify everyone on the roster when an op flips state
+    if (status === 'CANCELLED' || status === 'LIVE') {
+      const ev = events.find(e => e.id === id)
+      const roster = signups.filter(s => s.event_id === id).map(s => s.member_id)
+      const recipients = [...new Set(roster.filter(rid => rid && rid !== me.id))]
+      if (recipients.length > 0 && ev) {
+        await supabase.from('notifications').insert(recipients.map(rid => ({
+          recipient_id: rid,
+          type: status === 'LIVE' ? 'op_reminder' : 'op_signup',
+          title: status === 'LIVE'
+            ? `${ev.title} is LIVE`
+            : `${ev.title} cancelled`,
+          message: status === 'LIVE'
+            ? `Op went live. Get to your stations.`
+            : `${me.handle} cancelled this op. Stand down.`,
+          link: '/events',
+        })))
+      }
+    }
     load()
   }
 
