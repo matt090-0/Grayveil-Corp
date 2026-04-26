@@ -6,6 +6,7 @@ import NotificationBell from './NotificationBell'
 import GrayveilLogo from './GrayveilLogo'
 import SearchBar from './SearchBar'
 import NavIcon from './NavIcon'
+import OnboardingTour from './OnboardingTour'
 import PageTransition from './PageTransition'
 import { NAV, MAINT_BYPASS_TIER } from '../lib/nav'
 import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
@@ -19,6 +20,18 @@ export default function Layout({ children }) {
   const accentColor = profile?.avatar_color || 'var(--accent)'
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  // Tour replays whenever profile.onboarded_at flips back to null
+  // (Profile page exposes a "restart tour" button that clears it).
+  const [tourOpen, setTourOpen] = useState(false)
+  useEffect(() => {
+    if (profile && !profile.onboarded_at) {
+      // Defer mount one tick so the sidebar elements are in the DOM
+      // before the tour tries to query them.
+      const t = setTimeout(() => setTourOpen(true), 200)
+      return () => clearTimeout(t)
+    }
+    setTourOpen(false)
+  }, [profile?.id, profile?.onboarded_at])
 
   const canSee = (item) => !item.minTier || (profile?.tier <= item.minTier)
   const maintenance = useMaintenanceMap()
@@ -71,7 +84,7 @@ export default function Layout({ children }) {
         </div>
 
         {/* Search trigger */}
-        <div style={{ padding: '0 10px 8px' }}>
+        <div style={{ padding: '0 10px 8px' }} data-tour="search">
           <button
             className="btn btn-ghost btn-sm w-full"
             onClick={() => { setSearchOpen(true); setMobileOpen(false) }}
@@ -88,7 +101,7 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" data-tour="nav">
           {NAV.map((item, i) => {
             if (item.section) return <div key={item.section} className="nav-section-label" style={i > 0 ? { marginTop: 12 } : {}}>{item.section}</div>
             if (!canSee(item)) return null
@@ -108,14 +121,21 @@ export default function Layout({ children }) {
 
         <div className="sidebar-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div className="user-pill" onClick={() => { navigate('/profile'); setMobileOpen(false) }} style={{ flex: 1 }}>
+            <div
+              className="user-pill"
+              data-tour="profile"
+              onClick={() => { navigate('/profile'); setMobileOpen(false) }}
+              style={{ flex: 1 }}
+            >
               <div className="avatar" style={{ borderColor: accentColor, color: accentColor }}>{initials}</div>
               <div className="user-info">
                 <div className="user-handle truncate">{profile?.handle || '—'}</div>
                 <div className="user-rank">{rankInfo?.label || '—'}</div>
               </div>
             </div>
-            <NotificationBell />
+            <div data-tour="bell">
+              <NotificationBell />
+            </div>
           </div>
           <button className="btn btn-ghost btn-sm w-full" style={{ justifyContent: 'center' }} onClick={signOut}>
             DISCONNECT
@@ -130,6 +150,7 @@ export default function Layout({ children }) {
       </div>
 
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
+      {tourOpen   && <OnboardingTour onClose={() => setTourOpen(false)} />}
     </div>
   )
 }

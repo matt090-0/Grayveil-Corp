@@ -481,7 +481,29 @@ export default function Profile() {
                     Handle and rank are leadership-managed. You may amend division, tagline, ship, and personal note.
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => {
+                      // Clear onboarded_at so the next render mounts the tour
+                      // (Layout watches this column on the auth profile).
+                      const { error } = await supabase.from('profiles')
+                        .update({ onboarded_at: null }).eq('id', profile.id)
+                      if (error) { toast(error.message, 'error'); return }
+                      if (refreshProfile) await refreshProfile()
+                      toast('Replaying orientation tour...', 'info')
+                    }}
+                    title="Replay the first-login tour."
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-3)', fontFamily: 'var(--font-mono)',
+                      fontSize: 10, letterSpacing: '.2em', fontWeight: 600,
+                      padding: '9px 14px', borderRadius: 3, cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ↻ REPLAY TOUR
+                  </button>
                   <button
                     onClick={() => {
                       const { html, filename } = buildCitizenDossier(profile, { medals, certs, ships, stats })
