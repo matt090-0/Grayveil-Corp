@@ -125,16 +125,27 @@ export default function OnboardingTour({ onClose }) {
   // Recompute the spotlight cutout whenever the step (or
   // viewport) changes. layoutEffect so we paint the rect on
   // the same frame as the overlay rather than flashing once.
+  // We clamp the rect to the viewport so the four dark strips
+  // around it always paint exactly the right area — tall
+  // elements (sidebar nav) that extend below the fold don't
+  // leak black into the cutout.
   useLayoutEffect(() => {
     function updateRect() {
       if (!current?.target) { setRect(null); return }
       const el = document.querySelector(current.target)
       if (!el) { setRect(null); return }
       const r = el.getBoundingClientRect()
-      setRect({
-        top: r.top - 6, left: r.left - 6,
-        width: r.width + 12, height: r.height + 12,
-      })
+      const vpW = window.innerWidth
+      const vpH = window.innerHeight
+      // Pad by 6 then clamp to viewport. Any portion of the
+      // element outside the viewport is irrelevant — the
+      // cutout only spotlights what the user can see.
+      const top    = Math.max(0,   r.top - 6)
+      const left   = Math.max(0,   r.left - 6)
+      const right  = Math.min(vpW, r.right + 6)
+      const bottom = Math.min(vpH, r.bottom + 6)
+      if (right <= left || bottom <= top) { setRect(null); return }
+      setRect({ top, left, width: right - left, height: bottom - top })
     }
     updateRect()
     window.addEventListener('resize', updateRect)
@@ -182,11 +193,11 @@ export default function OnboardingTour({ onClose }) {
     >
       <style>{`
         @keyframes tourFade { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes tourPulse {
-          0%, 100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.78), 0 0 0 2px ${UEE_AMBER}, 0 0 24px ${UEE_AMBER}88; }
-          50%      { box-shadow: 0 0 0 9999px rgba(0,0,0,0.78), 0 0 0 2px ${UEE_AMBER}, 0 0 32px ${UEE_AMBER}cc; }
+        @keyframes tourRing {
+          0%, 100% { box-shadow: 0 0 0 2px ${UEE_AMBER}, 0 0 22px ${UEE_AMBER}88; }
+          50%      { box-shadow: 0 0 0 2px ${UEE_AMBER}, 0 0 36px ${UEE_AMBER}cc; }
         }
-        .tour-kbd {
+        kbd, .tour-kbd {
           display: inline-block;
           font-family: var(--font-mono); font-size: 10px;
           background: rgba(200,165,90,0.15);
@@ -197,21 +208,51 @@ export default function OnboardingTour({ onClose }) {
         }
       `}</style>
 
-      {/* Backdrop — solid when no spotlight, cut around the
-          target when there is one. We render the dark layer as
-          a giant inset-shadow on the spotlight box itself; that
-          way the cutout is precise without canvas/SVG masks. */}
+      {/* Backdrop — for centred steps (no target), one solid
+          panel. For targeted steps, four strips around the
+          spotlight rect plus a pulsing amber outline. The
+          four-strip approach guarantees the cutout is exactly
+          the rect with no leakage, regardless of the target's
+          height or stacking context. */}
       {rect ? (
-        <div style={{
-          position: 'fixed', top: rect.top, left: rect.left,
-          width: rect.width, height: rect.height,
-          borderRadius: 6, pointerEvents: 'none',
-          animation: 'tourPulse 2s ease-in-out infinite',
-        }} />
+        <>
+          {/* top strip */}
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0,
+            height: rect.top,
+            background: 'rgba(0,0,0,0.78)',
+          }} />
+          {/* bottom strip */}
+          <div style={{
+            position: 'fixed', top: rect.top + rect.height,
+            left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.78)',
+          }} />
+          {/* left strip */}
+          <div style={{
+            position: 'fixed', top: rect.top, left: 0,
+            width: rect.left, height: rect.height,
+            background: 'rgba(0,0,0,0.78)',
+          }} />
+          {/* right strip */}
+          <div style={{
+            position: 'fixed', top: rect.top,
+            left: rect.left + rect.width, right: 0,
+            height: rect.height,
+            background: 'rgba(0,0,0,0.78)',
+          }} />
+          {/* pulsing amber outline on the cutout itself */}
+          <div style={{
+            position: 'fixed', top: rect.top, left: rect.left,
+            width: rect.width, height: rect.height,
+            borderRadius: 6, pointerEvents: 'none',
+            animation: 'tourRing 2s ease-in-out infinite',
+          }} />
+        </>
       ) : (
         <div style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.72)',
+          background: 'rgba(0,0,0,0.78)',
           backdropFilter: 'blur(2px)',
         }} />
       )}
@@ -319,43 +360,67 @@ export default function OnboardingTour({ onClose }) {
 }
 
 // Position the callout box relative to the spotlight rect.
-// `side` hints which way to lay it out — tries that first,
-// falls back to whichever side has space. If no rect, centre
-// the callout on screen.
+// Tries the requested side first, then falls through to other
+// sides with enough room, finally centres if nothing fits.
+// All positions use top/left only (no bottom) so we never end
+// up with a top-AND-bottom collision.
 function computeCalloutPosition(rect, side = 'right') {
   if (!rect) {
-    // Centred — used by the welcome and finish steps.
-    return {
-      top: '50%', left: '50%',
-      transform: 'translate(-50%, -50%)',
-    }
+    return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
   }
-  const margin = 16
-  const calloutWidth = 420
-  const calloutHeight = 240 // estimate; box auto-sizes
-  const vpW = window.innerWidth
-  const vpH = window.innerHeight
+  const M = 16
+  const W = 420
+  const H = 280            // generous estimate; the box auto-sizes
+  const vpW = typeof window !== 'undefined' ? window.innerWidth  : 1280
+  const vpH = typeof window !== 'undefined' ? window.innerHeight : 720
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
 
-  // Try the requested side, fall back if it would overflow.
-  const tryRight = () => ({
-    top: Math.min(Math.max(margin, rect.top - 6), vpH - calloutHeight - margin),
-    left: Math.min(rect.left + rect.width + margin, vpW - calloutWidth - margin),
-  })
-  const tryTopRight = () => ({
-    bottom: Math.min(vpH - rect.top + margin, vpH - margin),
-    left: Math.min(rect.left, vpW - calloutWidth - margin),
-  })
-  const tryBottom = () => ({
-    top: Math.min(rect.top + rect.height + margin, vpH - calloutHeight - margin),
-    left: Math.min(Math.max(margin, rect.left), vpW - calloutWidth - margin),
-  })
-
-  if (side === 'top-right') {
-    const pos = tryTopRight()
-    // If the callout would overlap the spotlight, fall to plain right.
-    if ((vpH - pos.bottom) < rect.top - 8) return pos
-    return tryRight()
+  // Each placement returns a {top, left} or null if it doesn't
+  // fit without overlapping the spotlight or the viewport edge.
+  const placements = {
+    right: () => {
+      const left = rect.left + rect.width + M
+      if (left + W > vpW - M) return null
+      return { top: clamp(rect.top, M, vpH - H - M), left }
+    },
+    left: () => {
+      const left = rect.left - W - M
+      if (left < M) return null
+      return { top: clamp(rect.top, M, vpH - H - M), left }
+    },
+    bottom: () => {
+      const top = rect.top + rect.height + M
+      if (top + H > vpH - M) return null
+      return { top, left: clamp(rect.left, M, vpW - W - M) }
+    },
+    top: () => {
+      const top = rect.top - H - M
+      if (top < M) return null
+      return { top, left: clamp(rect.left, M, vpW - W - M) }
+    },
+    'top-right': () => {
+      // Used when the target sits at the bottom of the viewport
+      // (e.g. the bell / profile in the sidebar footer). Place
+      // the callout above-right so it points downward.
+      const top  = rect.top - H - M
+      const left = rect.left + rect.width + M
+      if (top >= M && left + W <= vpW - M) return { top, left }
+      return null
+    },
   }
-  if (side === 'bottom') return tryBottom()
-  return tryRight()
+
+  // Order of preference. The requested side first, then sensible
+  // fallbacks based on which sides typically have space.
+  const order = side === 'top-right' ? ['top-right', 'top', 'right', 'bottom']
+              : side === 'bottom'    ? ['bottom', 'top', 'right', 'left']
+              : side === 'left'      ? ['left', 'right', 'bottom', 'top']
+              : side === 'top'       ? ['top', 'bottom', 'right', 'left']
+              :                        ['right', 'bottom', 'top', 'left']
+
+  for (const k of order) {
+    const pos = placements[k]?.()
+    if (pos) return pos
+  }
+  // Last resort: centre.
+  return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
 }
