@@ -293,13 +293,20 @@ export default function Landing() {
 
   useEffect(() => {
     async function load() {
-      const [{ count: m }, { count: s }, { count: c }, { data: fleetRows }] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-        supabase.from('fleet').select('*', { count: 'exact', head: true }),
-        supabase.from('contracts').select('*', { count: 'exact', head: true }),
-        supabase.from('fleet').select('id, vessel_name, ship_class, manufacturer, role').limit(8),
+      // Hit the SECURITY DEFINER RPCs instead of querying the
+      // tables directly. /welcome is unauthenticated, so the
+      // anon role hits RLS that blocks fleet/contracts SELECT.
+      // The RPCs bypass RLS and return only the public-safe
+      // fields the landing page actually needs.
+      const [{ data: stats }, { data: fleetRows }] = await Promise.all([
+        supabase.rpc('public_org_stats'),
+        supabase.rpc('public_fleet_showcase'),
       ])
-      setStats({ members: m || 0, ships: s || 0, contracts: c || 0 })
+      setStats({
+        members:   stats?.members   || 0,
+        ships:     stats?.ships     || 0,
+        contracts: stats?.contracts || 0,
+      })
       setShips(fleetRows || [])
     }
     load()
