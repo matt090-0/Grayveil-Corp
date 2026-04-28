@@ -65,6 +65,7 @@ export default function Profile() {
 
   const [medals, setMedals] = useState([])
   const [certs, setCerts]   = useState([])
+  const [achievements, setAchievements] = useState([])
   const [ships, setShips]   = useState([])
   const [stats, setStats]   = useState({ kills: 0, deaths: 0, assists: 0, contracts: 0, intel: 0 })
   const [activity, setActivity] = useState([])
@@ -72,7 +73,12 @@ export default function Profile() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: mm }, { data: mc }, { data: fl }, { data: kills }, { data: claims }, { data: intel }, { data: act }] = await Promise.all([
+      // Trigger an achievement check first so this page also feels
+      // live — covers the case where the user did something on
+      // another tab and hasn't visited /medals yet.
+      await supabase.rpc('check_my_achievements')
+
+      const [{ data: mm }, { data: mc }, { data: fl }, { data: kills }, { data: claims }, { data: intel }, { data: act }, { data: ma }] = await Promise.all([
         supabase.from('member_medals').select('*, medal:medals(*)').eq('member_id', profile.id).order('awarded_at', { ascending: false }),
         supabase.from('member_certifications').select('*, cert:certifications(*)').eq('member_id', profile.id),
         supabase.from('fleet').select('*').eq('assigned_to', profile.id),
@@ -80,8 +86,13 @@ export default function Profile() {
         supabase.from('contract_claims').select('contract_id').eq('member_id', profile.id),
         supabase.from('intelligence').select('id').eq('posted_by', profile.id),
         supabase.from('activity_log').select('*, actor:profiles!activity_log_actor_id_fkey(handle)').eq('actor_id', profile.id).order('created_at', { ascending: false }).limit(10),
+        supabase.from('member_achievements')
+          .select('*, achievement:achievements(*)')
+          .eq('member_id', profile.id)
+          .order('earned_at', { ascending: false }),
       ])
       setMedals(mm || []); setCerts(mc || []); setShips(fl || [])
+      setAchievements(ma || [])
       setStats({
         kills:     (kills || []).filter(k => k.outcome === 'KILL').length,
         deaths:    (kills || []).filter(k => k.outcome === 'DEATH').length,
@@ -506,7 +517,7 @@ export default function Profile() {
                   </button>
                   <button
                     onClick={() => {
-                      const { html, filename } = buildCitizenDossier(profile, { medals, certs, ships, stats })
+                      const { html, filename } = buildCitizenDossier(profile, { medals, certs, ships, stats, achievements })
                       const w = openDossier(html)
                       if (!w) {
                         // Popup blocked — fall back to direct download.

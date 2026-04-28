@@ -11,6 +11,10 @@ import {
   StatusBadge, EmptyState, UeeModal, SectionHeader, btnMicro,
   fmtDate, timeAgo,
 } from '../components/uee'
+import {
+  ACH_CATEGORY_META, ACH_CATEGORY_ORDER, ACH_RARITY_META,
+  progressLabel, progressRatio, totalPoints, METRIC_LABEL,
+} from '../lib/achievements'
 
 const MAX_REASON_LEN = 500
 
@@ -40,6 +44,9 @@ export default function Medals() {
   const [certs, setCerts] = useState([])
   const [memberCerts, setMC] = useState([])
   const [members, setMembers] = useState([])
+  const [achievements, setAchievements] = useState([])
+  const [memberAchievements, setMA] = useState([])
+  const [myMetrics, setMyMetrics] = useState({})  // metric_key → bigint
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
@@ -50,7 +57,22 @@ export default function Medals() {
   const canAward = me.tier <= 4
 
   async function load() {
-    const [{ data: med }, { data: mm }, { data: cer }, { data: mc }, { data: mem }] = await Promise.all([
+    // Trigger an instant refresh so any newly-earned achievements
+    // land before we fetch the list. Returns the count newly
+    // earned but we don't care about the value here — we'll re-fetch
+    // member_achievements + show a toast if it's > 0.
+    const { data: newCount } = await supabase.rpc('check_my_achievements')
+
+    const [
+      { data: med },
+      { data: mm },
+      { data: cer },
+      { data: mc },
+      { data: mem },
+      { data: achs },
+      { data: ma },
+      { data: metrics },
+    ] = await Promise.all([
       supabase.from('medals').select('*').order('rarity').order('name'),
       supabase.from('member_medals')
         .select('*, medal:medals(*), member:profiles(handle), awarder:profiles!member_medals_awarded_by_fkey(handle)')
@@ -60,13 +82,61 @@ export default function Medals() {
         .select('*, cert:certifications(*), member:profiles(handle), certifier:profiles!member_certifications_certified_by_fkey(handle)')
         .order('certified_at', { ascending: false }),
       supabase.from('profiles').select('id, handle').eq('status', 'ACTIVE').order('handle'),
+      supabase.from('achievements').select('*').eq('active', true).order('display_order'),
+      supabase.from('member_achievements')
+        .select('*, achievement:achievements(*), member:profiles(handle)')
+        .order('earned_at', { ascending: false }),
+      supabase.rpc('current_metrics_for', { p_member_id: me.id }),
     ])
-    setMedals(med || []); setMM(mm || []); setCerts(cer || []); setMC(mc || []); setMembers(mem || []); setLoading(false)
+
+    setMedals(med || []); setMM(mm || [])
+    setCerts(cer || []); setMC(mc || [])
+    setMembers(mem || [])
+    setAchievements(achs || [])
+    setMA(ma || [])
+    setMyMetrics(Object.fromEntries((metrics || []).map(r => [r.metric_key, Number(r.value)])))
+    setLoading(false)
+
+    // Celebrate freshly-earned achievements with a toast + confetti.
+    // The count > 0 means check_my_achievements added some this load.
+    if (newCount && newCount > 0) {
+      goldBurst()
+      toast(`Achievement${newCount === 1 ? '' : 's'} unlocked · ${newCount}`, 'success')
+    }
   }
   useEffect(() => { load() }, [])
 
   const myMedals = memberMedals.filter(m => m.member_id === me.id)
   const myCerts = memberCerts.filter(c => c.member_id === me.id)
+  const myAchievements = useMemo(
+    () => memberAchievements.filter(a => a.member_id === me.id),
+    [memberAchievements, me.id]
+  )
+  const myEarnedIds = useMemo(
+    () => new Set(myAchievements.map(a => a.achievement_id)),
+    [myAchievements]
+  )
+
+  // Group achievements by category for the ACHIEVEMENTS tab,
+  // ordered by display_order within each category. A category
+  // only renders if it has at least one achievement.
+  const achievementsByCategory = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return ACH_CATEGORY_ORDER.map(cat => ({
+      category: cat,
+      meta: ACH_CATEGORY_META[cat] || ACH_CATEGORY_META.SPECIAL,
+      items: achievements
+        .filter(a => a.category === cat)
+        .filter(a => !q
+          || (a.name || '').toLowerCase().includes(q)
+          || (a.description || '').toLowerCase().includes(q))
+        // Hide secret + locked achievements from the list. They
+        // appear when the member earns them.
+        .filter(a => !a.secret || myEarnedIds.has(a.id)),
+    })).filter(g => g.items.length > 0)
+  }, [achievements, search, myEarnedIds])
+
+  const myAchievementPoints = useMemo(() => totalPoints(myAchievements), [myAchievements])
 
   const byRarity = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -130,12 +200,20 @@ export default function Medals() {
     <>
       <ClassificationBar
         section="GRAYVEIL HONOURS & QUALIFICATIONS"
-        label={tab === 'medals' ? 'COMMENDATIONS' : tab === 'certs' ? 'CERTIFICATIONS' : 'PERSONAL RECORD'}
+        label={
+          tab === 'medals'       ? 'COMMENDATIONS'  :
+          tab === 'certs'        ? 'CERTIFICATIONS' :
+          tab === 'achievements' ? 'ACHIEVEMENTS'   :
+                                   'PERSONAL RECORD'
+        }
         right={(
           <>
             <span>MEDALS · {medals.length}</span>
             <span>CERTS · {certs.length}</span>
-            <span style={{ color: UEE_AMBER }}>YOUR RECORD · {myMedals.length}M / {myCerts.length}C</span>
+            <span>ACHIEVEMENTS · {achievements.length}</span>
+            <span style={{ color: UEE_AMBER }}>
+              YOUR RECORD · {myMedals.length}M / {myCerts.length}C / {myAchievements.length}A · {myAchievementPoints}pts
+            </span>
           </>
         )}
       />
@@ -159,9 +237,10 @@ export default function Medals() {
         <TabStrip
           active={tab} onChange={setTab}
           tabs={[
-            { key: 'medals', label: 'MEDALS',         color: UEE_AMBER, glyph: '✦', count: medals.length },
-            { key: 'certs',  label: 'CERTIFICATIONS', color: '#5a80d9', glyph: '◆', count: certs.length },
-            { key: 'mine',   label: 'MY RECORD',      color: '#5ce0a1', glyph: '◉', count: myMedals.length + myCerts.length },
+            { key: 'medals',       label: 'MEDALS',         color: UEE_AMBER, glyph: '✦', count: medals.length },
+            { key: 'achievements', label: 'ACHIEVEMENTS',   color: UEE_AMBER, glyph: '◆', count: achievements.length },
+            { key: 'certs',        label: 'CERTIFICATIONS', color: '#5a80d9', glyph: '◆', count: certs.length },
+            { key: 'mine',         label: 'MY RECORD',      color: '#5ce0a1', glyph: '◉', count: myMedals.length + myCerts.length + myAchievements.length },
           ]}
         />
       </div>
@@ -332,6 +411,169 @@ export default function Medals() {
               </>
             )}
 
+            {tab === 'achievements' && (
+              <>
+                <FilterRow
+                  search={search} setSearch={setSearch}
+                  placeholder="Search achievement name or description..."
+                />
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                  gap: 10, marginBottom: 22,
+                }}>
+                  <StatCell label="UNLOCKED"    value={myAchievements.length}                color="#5ce0a1" glyph="✓" desc={`of ${achievements.length}`} />
+                  <StatCell label="POINTS"      value={myAchievementPoints}                  color={UEE_AMBER} glyph="✦" desc="achievement score" />
+                  <StatCell label="LEGENDARY"   value={myAchievements.filter(a => a.achievement?.rarity === 'LEGENDARY').length} color={UEE_AMBER} glyph="✦" desc="rarest tier" />
+                  <StatCell label="COMPLETION"  value={`${Math.round((myAchievements.length / Math.max(1, achievements.length)) * 100)}%`} color="#5a80d9" glyph="◆" desc="of available" />
+                </div>
+
+                {achievementsByCategory.length === 0 ? (
+                  <EmptyState>NO ACHIEVEMENTS MATCH</EmptyState>
+                ) : achievementsByCategory.map(group => (
+                  <div key={group.category} style={{ marginBottom: 28 }}>
+                    <SectionHeader
+                      label={`${group.meta.label} · ${group.items.filter(a => myEarnedIds.has(a.id)).length}/${group.items.length}`}
+                      color={group.meta.color}
+                      glyph={group.meta.glyph}
+                    />
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                      gap: 10,
+                    }}>
+                      {group.items.map(a => {
+                        const earned = myEarnedIds.has(a.id)
+                        const earnedRow = myAchievements.find(x => x.achievement_id === a.id)
+                        const rarity = ACH_RARITY_META[a.rarity] || ACH_RARITY_META.COMMON
+                        const currentMetric = myMetrics[a.metric_key] || 0
+                        const ratio = progressRatio(a, currentMetric)
+                        return (
+                          <Card
+                            key={a.id}
+                            accent={earned ? a.color : 'var(--border)'}
+                            style={{
+                              opacity: earned ? 1 : 0.7,
+                              filter: earned ? 'none' : 'saturate(0.3)',
+                              minHeight: 120,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                              {/* Glyph badge */}
+                              <div style={{
+                                width: 44, height: 44, borderRadius: 4,
+                                background: earned ? `${a.color}22` : 'var(--bg-surface)',
+                                border: `1px solid ${earned ? a.color : 'var(--border)'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: earned ? a.color : 'var(--text-3)',
+                                fontSize: 22, flexShrink: 0,
+                                boxShadow: earned ? `0 0 16px ${a.color}33` : 'none',
+                              }}>
+                                {a.glyph}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                                  color: earned ? 'var(--text-1)' : 'var(--text-2)',
+                                  lineHeight: 1.25, marginBottom: 3,
+                                }}>
+                                  {a.name}
+                                </div>
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 4 }}>
+                                  <StatusBadge color={rarity.color} glyph={rarity.glyph} label={rarity.label} />
+                                  <span style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                                    color: 'var(--text-3)',
+                                  }}>+{a.points} PTS</span>
+                                </div>
+                                <div style={{
+                                  fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.5,
+                                }}>
+                                  {a.description}
+                                </div>
+                              </div>
+                            </div>
+
+                            {earned ? (
+                              <div style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.18em',
+                                color: '#5ce0a1', paddingTop: 6, borderTop: '1px dashed var(--border)',
+                                display: 'flex', justifyContent: 'space-between',
+                              }}>
+                                <span>✓ UNLOCKED</span>
+                                <span>{fmtDate(earnedRow?.earned_at)}</span>
+                              </div>
+                            ) : (
+                              <div style={{ paddingTop: 6, borderTop: '1px dashed var(--border)' }}>
+                                {/* Progress bar */}
+                                <div style={{
+                                  height: 6, background: 'rgba(255,255,255,0.05)',
+                                  border: `1px solid ${a.color}33`, borderRadius: 3,
+                                  overflow: 'hidden', marginBottom: 4,
+                                }}>
+                                  <div style={{
+                                    height: '100%',
+                                    width: `${ratio * 100}%`,
+                                    background: `linear-gradient(90deg, ${a.color}aa, ${a.color})`,
+                                    transition: 'width .3s ease',
+                                  }} />
+                                </div>
+                                <div style={{
+                                  fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.15em',
+                                  color: 'var(--text-3)', display: 'flex', justifyContent: 'space-between',
+                                }}>
+                                  <span>{progressLabel(a, currentMetric)}</span>
+                                  <span style={{ color: ratio >= 1 ? '#5ce0a1' : a.color }}>
+                                    {Math.round(ratio * 100)}%
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Recent unlocks across the org — social proof, brag wall */}
+                <SectionHeader label="RECENT UNLOCKS · ORG-WIDE" color={UEE_AMBER} />
+                {memberAchievements.length === 0 ? (
+                  <EmptyState>NO UNLOCKS YET</EmptyState>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {memberAchievements.slice(0, 12).map(ma => {
+                      const a = ma.achievement
+                      if (!a) return null
+                      return (
+                        <div key={ma.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px',
+                          background: 'var(--bg-raised)',
+                          border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${a.color}`,
+                          borderRadius: 3, fontSize: 12,
+                        }}>
+                          <span style={{ color: a.color, fontSize: 14, width: 16, textAlign: 'center' }}>
+                            {a.glyph}
+                          </span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-1)', minWidth: 110 }}>
+                            {ma.member?.handle || '—'}
+                          </span>
+                          <span style={{ color: 'var(--text-3)' }}>unlocked</span>
+                          <span style={{ color: a.color, fontWeight: 600 }}>{a.name}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.15em' }}>
+                            {timeAgo(ma.earned_at)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
             {tab === 'mine' && (
               <>
                 <SectionHeader label={`MY MEDALS · ${myMedals.length}`} color={UEE_AMBER} glyph="✦" />
@@ -370,7 +612,7 @@ export default function Medals() {
                 {myCerts.length === 0 ? (
                   <EmptyState>NO CERTIFICATIONS YET</EmptyState>
                 ) : (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
                     {myCerts.map(mc => {
                       const cm = CERT_CAT_META[mc.cert?.category] || CERT_CAT_META.GENERAL
                       return (
@@ -389,6 +631,44 @@ export default function Medals() {
                             color: cm.color, border: `1px solid ${cm.color}55`,
                             padding: '1px 6px', borderRadius: 3,
                           }}>{mc.cert?.category}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <SectionHeader label={`MY ACHIEVEMENTS · ${myAchievements.length} · ${myAchievementPoints} PTS`} color={UEE_AMBER} glyph="◆" />
+                {myAchievements.length === 0 ? (
+                  <EmptyState>NO ACHIEVEMENTS YET — VISIT THE ACHIEVEMENTS TAB</EmptyState>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: 8,
+                  }}>
+                    {myAchievements.map(ma => {
+                      const a = ma.achievement
+                      if (!a) return null
+                      const rarity = ACH_RARITY_META[a.rarity] || ACH_RARITY_META.COMMON
+                      return (
+                        <div key={ma.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px',
+                          background: 'var(--bg-raised)',
+                          border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${a.color}`,
+                          borderRadius: 3,
+                        }}>
+                          <span style={{ color: a.color, fontSize: 16, width: 18, textAlign: 'center' }}>{a.glyph}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)' }}>{a.name}</div>
+                            <div style={{
+                              fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.15em',
+                              color: rarity.color, marginTop: 1,
+                            }}>
+                              {rarity.label} · +{a.points}
+                            </div>
+                          </div>
                         </div>
                       )
                     })}

@@ -18,6 +18,7 @@ import {
 const TYPE_META = {
   promotion:       { color: UEE_AMBER, glyph: '★', label: 'PROMOTION',     group: 'PERSONNEL' },
   medal:           { color: UEE_AMBER, glyph: '✦', label: 'MEDAL',         group: 'PERSONNEL' },
+  achievement:     { color: UEE_AMBER, glyph: '✦', label: 'ACHIEVEMENT',   group: 'PERSONNEL' },
   announcement:    { color: '#e05c5c', glyph: '◈', label: 'TRANSMISSION',  group: 'COMMAND' },
   contract:        { color: '#5a80d9', glyph: '◆', label: 'CONTRACT',      group: 'OPERATIONS' },
   op_signup:       { color: '#5a80d9', glyph: '◉', label: 'OP SIGNUP',     group: 'OPERATIONS' },

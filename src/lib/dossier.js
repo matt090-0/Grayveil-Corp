@@ -470,10 +470,10 @@ function buildDossierHTML({ title, subtitle, kicker, watermark, sealText, fileNu
 /**
  * Citizen Dossier — profile summary document.
  * @param {Object} profile  the full profile row (with wallet_balance, credit_score, division, etc.)
- * @param {Object} extras   { medals:[], certs:[], ships:[], stats:{} }
+ * @param {Object} extras   { medals:[], certs:[], ships:[], stats:{}, achievements:[] }
  */
 export function buildCitizenDossier(profile, extras = {}) {
-  const { medals = [], certs = [], ships = [], stats = {} } = extras
+  const { medals = [], certs = [], ships = [], stats = {}, achievements = [] } = extras
   const cid = citizenId(profile.id)
   const fileNumber = fileNo('UEE-CITIZEN', profile.id)
 
@@ -526,6 +526,31 @@ export function buildCitizenDossier(profile, extras = {}) {
     heading: 'Certifications',
     items: certs.map(c => (c.cert?.name || c.cert?.title || '').toUpperCase()).filter(Boolean),
   })
+
+  if (achievements.length) {
+    // Sort earned achievements by rarity then by name. The chip
+    // labels include the rarity prefix ("RARE · TRIPLE DIGITS")
+    // so the dossier reader can scan for the legendary ones.
+    const rarityRank = { LEGENDARY: 0, RARE: 1, UNCOMMON: 2, COMMON: 3 }
+    const sorted = [...achievements].sort((a, b) => {
+      const ra = rarityRank[a.achievement?.rarity] ?? 99
+      const rb = rarityRank[b.achievement?.rarity] ?? 99
+      if (ra !== rb) return ra - rb
+      return (a.achievement?.name || '').localeCompare(b.achievement?.name || '')
+    })
+    const totalPts = sorted.reduce((s, a) => s + (a.achievement?.points || 0), 0)
+    sections.push({
+      type: 'chips',
+      heading: `Achievements · ${sorted.length} unlocked · ${totalPts} pts`,
+      items: sorted
+        .map(a => {
+          const r = (a.achievement?.rarity || '').toUpperCase()
+          const n = (a.achievement?.name || '').toUpperCase()
+          return n ? `${r} · ${n}` : null
+        })
+        .filter(Boolean),
+    })
+  }
 
   if (ships.length) {
     sections.push({

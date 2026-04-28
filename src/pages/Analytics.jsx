@@ -104,6 +104,7 @@ export default function Analytics() {
         { data: lootSplits },
         { data: medals },
         { data: certs },
+        { data: achievements },
         { data: ledger },
         { data: act },
       ] = await Promise.all([
@@ -119,6 +120,7 @@ export default function Analytics() {
         supabase.from('loot_splits').select('amount').eq('member_id', activeId),
         supabase.from('member_medals').select('id, medal:medals(rarity, name)').eq('member_id', activeId),
         supabase.from('member_certifications').select('id, cert:certifications(name)').eq('member_id', activeId),
+        supabase.from('member_achievements').select('id, achievement:achievements(rarity, points)').eq('member_id', activeId),
         supabase.from('ledger').select('amount, created_at').eq('member_id', activeId),
         supabase.from('activity_log').select('*, actor:profiles(handle)').eq('actor_id', activeId).order('created_at', { ascending: false }).limit(30),
       ])
@@ -152,6 +154,9 @@ export default function Analytics() {
         medalsCount:       medals?.length || 0,
         legendaryMedals:   (medals || []).filter(m => m.medal?.rarity === 'LEGENDARY').length,
         certsCount:        certs?.length || 0,
+        achievementsCount: achievements?.length || 0,
+        achievementPoints: (achievements || []).reduce((s, a) => s + (a.achievement?.points || 0), 0),
+        legendaryAch:      (achievements || []).filter(a => a.achievement?.rarity === 'LEGENDARY').length,
         ledgerIn,
         ledgerOut,
         ledgerNet:         ledgerIn - ledgerOut,
@@ -281,6 +286,7 @@ export default function Analytics() {
           <StatCell label="OPS ATTENDED" value={stats.opsConfirmed}    color="#5a80d9"   glyph="◉" desc={`${stats.aarsFiled} AARs filed`} />
           <StatCell label="INTEL FILED" value={stats.intelFiled}       color="#b566d9"   glyph="◍" desc="reports filed" />
           <StatCell label="MEDALS"      value={stats.medalsCount}      color={UEE_AMBER} glyph="✦" desc={stats.legendaryMedals > 0 ? `${stats.legendaryMedals} legendary` : 'commendations'} />
+          <StatCell label="ACHIEVEMENTS" value={stats.achievementsCount} color={UEE_AMBER} glyph="◆" desc={`${stats.achievementPoints} pts${stats.legendaryAch > 0 ? ` · ${stats.legendaryAch} legendary` : ''}`} />
         </div>
 
         {/* COMBAT */}

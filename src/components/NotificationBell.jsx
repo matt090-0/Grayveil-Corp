@@ -12,6 +12,7 @@ import { UEE_AMBER, CLIP_CHAMFER_SM } from './uee'
 const TYPE_META = {
   promotion:       { color: UEE_AMBER, glyph: '★', label: 'PROMOTION' },
   medal:           { color: UEE_AMBER, glyph: '✦', label: 'MEDAL' },
+  achievement:     { color: UEE_AMBER, glyph: '✦', label: 'UNLOCK' },
   announcement:    { color: '#e05c5c', glyph: '◈', label: 'TX' },
   contract:        { color: '#5a80d9', glyph: '◆', label: 'CONTRACT' },
   op_signup:       { color: '#5a80d9', glyph: '◉', label: 'OP' },
