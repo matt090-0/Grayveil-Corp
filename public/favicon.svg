@@ -1,63 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="steel" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f4f6fa"/>
-      <stop offset="35%" stop-color="#c8cfdb"/>
-      <stop offset="70%" stop-color="#7d8696"/>
-      <stop offset="100%" stop-color="#3a4150"/>
+    <linearGradient id="chrome" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#e8ecf2"/>
+      <stop offset="60%" stop-color="#a8b0bc"/>
+      <stop offset="100%" stop-color="#6a7280"/>
     </linearGradient>
-    <linearGradient id="blade" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f4f6fa"/>
-      <stop offset="55%" stop-color="#9aa3b3"/>
-      <stop offset="100%" stop-color="#4a5160"/>
-    </linearGradient>
-    <linearGradient id="plate" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1a1f2a"/>
-      <stop offset="100%" stop-color="#06080b"/>
-    </linearGradient>
-    <radialGradient id="core" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#fff5e8"/>
-      <stop offset="35%" stop-color="#ff8a4a"/>
-      <stop offset="100%" stop-color="#b8430f"/>
-    </radialGradient>
   </defs>
-  <rect width="100" height="100" fill="#06080b" rx="6"/>
-  <polygon points="50,8 88,28 88,72 50,92 12,72 12,28"
-    fill="url(#plate)" stroke="url(#steel)" stroke-width="2"/>
-
-  <!-- Center blade -->
-  <path d="M 50 13 L 54 24 L 54 44 L 50 47 L 46 44 L 46 24 Z" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.4"/>
-  <line x1="50" y1="18" x2="50" y2="42" stroke="#1a1f2a" stroke-width="0.4" opacity="0.6"/>
-
-  <!-- Left blade -->
-  <path d="M 28 19 L 34 24 L 41 44 L 38 47 L 34 45 L 30 32 Z" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.4"/>
-
-  <!-- Right blade -->
-  <path d="M 72 19 L 66 24 L 59 44 L 62 47 L 66 45 L 70 32 Z" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.4"/>
-
-  <!-- Cross-guard -->
-  <rect x="22" y="46" width="56" height="6" fill="url(#steel)" stroke="#1a1f2a" stroke-width="0.4"/>
-  <rect x="22" y="46" width="56" height="1.4" fill="#f4f6fa" opacity="0.55"/>
-  <rect x="22" y="46" width="2.5" height="6" fill="#3a4150"/>
-  <rect x="75.5" y="46" width="2.5" height="6" fill="#3a4150"/>
-
-  <!-- Power core -->
-  <circle cx="50" cy="49" r="3.4" fill="url(#core)" stroke="#1a1f2a" stroke-width="0.4"/>
-  <circle cx="48.5" cy="47.6" r="0.9" fill="#fff5e8" opacity="0.85"/>
-
-  <!-- Swept fins -->
-  <path d="M 47 54 L 33 58 L 38 62 L 47 60 Z" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.35"/>
-  <path d="M 53 54 L 67 58 L 62 62 L 53 60 Z" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.35"/>
-
-  <!-- Haft -->
-  <rect x="47" y="52" width="6" height="30" fill="url(#steel)" stroke="#1a1f2a" stroke-width="0.4"/>
-  <rect x="47" y="62" width="6" height="1.4" fill="#1a1f2a" opacity="0.7"/>
-  <rect x="47" y="68" width="6" height="1.4" fill="#1a1f2a" opacity="0.7"/>
-  <rect x="47" y="74" width="6" height="1.4" fill="#1a1f2a" opacity="0.7"/>
-
-  <!-- Pommel -->
-  <polygon points="50,82 56,86 50,90 44,86" fill="url(#blade)" stroke="#1a1f2a" stroke-width="0.4"/>
-
-  <!-- Blade tip heat marks -->
-  <line x1="50" y1="13" x2="50" y2="16" stroke="#ff6a1f" stroke-width="0.9"/>
+  <rect width="100" height="100" fill="#0a0a12" rx="8"/>
+  <path d="M 20 30 L 50 78 L 80 30 L 72 30 L 50 62 L 28 30 Z M 38 30 L 50 48 L 62 30 L 55 30 L 50 38 L 45 30 Z"
+    fill="url(#chrome)" stroke="#d4d8e0" stroke-width="0.3"/>
 </svg>
