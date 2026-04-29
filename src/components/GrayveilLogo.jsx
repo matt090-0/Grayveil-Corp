@@ -1,5 +1,6 @@
-// Blacksteel Aerospace mark — hex frame + machined chevron + signal-orange
-// status bar. Renders crisp at any size; no external assets.
+// Blacksteel Aerospace mark — hex plate + stealth-wing delta with a
+// signal-orange leading-edge vector. Registration ticks at opposing
+// corners read as classification chrome. Renders crisp at any size.
 export default function GrayveilLogo({ size = 32 }) {
   const id = 'gv-' + Math.random().toString(36).slice(2, 7)
   return (
@@ -15,6 +16,11 @@ export default function GrayveilLogo({ size = 32 }) {
           <stop offset="0%"  stopColor="#1a1f2a" />
           <stop offset="100%" stopColor="#06080b" />
         </linearGradient>
+        <linearGradient id={`${id}-wing`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%"  stopColor="#e8ecf4" />
+          <stop offset="55%" stopColor="#9aa3b3" />
+          <stop offset="100%" stopColor="#4a5160" />
+        </linearGradient>
       </defs>
 
       {/* Hex plate */}
@@ -26,31 +32,53 @@ export default function GrayveilLogo({ size = 32 }) {
         strokeLinejoin="miter"
       />
 
-      {/* Inner cut-line (technical drawing feel) */}
+      {/* Inner technical hairline */}
       <polygon
-        points="50,14 83,32 83,68 50,86 17,68 17,32"
+        points="50,12 84,30 84,70 50,88 16,70 16,30"
         fill="none"
         stroke="#c8cfdb"
-        strokeWidth="0.6"
-        opacity="0.35"
+        strokeWidth="0.5"
+        opacity="0.28"
       />
 
-      {/* Stacked chevrons — wing/lift mark */}
+      {/* Stealth-wing delta — flying-wing silhouette */}
       <path
-        d="M 27 60 L 50 36 L 73 60 L 65 60 L 50 45 L 35 60 Z"
-        fill={`url(#${id}-steel)`}
-      />
-      <path
-        d="M 36 70 L 50 56 L 64 70 L 58 70 L 50 62 L 42 70 Z"
-        fill={`url(#${id}-steel)`}
-        opacity="0.7"
+        d="M 50 28
+           L 82 60
+           L 68 64
+           L 60 56
+           L 60 70
+           L 40 70
+           L 40 56
+           L 32 64
+           L 18 60 Z"
+        fill={`url(#${id}-wing)`}
+        stroke="#3a4150"
+        strokeWidth="0.4"
+        strokeLinejoin="miter"
       />
 
-      {/* Signal-orange status bar */}
-      <rect x="38" y="78" width="24" height="2.4" fill="#ff6a1f" />
-      <rect x="38" y="78" width="24" height="2.4" fill="#ff6a1f" opacity="0.4">
-        <animate attributeName="opacity" values="0.4;0.9;0.4" dur="2.6s" repeatCount="indefinite" />
-      </rect>
+      {/* Centerline facet — adds the swept-wing crease */}
+      <line x1="50" y1="28" x2="50" y2="70" stroke="#3a4150" strokeWidth="0.5" opacity="0.6" />
+
+      {/* Signal-orange leading-edge vector */}
+      <polyline
+        points="18,60 50,28 82,60"
+        fill="none"
+        stroke="#ff6a1f"
+        strokeWidth="1.6"
+        strokeLinejoin="miter"
+        strokeLinecap="square"
+      />
+
+      {/* Pulse on the apex marker */}
+      <circle cx="50" cy="28" r="1.6" fill="#ff6a1f">
+        <animate attributeName="opacity" values="0.45;1;0.45" dur="2.4s" repeatCount="indefinite" />
+      </circle>
+
+      {/* Registration ticks (top-left, bottom-right) */}
+      <path d="M 16 18 L 22 18 M 16 18 L 16 24" stroke="#c8cfdb" strokeWidth="0.6" opacity="0.45" fill="none" />
+      <path d="M 84 82 L 78 82 M 84 82 L 84 76" stroke="#c8cfdb" strokeWidth="0.6" opacity="0.45" fill="none" />
     </svg>
   )
 }
