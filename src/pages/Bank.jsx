@@ -114,7 +114,7 @@ function BankCard({ member, size = 'md', flippable = false }) {
               <GrayveilLogo size={22} />
               <div style={{
                 fontSize: 10, letterSpacing: '.25em', color: '#d4d8e0',
-                fontFamily: 'Saira, sans-serif', fontWeight: 700,
+                fontFamily: 'Inter Tight, sans-serif', fontWeight: 700,
               }}>GRAYVEIL RESERVE</div>
             </div>
             <div style={{
@@ -159,7 +159,7 @@ function BankCard({ member, size = 'md', flippable = false }) {
               <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>OPERATIVE</div>
               <div style={{
                 fontSize: size === 'lg' ? 15 : 13, letterSpacing: '.08em', color: '#ededf2',
-                fontFamily: 'Saira, sans-serif', fontWeight: 600,
+                fontFamily: 'Inter Tight, sans-serif', fontWeight: 600,
                 textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>{member.handle}</div>
               <div style={{ fontSize: 9, letterSpacing: '.15em', color: accent, marginTop: 2 }}>{rank.rank}</div>
@@ -203,7 +203,7 @@ function BankCard({ member, size = 'md', flippable = false }) {
               display: 'flex', alignItems: 'center', paddingLeft: 10,
             }}>
               <div style={{
-                fontFamily: 'Saira, sans-serif', fontStyle: 'italic',
+                fontFamily: 'Inter Tight, sans-serif', fontStyle: 'italic',
                 fontSize: 14, color: '#0a0b0f', letterSpacing: '.05em',
               }}>{(member.handle || '').slice(0, 18)}</div>
             </div>
@@ -229,7 +229,7 @@ function BankCard({ member, size = 'md', flippable = false }) {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 8, letterSpacing: '.2em', color: '#8a8f9c', marginBottom: 3 }}>BALANCE</div>
-              <div style={{ fontSize: 13, fontFamily: 'Saira, sans-serif', fontWeight: 700, color: '#d4d8e0' }}>{formatCredits(member.wallet_balance || 0)}</div>
+              <div style={{ fontSize: 13, fontFamily: 'Inter Tight, sans-serif', fontWeight: 700, color: '#d4d8e0' }}>{formatCredits(member.wallet_balance || 0)}</div>
             </div>
           </div>
         </div>

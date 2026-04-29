@@ -1,60 +1,61 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ─────────────────────────────────────────────────────────────
-   BLACKSTEEL AEROSPACE — Design Tokens
-   Carbon plate + brushed steel surfaces, signal-orange engagement
-   accent (aerospace warning hue), blueprint cyan technical
-   secondary, machined small radii. Engineering condensed display.
+   BLACKSTEEL AEROSPACE — Design Tokens (Anduril-direction)
+   Near-pure black surfaces, warm cream foreground, muted desert-tan
+   accent (mil-spec, not signal-orange). Brutalist 0–2px radii.
+   Editorial sans (Inter Tight) on a Swiss-grotesk body (Inter).
+   Type-forward, chrome-restrained.
    ───────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces — carbon stack */
-  --bg-base:     #06080b;
-  --bg-surface:  #0b0e13;
-  --bg-raised:   #11151c;
-  --bg-card:     #181d27;
-  --bg-hover:    #232936;
+  /* Surfaces — warm near-black stack */
+  --bg-base:     #050608;
+  --bg-surface:  #0a0b0e;
+  --bg-raised:   #101216;
+  --bg-card:     #161a22;
+  --bg-hover:    #1d2129;
 
-  /* Borders — cool steel hairlines */
-  --border:        rgba(196,206,222,0.06);
-  --border-md:     rgba(196,206,222,0.12);
-  --border-strong: rgba(196,206,222,0.22);
+  /* Borders — warm cream hairlines */
+  --border:        rgba(232,227,216,0.06);
+  --border-md:     rgba(232,227,216,0.10);
+  --border-strong: rgba(232,227,216,0.18);
 
-  /* Text — cool whites */
-  --text-1:      #e6ebf2;
-  --text-2:      #7d8696;
-  --text-3:      #4a5160;
+  /* Text — warm off-whites */
+  --text-1:      #e8e3d8;
+  --text-2:      #8a8478;
+  --text-3:      #56524a;
 
-  /* Accent — signal orange (engagement / CTA) */
-  --accent:      #ff6a1f;
-  --accent-hi:   #ff8a4a;
-  --accent-dim:  rgba(255,106,31,0.14);
-  --accent-glow: rgba(255,106,31,0.28);
+  /* Accent — muted desert tan (mil-spec, not bright) */
+  --accent:      #c4a878;
+  --accent-hi:   #d6bd92;
+  --accent-dim:  rgba(196,168,120,0.12);
+  --accent-glow: rgba(196,168,120,0.22);
 
-  /* Chrome — brushed steel gradient stops */
-  --chrome-hi:   #f4f6fa;
-  --chrome-mid:  #a8b1c0;
-  --chrome-lo:   #5a6272;
+  /* Chrome — warm steel gradient stops */
+  --chrome-hi:   #f5f0e8;
+  --chrome-mid:  #a8a094;
+  --chrome-lo:   #5a564d;
 
-  /* Status palette — aerospace-tuned */
-  --green:       #3ed598;
-  --green-dim:   rgba(62,213,152,0.14);
-  --amber:       #ffa726;
-  --amber-dim:   rgba(255,167,38,0.14);
-  --red:         #ff3b30;
-  --red-dim:     rgba(255,59,48,0.14);
-  --blue:        #4dc4ff;
-  --blue-dim:    rgba(77,196,255,0.14);
-  --purple:      #a78bfa;
-  --purple-dim:  rgba(167,139,250,0.14);
+  /* Status palette — desaturated mil-spec */
+  --green:       #7ba673;
+  --green-dim:   rgba(123,166,115,0.14);
+  --amber:       #c89a4a;
+  --amber-dim:   rgba(200,154,74,0.14);
+  --red:         #c45a4a;
+  --red-dim:     rgba(196,90,74,0.14);
+  --blue:        #6e94b8;
+  --blue-dim:    rgba(110,148,184,0.14);
+  --purple:      #8a7fa8;
+  --purple-dim:  rgba(138,127,168,0.14);
 
-  /* Machined corners */
-  --radius-sm:   2px;
-  --radius-md:   3px;
-  --radius-lg:   4px;
+  /* Brutalist corners — almost square */
+  --radius-sm:   0px;
+  --radius-md:   2px;
+  --radius-lg:   2px;
 
-  /* Typography */
+  /* Typography — editorial sans on swiss-grotesk body */
   --font-ui:     'Inter', sans-serif;
-  --font-display:'Saira', 'Inter', sans-serif;
+  --font-display:'Inter Tight', 'Inter', sans-serif;
   --font-mono:   'JetBrains Mono', monospace;
 
   --sidebar-w:   220px;
@@ -96,17 +97,17 @@ body {
 
 .sidebar-logo-mark {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: .14em;
+  letter-spacing: -0.01em;
   text-transform: uppercase;
   color: var(--text-1);
 }
 
 .sidebar-logo-sub {
-  font-size: 9px;
-  letter-spacing: .28em;
-  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: .24em;
+  color: var(--text-3);
   margin-top: 4px;
   font-family: var(--font-mono);
   text-transform: uppercase;
@@ -138,8 +139,8 @@ body {
 
 .nav-item:hover { background: var(--bg-hover); color: var(--text-1); }
 .nav-item.active {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text-1);
   position: relative;
 }
 .nav-item.active::before {
@@ -149,7 +150,6 @@ body {
   width: 2px;
   background: var(--accent);
   border-radius: 0;
-  box-shadow: 0 0 8px var(--accent-glow);
 }
 .nav-item-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0.7; }
 .nav-item:hover .nav-item-icon, .nav-item.active .nav-item-icon { opacity: 1; }
@@ -212,9 +212,9 @@ body {
 
 .page-title {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: .03em;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   margin-bottom: 4px;
 }
 
@@ -261,8 +261,9 @@ body {
 
 .stat-value {
   font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
   color: var(--text-1);
 }
@@ -351,9 +352,9 @@ table.data-table {
   background: var(--accent);
   color: #0a0a0c;
   font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  font-size: 12px;
+  letter-spacing: -0.005em;
+  font-size: 13px;
+  padding: 9px 18px;
 }
 .btn-primary:hover { background: var(--accent-hi); }
 .btn-primary:focus-visible {
@@ -444,9 +445,9 @@ table.data-table {
 
 .modal-title {
   font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: .03em;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .modal-close {
