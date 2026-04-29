@@ -39,7 +39,7 @@ export default function PublicOrg() {
             <GrayveilLogo size={96} />
           </div>
           <h1 style={{
-            fontFamily: 'Syne, sans-serif', fontSize: 'clamp(40px, 7vw, 72px)',
+            fontFamily: 'Saira, sans-serif', fontSize: 'clamp(40px, 7vw, 72px)',
             fontWeight: 700, letterSpacing: '.15em', margin: '0 0 12px',
             background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 60%, #6a7280 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -107,7 +107,7 @@ export default function PublicOrg() {
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(212,216,224,0.3)'}
                     onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(212,216,224,0.1)'}>
                     <div style={{
-                      fontFamily: 'Syne, sans-serif', fontSize: 32, fontWeight: 700,
+                      fontFamily: 'Saira, sans-serif', fontSize: 32, fontWeight: 700,
                       background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
                       WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                     }}>{s.value || 0}</div>
@@ -136,9 +136,9 @@ export default function PublicOrg() {
                         border: `2px solid ${f.avatar_color}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 18, fontWeight: 700, color: f.avatar_color,
-                        fontFamily: 'Syne, sans-serif',
+                        fontFamily: 'Saira, sans-serif',
                       }}>{f.handle?.slice(0, 2).toUpperCase()}</div>
-                      <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '.03em' }}>{f.handle}</div>
+                      <div style={{ fontFamily: 'Saira, sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '.03em' }}>{f.handle}</div>
                       <div style={{ fontSize: 10, letterSpacing: '.2em', color: '#d4d8e0', fontFamily: 'JetBrains Mono, monospace', marginTop: 4 }}>{f.rank || 'FOUNDER'}</div>
                     </div>
                   ))}

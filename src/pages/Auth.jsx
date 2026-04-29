@@ -57,7 +57,7 @@ export default function Auth() {
             <GrayveilLogo size={64} />
           </div>
           <h1 style={{
-            fontFamily: 'Syne, sans-serif', fontSize: 24, fontWeight: 700, letterSpacing: '.15em',
+            fontFamily: 'Saira, sans-serif', fontSize: 24, fontWeight: 700, letterSpacing: '.15em',
             background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             margin: '16px 0 4px',

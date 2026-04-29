@@ -1,13 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="chrome" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="30%" stop-color="#e8ecf2"/>
-      <stop offset="60%" stop-color="#a8b0bc"/>
-      <stop offset="100%" stop-color="#6a7280"/>
+    <linearGradient id="steel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4f6fa"/>
+      <stop offset="35%" stop-color="#c8cfdb"/>
+      <stop offset="70%" stop-color="#7d8696"/>
+      <stop offset="100%" stop-color="#3a4150"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a1f2a"/>
+      <stop offset="100%" stop-color="#06080b"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="100" fill="#0a0a12" rx="8"/>
-  <path d="M 20 30 L 50 78 L 80 30 L 72 30 L 50 62 L 28 30 Z M 38 30 L 50 48 L 62 30 L 55 30 L 50 38 L 45 30 Z"
-    fill="url(#chrome)" stroke="#d4d8e0" stroke-width="0.3"/>
+  <rect width="100" height="100" fill="#06080b" rx="6"/>
+  <polygon points="50,8 88,28 88,72 50,92 12,72 12,28"
+    fill="url(#plate)" stroke="url(#steel)" stroke-width="2"/>
+  <path d="M 27 60 L 50 36 L 73 60 L 65 60 L 50 45 L 35 60 Z M 36 70 L 50 56 L 64 70 L 58 70 L 50 62 L 42 70 Z"
+    fill="url(#steel)"/>
+  <rect x="38" y="78" width="24" height="2.4" fill="#ff6a1f"/>
 </svg>

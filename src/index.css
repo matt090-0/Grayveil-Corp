@@ -1,39 +1,62 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─────────────────────────────────────────────────────────────
+   BLACKSTEEL AEROSPACE — Design Tokens
+   Carbon plate + brushed steel surfaces, signal-orange engagement
+   accent (aerospace warning hue), blueprint cyan technical
+   secondary, machined small radii. Engineering condensed display.
+   ───────────────────────────────────────────────────────────── */
 :root {
-  --bg-base:     #0a0b0f;
-  --bg-surface:  #0f1015;
-  --bg-raised:   #15171c;
-  --bg-card:     #1c1e25;
-  --bg-hover:    #22242c;
-  --border:      rgba(212,216,224,0.06);
-  --border-md:   rgba(212,216,224,0.11);
-  --border-strong: rgba(212,216,224,0.18);
-  --text-1:      #ededf2;
-  --text-2:      #8a8f9c;
-  --text-3:      #4a4f5c;
-  --accent:      #d4d8e0;
-  --accent-dim:  rgba(212,216,224,0.12);
-  --accent-glow: rgba(212,216,224,0.06);
-  --chrome-hi:   #ffffff;
-  --chrome-mid:  #b8bcc8;
-  --chrome-lo:   #6a7280;
-  --green:       #4db870;
-  --green-dim:   rgba(77,184,112,0.12);
-  --amber:       #d4943a;
-  --amber-dim:   rgba(212,148,58,0.12);
-  --red:         #c45a5a;
-  --red-dim:     rgba(196,90,90,0.12);
-  --blue:        #4a90d9;
-  --blue-dim:    rgba(74,144,217,0.12);
-  --purple:      #8b6fc7;
-  --purple-dim:  rgba(139,111,199,0.12);
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
+  /* Surfaces — carbon stack */
+  --bg-base:     #06080b;
+  --bg-surface:  #0b0e13;
+  --bg-raised:   #11151c;
+  --bg-card:     #181d27;
+  --bg-hover:    #232936;
+
+  /* Borders — cool steel hairlines */
+  --border:        rgba(196,206,222,0.06);
+  --border-md:     rgba(196,206,222,0.12);
+  --border-strong: rgba(196,206,222,0.22);
+
+  /* Text — cool whites */
+  --text-1:      #e6ebf2;
+  --text-2:      #7d8696;
+  --text-3:      #4a5160;
+
+  /* Accent — signal orange (engagement / CTA) */
+  --accent:      #ff6a1f;
+  --accent-hi:   #ff8a4a;
+  --accent-dim:  rgba(255,106,31,0.14);
+  --accent-glow: rgba(255,106,31,0.28);
+
+  /* Chrome — brushed steel gradient stops */
+  --chrome-hi:   #f4f6fa;
+  --chrome-mid:  #a8b1c0;
+  --chrome-lo:   #5a6272;
+
+  /* Status palette — aerospace-tuned */
+  --green:       #3ed598;
+  --green-dim:   rgba(62,213,152,0.14);
+  --amber:       #ffa726;
+  --amber-dim:   rgba(255,167,38,0.14);
+  --red:         #ff3b30;
+  --red-dim:     rgba(255,59,48,0.14);
+  --blue:        #4dc4ff;
+  --blue-dim:    rgba(77,196,255,0.14);
+  --purple:      #a78bfa;
+  --purple-dim:  rgba(167,139,250,0.14);
+
+  /* Machined corners */
+  --radius-sm:   2px;
+  --radius-md:   3px;
+  --radius-lg:   4px;
+
+  /* Typography */
   --font-ui:     'Inter', sans-serif;
-  --font-display:'Syne', sans-serif;
+  --font-display:'Saira', 'Inter', sans-serif;
   --font-mono:   'JetBrains Mono', monospace;
+
   --sidebar-w:   220px;
 }
 
@@ -75,16 +98,18 @@ body {
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: .08em;
-  color: var(--accent);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-1);
 }
 
 .sidebar-logo-sub {
-  font-size: 10px;
-  letter-spacing: .2em;
-  color: var(--text-3);
-  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: .28em;
+  color: var(--accent);
+  margin-top: 4px;
   font-family: var(--font-mono);
+  text-transform: uppercase;
 }
 
 .sidebar-nav { padding: 12px 10px; flex: 1; }
@@ -112,7 +137,20 @@ body {
 }
 
 .nav-item:hover { background: var(--bg-hover); color: var(--text-1); }
-.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  position: relative;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
 .nav-item-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0.7; }
 .nav-item:hover .nav-item-icon, .nav-item.active .nav-item-icon { opacity: 1; }
 
@@ -312,8 +350,16 @@ table.data-table {
 .btn-primary {
   background: var(--accent);
   color: #0a0a0c;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-size: 12px;
 }
-.btn-primary:hover { background: #c4ae82; }
+.btn-primary:hover { background: var(--accent-hi); }
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-glow);
+}
 
 .btn-ghost {
   background: var(--bg-card);

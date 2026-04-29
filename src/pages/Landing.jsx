@@ -88,7 +88,7 @@ const sectionLabel = {
   textAlign: 'center',
 }
 const sectionHeading = {
-  fontFamily: 'Syne, sans-serif',
+  fontFamily: 'Saira, sans-serif',
   fontSize: 'clamp(24px, 4vw, 36px)',
   fontWeight: 700,
   letterSpacing: '.08em',
@@ -128,7 +128,7 @@ function Divisions() {
             marginBottom: 12,
           }}>DIVISION {d.code}</div>
           <div style={{
-            fontFamily: 'Syne, sans-serif',
+            fontFamily: 'Saira, sans-serif',
             fontSize: 17, fontWeight: 700, letterSpacing: '.08em',
             color: '#ededf2', marginBottom: 6,
           }}>{d.name}</div>
@@ -161,7 +161,7 @@ function FleetShowcase({ ships }) {
           padding: '16px 18px',
         }}>
           <div style={{
-            fontFamily: 'Syne, sans-serif', fontSize: 15, fontWeight: 600,
+            fontFamily: 'Saira, sans-serif', fontSize: 15, fontWeight: 600,
             color: '#ededf2', letterSpacing: '.04em', marginBottom: 4,
           }}>{s.vessel_name}</div>
           <div style={{
@@ -202,7 +202,7 @@ function TierLadder() {
               fontSize: 11, color: c, opacity: 0.85, letterSpacing: '.15em',
             }}>T-{r.tier}</div>
             <div style={{
-              fontFamily: 'Syne, sans-serif',
+              fontFamily: 'Saira, sans-serif',
               fontSize: 14, fontWeight: 600, letterSpacing: '.1em',
               color: '#ededf2',
             }}>{r.rank}</div>
@@ -351,7 +351,7 @@ export default function Landing() {
             <GrayveilLogo size={110} />
           </div>
           <h1 style={{
-            fontFamily: 'Syne, sans-serif', fontSize: 'clamp(36px, 6vw, 56px)',
+            fontFamily: 'Saira, sans-serif', fontSize: 'clamp(36px, 6vw, 56px)',
             fontWeight: 700, letterSpacing: '.15em',
             background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 60%, #6a7280 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -387,7 +387,7 @@ export default function Landing() {
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{
-                  fontFamily: 'Syne, sans-serif', fontSize: 'clamp(24px, 4vw, 36px)',
+                  fontFamily: 'Saira, sans-serif', fontSize: 'clamp(24px, 4vw, 36px)',
                   fontWeight: 700,
                   background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -459,7 +459,7 @@ export default function Landing() {
         maxWidth: 760, margin: '0 auto', position: 'relative', textAlign: 'center',
       }}>
         <div style={{
-          fontFamily: 'Syne, sans-serif',
+          fontFamily: 'Saira, sans-serif',
           fontSize: 'clamp(20px, 3.5vw, 28px)', fontWeight: 600,
           color: '#ededf2', marginBottom: 12, letterSpacing: '.04em',
         }}>Ready to fly under the grey flag?</div>
