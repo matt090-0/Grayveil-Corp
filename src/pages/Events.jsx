@@ -65,6 +65,30 @@ export default function Events() {
   }
   useEffect(() => { load() }, [])
 
+  // Accept roster-driven op drafts pushed from /roster phase-3 planning.
+  useEffect(() => {
+    if (!canCreate) return
+    try {
+      const raw = localStorage.getItem('gv_ops_draft')
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (!draft?.title) return
+      setForm({
+        title: draft.title,
+        description: draft.description || '',
+        event_type: draft.event_type || 'OPERATION',
+        location: draft.location || '',
+        starts_at: draft.starts_at || '',
+        min_tier: draft.min_tier || 9,
+        max_slots: draft.max_slots || '',
+      })
+      setError('')
+      setModal('create')
+      localStorage.removeItem('gv_ops_draft')
+      toast('Loaded roster draft into operation scheduler', 'info')
+    } catch {}
+  }, [canCreate, toast])
+
   const now = new Date()
   const upcoming = useMemo(() =>
     events.filter(e => new Date(e.starts_at) >= now && e.status !== 'CANCELLED' && e.status !== 'COMPLETED'),

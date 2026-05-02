@@ -21,6 +21,12 @@ const STATUS_META = {
   SUSPENDED: { color: '#e05c5c', glyph: '⬢', label: 'SUSPENDED' },
 }
 const INACTIVE_THRESHOLD_DAYS = 14
+const SQUAD_LANES = [
+  { key: 'ALPHA', label: 'ALPHA WING', color: '#5a80d9' },
+  { key: 'BRAVO', label: 'BRAVO WING', color: '#5ce0a1' },
+  { key: 'CHARLIE', label: 'CHARLIE WING', color: UEE_AMBER },
+  { key: 'SUPPORT', label: 'SUPPORT CELL', color: '#b566d9' },
+]
 
 function lastSeenMeta(ts) {
   if (!ts) return { label: 'NEVER', color: 'var(--text-3)', online: false }
@@ -74,6 +80,8 @@ export default function Roster() {
   const [preset, setPreset]   = useState('ALL')
   const [viewMode, setViewMode] = useState('CARDS')
   const [selectedId, setSelectedId] = useState(null)
+  const [squadPlan, setSquadPlan] = useState({})
+  const [draggedMemberId, setDraggedMemberId] = useState(null)
   const [certCounts, setCertCounts] = useState({})
   const [certNamesByMember, setCertNamesByMember] = useState({})
   const [totalCerts, setTotalCerts] = useState(0)
@@ -120,6 +128,33 @@ export default function Roster() {
       setSelectedId(mine?.id || members[0]?.id || null)
     }
   }, [members, selectedId, me.id])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('gv_roster_squad_plan')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') setSquadPlan(parsed)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('gv_roster_squad_plan', JSON.stringify(squadPlan)) } catch {}
+  }, [squadPlan])
+
+  useEffect(() => {
+    if (!members.length) return
+    const validIds = new Set(members.map(m => m.id))
+    setSquadPlan(prev => {
+      const next = {}
+      let changed = false
+      Object.entries(prev || {}).forEach(([memberId, lane]) => {
+        if (validIds.has(memberId)) next[memberId] = lane
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+  }, [members])
 
   const canEdit = me.tier <= 5
 
@@ -240,6 +275,82 @@ export default function Roster() {
       return { ...b, sectionMembers, byDivision }
     }).filter(s => s.sectionMembers.length > 0)
   }, [filtered])
+
+  const memberMap = useMemo(() => {
+    const map = {}
+    members.forEach(m => { map[m.id] = m })
+    return map
+  }, [members])
+  const candidates = useMemo(
+    () => filtered.filter(m => m.status === 'ACTIVE'),
+    [filtered],
+  )
+  const unassignedCandidates = useMemo(
+    () => candidates.filter(m => !squadPlan[m.id]),
+    [candidates, squadPlan],
+  )
+  const laneMembers = useMemo(() => {
+    const out = {}
+    SQUAD_LANES.forEach(l => { out[l.key] = [] })
+    Object.entries(squadPlan).forEach(([memberId, lane]) => {
+      if (!out[lane]) return
+      const member = memberMap[memberId]
+      if (!member) return
+      out[lane].push(member)
+    })
+    SQUAD_LANES.forEach(l => {
+      out[l.key] = out[l.key].sort((a, b) => a.tier - b.tier || a.handle.localeCompare(b.handle))
+    })
+    return out
+  }, [squadPlan, memberMap])
+
+  function assignMemberToLane(memberId, laneKey) {
+    if (!memberId || !laneKey) return
+    setSquadPlan(prev => ({ ...prev, [memberId]: laneKey }))
+  }
+  function unassignMember(memberId) {
+    setSquadPlan(prev => {
+      const next = { ...prev }
+      delete next[memberId]
+      return next
+    })
+  }
+  function clearPlan() {
+    setSquadPlan({})
+    toast('Squad assignment board cleared', 'info')
+  }
+  function draftOpFromPlan() {
+    const hasAssignments = Object.keys(squadPlan).length > 0
+    if (!hasAssignments) {
+      toast('Assign at least one operative before drafting an op', 'info')
+      return
+    }
+    const now = new Date()
+    const starts = new Date(now.getTime() + 60 * 60 * 1000)
+    const rosterLines = SQUAD_LANES
+      .map(l => {
+        const rows = laneMembers[l.key] || []
+        if (!rows.length) return null
+        return `## ${l.label}\n${rows.map(m => `- ${m.handle} · ${m.rank} · T${m.tier}`).join('\n')}`
+      })
+      .filter(Boolean)
+      .join('\n\n')
+    const payload = {
+      title: `Task Force Draft · ${now.toLocaleDateString('en-GB')}`,
+      event_type: 'OPERATION',
+      location: 'TBD',
+      starts_at: starts.toISOString().slice(0, 16),
+      min_tier: 9,
+      max_slots: Math.max(Object.keys(squadPlan).length, 12),
+      description: `Roster-generated deployment draft.\n\n${rosterLines}`,
+      created_from: 'roster_squad_plan',
+      squad_plan: squadPlan,
+      created_at: new Date().toISOString(),
+    }
+    try { localStorage.setItem('gv_ops_draft', JSON.stringify(payload)) } catch {}
+    toast('Operation draft pushed to Ops Board', 'success')
+    navigate('/events')
+  }
 
   function openEdit(m) {
     setEditing(m)
@@ -378,8 +489,9 @@ export default function Roster() {
             {filtered.length === 0 ? (
               <EmptyState>NO OPERATIVES MATCH THE CURRENT FILTER</EmptyState>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(320px, 1fr)', gap: 12, alignItems: 'start' }}>
-                <div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(320px, 1fr)', gap: 12, alignItems: 'start' }}>
+                  <div>
                   {viewMode === 'CARDS' ? (
                     <div style={{
                       display: 'grid',
@@ -447,21 +559,95 @@ export default function Roster() {
                       ))}
                     </div>
                   )}
+                  </div>
+
+                  <MemberIntelPanel
+                    member={selectedMember}
+                    readiness={selectedReadiness}
+                    certCount={selectedMember ? certCounts[selectedMember.id] || 0 : 0}
+                    certNames={selectedMember ? certNamesByMember[selectedMember.id] || [] : []}
+                    totalCerts={totalCerts}
+                    panelData={panelData}
+                    loading={panelLoading}
+                    canEdit={selectedMember ? canEdit && selectedMember.id !== me.id && me.tier < selectedMember.tier : false}
+                    onViewDossier={() => selectedMember && setViewing(selectedMember)}
+                    onEdit={() => selectedMember && openEdit(selectedMember)}
+                    onMessage={() => navigate('/messages')}
+                  />
                 </div>
 
-                <MemberIntelPanel
-                  member={selectedMember}
-                  readiness={selectedReadiness}
-                  certCount={selectedMember ? certCounts[selectedMember.id] || 0 : 0}
-                  certNames={selectedMember ? certNamesByMember[selectedMember.id] || [] : []}
-                  totalCerts={totalCerts}
-                  panelData={panelData}
-                  loading={panelLoading}
-                  canEdit={selectedMember ? canEdit && selectedMember.id !== me.id && me.tier < selectedMember.tier : false}
-                  onViewDossier={() => selectedMember && setViewing(selectedMember)}
-                  onEdit={() => selectedMember && openEdit(selectedMember)}
-                  onMessage={() => navigate('/messages')}
-                />
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em', color: UEE_AMBER }}>SQUAD ASSIGNMENT BOARD</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Drag operatives into lanes, then draft an operation from the plan.</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={clearPlan}>CLEAR PLAN</button>
+                      <button className="btn btn-primary btn-sm" onClick={draftOpFromPlan}>DRAFT OP FROM PLAN</button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 8, marginBottom: 10, background: 'var(--bg-surface)' }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault()
+                      const memberId = e.dataTransfer.getData('text/plain') || draggedMemberId
+                      unassignMember(memberId)
+                      setDraggedMemberId(null)
+                    }}
+                  >
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', color: 'var(--text-3)', marginBottom: 6 }}>
+                      UNASSIGNED POOL · {unassignedCandidates.length}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {unassignedCandidates.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>No unassigned candidates in current filter.</span>}
+                      {unassignedCandidates.map(m => (
+                        <MemberChip
+                          key={m.id}
+                          member={m}
+                          onClick={() => setSelectedId(m.id)}
+                          onDragStart={() => setDraggedMemberId(m.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+                    {SQUAD_LANES.map(lane => (
+                      <div
+                        key={lane.key}
+                        style={{ border: `1px solid ${lane.color}55`, borderRadius: 6, padding: 8, background: 'var(--bg-surface)', minHeight: 110 }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault()
+                          const memberId = e.dataTransfer.getData('text/plain') || draggedMemberId
+                          assignMemberToLane(memberId, lane.key)
+                          setDraggedMemberId(null)
+                        }}
+                      >
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', color: lane.color, marginBottom: 6 }}>
+                          {lane.label} · {(laneMembers[lane.key] || []).length}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          {(laneMembers[lane.key] || []).map(m => (
+                            <MemberChip
+                              key={m.id}
+                              member={m}
+                              compact
+                              onClick={() => setSelectedId(m.id)}
+                              onDragStart={() => setDraggedMemberId(m.id)}
+                            />
+                          ))}
+                          {(laneMembers[lane.key] || []).length === 0 && (
+                            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Drop members here</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -790,5 +976,43 @@ function MiniStat({ label, value, color }) {
       <div style={{ fontSize: 8.5, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{label}</div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color }}>{value}</div>
     </div>
+  )
+}
+
+function MemberChip({ member, compact, onClick, onDragStart }) {
+  const accent = member.avatar_color || tierAccent(member.tier)
+  return (
+    <button
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.setData('text/plain', member.id)
+        onDragStart?.()
+      }}
+      onClick={onClick}
+      style={{
+        border: '1px solid var(--border)',
+        background: 'var(--bg-raised)',
+        borderRadius: 4,
+        padding: compact ? '3px 6px' : '4px 7px',
+        cursor: 'grab',
+        color: 'var(--text-2)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+      }}
+      title={`${member.handle} · ${member.rank}`}
+    >
+      <span style={{
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: accent,
+        boxShadow: `0 0 5px ${accent}`,
+        flexShrink: 0,
+      }} />
+      <span>{member.handle}</span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-3)' }}>T{member.tier}</span>
+    </button>
   )
 }
