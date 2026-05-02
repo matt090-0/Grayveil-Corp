@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { RANKS, canPromote } from '../lib/ranks'
@@ -57,6 +58,7 @@ function readinessMeta(member, certCount, totalCerts) {
 }
 
 export default function Roster() {
+  const navigate = useNavigate()
   const { profile: me } = useAuth()
   const toast = useToast()
   const [members, setMembers] = useState([])
@@ -69,9 +71,13 @@ export default function Roster() {
   const [error, setError]     = useState('')
   const [viewing, setViewing] = useState(null)
   const [preset, setPreset]   = useState('ALL')
+  const [viewMode, setViewMode] = useState('CARDS')
+  const [selectedId, setSelectedId] = useState(null)
   const [certCounts, setCertCounts] = useState({})
   const [certNamesByMember, setCertNamesByMember] = useState({})
   const [totalCerts, setTotalCerts] = useState(0)
+  const [panelLoading, setPanelLoading] = useState(false)
+  const [panelData, setPanelData] = useState({ medals: 0, ships: 0, recentActivity: [] })
 
   async function load() {
     const [{ data: rosterData }, { data: memberCertRows }, { count: certTotal }] = await Promise.all([
@@ -98,9 +104,21 @@ export default function Roster() {
     setCertCounts(nextCounts)
     setCertNamesByMember(nextNames)
     setTotalCerts(certTotal || 0)
+    if (!selectedId) {
+      const mine = (rosterData || []).find(m => m.id === me.id)
+      setSelectedId(mine?.id || rosterData?.[0]?.id || null)
+    }
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [me.id])
+
+  useEffect(() => {
+    if (!members.length) return
+    if (!selectedId || !members.some(m => m.id === selectedId)) {
+      const mine = members.find(m => m.id === me.id)
+      setSelectedId(mine?.id || members[0]?.id || null)
+    }
+  }, [members, selectedId, me.id])
 
   const canEdit = me.tier <= 5
 
@@ -167,6 +185,60 @@ export default function Roster() {
         return a.tier - b.tier || a.handle.localeCompare(b.handle)
       })
   }, [members, tab, preset, search, certCounts, certNamesByMember, totalCerts])
+
+  const selectedMember = useMemo(
+    () => members.find(m => m.id === selectedId) || null,
+    [members, selectedId],
+  )
+  const selectedReadiness = useMemo(
+    () => selectedMember ? readinessMeta(selectedMember, certCounts[selectedMember.id] || 0, totalCerts) : null,
+    [selectedMember, certCounts, totalCerts],
+  )
+
+  useEffect(() => {
+    async function loadPanel() {
+      if (!selectedMember?.id) return
+      setPanelLoading(true)
+      const [{ count: medals }, { count: ships }, { data: recentActivity }] = await Promise.all([
+        supabase.from('member_medals').select('id', { count: 'exact', head: true }).eq('member_id', selectedMember.id),
+        supabase.from('fleet').select('id', { count: 'exact', head: true }).eq('assigned_to', selectedMember.id),
+        supabase.from('activity_log')
+          .select('id, action, created_at, details')
+          .eq('actor_id', selectedMember.id)
+          .order('created_at', { ascending: false })
+          .limit(6),
+      ])
+      setPanelData({
+        medals: medals || 0,
+        ships: ships || 0,
+        recentActivity: recentActivity || [],
+      })
+      setPanelLoading(false)
+    }
+    loadPanel()
+  }, [selectedMember?.id])
+
+  const chainSections = useMemo(() => {
+    const buckets = [
+      { key: 'COMMAND', label: 'COMMAND CHAIN', color: UEE_AMBER, filter: m => m.tier <= 2 },
+      { key: 'OFFICERS', label: 'OFFICER CORPS', color: '#5a80d9', filter: m => m.tier > 2 && m.tier <= 4 },
+      { key: 'SPECIALISTS', label: 'SPECIALIST WINGS', color: '#5ce0a1', filter: m => m.tier > 4 && m.tier <= 6 },
+      { key: 'AUXILIARY', label: 'AUXILIARY POOL', color: '#9099a8', filter: m => m.tier > 6 },
+    ]
+    return buckets.map(b => {
+      const sectionMembers = filtered.filter(b.filter)
+      const byDivision = {}
+      sectionMembers.forEach(m => {
+        const div = m.division || 'UNASSIGNED'
+        if (!byDivision[div]) byDivision[div] = []
+        byDivision[div].push(m)
+      })
+      Object.keys(byDivision).forEach(div => {
+        byDivision[div] = byDivision[div].sort((a, z) => a.tier - z.tier || a.handle.localeCompare(z.handle))
+      })
+      return { ...b, sectionMembers, byDivision }
+    }).filter(s => s.sectionMembers.length > 0)
+  }, [filtered])
 
   function openEdit(m) {
     setEditing(m)
@@ -252,7 +324,12 @@ export default function Roster() {
               Division membership directory. {filtered.length} of {members.length} operatives match the current filter.
             </div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={exportRoster}>EXPORT CSV</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setViewMode(viewMode === 'CARDS' ? 'CHAIN' : 'CARDS')}>
+              {viewMode === 'CARDS' ? 'CHAIN VIEW' : 'CARD VIEW'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={exportRoster}>EXPORT CSV</button>
+          </div>
         </div>
 
         <TabStrip
@@ -300,22 +377,90 @@ export default function Roster() {
             {filtered.length === 0 ? (
               <EmptyState>NO OPERATIVES MATCH THE CURRENT FILTER</EmptyState>
             ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 10,
-              }}>
-                {filtered.map(m => (
-                  <RosterCard
-                    key={m.id} member={m}
-                    isMe={m.id === me.id}
-                    certCount={certCounts[m.id] || 0}
-                    totalCerts={totalCerts}
-                    canEdit={canEdit && m.id !== me.id && me.tier < m.tier}
-                    onOpen={() => setViewing(m)}
-                    onEdit={e => { e.stopPropagation(); openEdit(m) }}
-                  />
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(320px, 1fr)', gap: 12, alignItems: 'start' }}>
+                <div>
+                  {viewMode === 'CARDS' ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                      gap: 10,
+                    }}>
+                      {filtered.map(m => (
+                        <RosterCard
+                          key={m.id} member={m}
+                          isMe={m.id === me.id}
+                          selected={m.id === selectedId}
+                          certCount={certCounts[m.id] || 0}
+                          totalCerts={totalCerts}
+                          canEdit={canEdit && m.id !== me.id && me.tier < m.tier}
+                          onSelect={() => setSelectedId(m.id)}
+                          onView={e => { e.stopPropagation(); setViewing(m) }}
+                          onEdit={e => { e.stopPropagation(); openEdit(m) }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {chainSections.map(section => (
+                        <div key={section.key} className="card" style={{ padding: 12, borderLeft: `3px solid ${section.color}` }}>
+                          <div style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em',
+                            color: section.color, marginBottom: 10,
+                          }}>
+                            {section.label} · {section.sectionMembers.length}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {Object.entries(section.byDivision).sort((a, b) => a[0].localeCompare(b[0])).map(([division, group]) => (
+                              <div key={division} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 8, background: 'var(--bg-surface)' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.16em', color: 'var(--text-3)', marginBottom: 6 }}>
+                                  {division}
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {group.map(m => {
+                                    const readiness = readinessMeta(m, certCounts[m.id] || 0, totalCerts)
+                                    return (
+                                      <button
+                                        key={m.id}
+                                        onClick={() => setSelectedId(m.id)}
+                                        style={{
+                                          border: `1px solid ${m.id === selectedId ? UEE_AMBER : 'var(--border)'}`,
+                                          background: m.id === selectedId ? `${UEE_AMBER}18` : 'var(--bg-raised)',
+                                          color: m.id === selectedId ? UEE_AMBER : 'var(--text-2)',
+                                          padding: '6px 8px', borderRadius: 4, cursor: 'pointer',
+                                          fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 7,
+                                        }}
+                                      >
+                                        <span style={{ fontWeight: 600 }}>{m.handle}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-3)' }}>T{m.tier}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: readiness.score >= 75 ? '#5ce0a1' : readiness.score >= 45 ? UEE_AMBER : '#e05c5c' }}>
+                                          {readiness.score}%
+                                        </span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <MemberIntelPanel
+                  member={selectedMember}
+                  readiness={selectedReadiness}
+                  certCount={selectedMember ? certCounts[selectedMember.id] || 0 : 0}
+                  certNames={selectedMember ? certNamesByMember[selectedMember.id] || [] : []}
+                  totalCerts={totalCerts}
+                  panelData={panelData}
+                  loading={panelLoading}
+                  canEdit={selectedMember ? canEdit && selectedMember.id !== me.id && me.tier < selectedMember.tier : false}
+                  onViewDossier={() => selectedMember && setViewing(selectedMember)}
+                  onEdit={() => selectedMember && openEdit(selectedMember)}
+                  onMessage={() => navigate('/messages')}
+                />
               </div>
             )}
           </>
@@ -415,7 +560,7 @@ export default function Roster() {
 }
 
 // ─────────────────────────────────────────────────────────────
-function RosterCard({ member: m, isMe, certCount, totalCerts, canEdit, onOpen, onEdit }) {
+function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit, onSelect, onView, onEdit }) {
   const accent = tierAccent(m.tier)
   const sm = STATUS_META[m.status] || STATUS_META.ACTIVE
   const seen = lastSeenMeta(m.last_seen_at)
@@ -424,7 +569,7 @@ function RosterCard({ member: m, isMe, certCount, totalCerts, canEdit, onOpen, o
   const readinessColor = readiness.score >= 75 ? '#5ce0a1' : readiness.score >= 45 ? UEE_AMBER : '#e05c5c'
 
   return (
-    <Card accent={accent} onClick={onOpen} minHeight={140}>
+    <Card accent={selected ? UEE_AMBER : accent} onClick={onSelect} minHeight={140}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <div style={{
@@ -506,15 +651,143 @@ function RosterCard({ member: m, isMe, certCount, totalCerts, canEdit, onOpen, o
         <span style={{ color: readiness.deployable ? '#5ce0a1' : UEE_AMBER, fontWeight: 600 }}>
           {readiness.deployable ? 'DEPLOYABLE' : `REP ${m.rep_score || 0}`}
         </span>
-        {canEdit && (
-          <button onClick={onEdit} style={{
-            background: 'transparent', border: '1px solid var(--border)',
-            color: 'var(--text-3)', cursor: 'pointer',
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={onView} style={{
+            background: 'transparent', border: `1px solid ${UEE_AMBER}44`,
+            color: UEE_AMBER, cursor: 'pointer',
             fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
-            padding: '2px 8px', borderRadius: 3,
-          }}>EDIT</button>
-        )}
+            padding: '2px 7px', borderRadius: 3,
+          }}>FILE</button>
+          {canEdit && (
+            <button onClick={onEdit} style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-3)', cursor: 'pointer',
+              fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+              padding: '2px 8px', borderRadius: 3,
+            }}>EDIT</button>
+          )}
+        </div>
       </div>
     </Card>
+  )
+}
+
+function MemberIntelPanel({
+  member,
+  readiness,
+  certCount,
+  certNames,
+  totalCerts,
+  panelData,
+  loading,
+  canEdit,
+  onViewDossier,
+  onEdit,
+  onMessage,
+}) {
+  if (!member) {
+    return (
+      <div className="card" style={{ padding: 14, minHeight: 320 }}>
+        <div className="empty-state" style={{ margin: 0 }}>Select an operative to view intelligence.</div>
+      </div>
+    )
+  }
+
+  const statusMeta = STATUS_META[member.status] || STATUS_META.ACTIVE
+  const readinessColor = readiness?.score >= 75 ? '#5ce0a1' : readiness?.score >= 45 ? UEE_AMBER : '#e05c5c'
+
+  return (
+    <div className="card" style={{ padding: 14, position: 'sticky', top: 12 }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em',
+        color: UEE_AMBER, marginBottom: 8,
+      }}>
+        OPERATIVE INTEL PANEL
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700 }}>{member.handle}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{member.rank} · T{member.tier}</div>
+        </div>
+        <StatusBadge color={statusMeta.color} glyph={statusMeta.glyph} label={statusMeta.label} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+        <MiniStat label="READINESS" value={`${readiness?.score || 0}%`} color={readinessColor} />
+        <MiniStat label="CERTS" value={`${certCount}/${totalCerts || 0}`} color={UEE_AMBER} />
+        <MiniStat label="MEDALS" value={panelData.medals} color="#5a80d9" />
+        <MiniStat label="SHIPS" value={panelData.ships} color="#5ce0a1" />
+      </div>
+
+      <div style={{ marginTop: 10 }}>
+        <div style={{
+          fontSize: 9, letterSpacing: '.18em', fontFamily: 'var(--font-mono)',
+          color: 'var(--text-3)', marginBottom: 4,
+        }}>
+          CERTIFICATION COVERAGE
+        </div>
+        <div style={{ height: 8, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${readiness?.certPct || 0}%`, background: readinessColor }} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{
+          fontSize: 9, letterSpacing: '.18em', fontFamily: 'var(--font-mono)',
+          color: 'var(--text-3)', marginBottom: 6,
+        }}>
+          CERTS ON FILE
+        </div>
+        {certNames.length === 0 ? (
+          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>No certifications on record.</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {certNames.slice(0, 10).map(name => (
+              <span key={name} style={{
+                fontSize: 9.5, fontFamily: 'var(--font-mono)', letterSpacing: '.08em',
+                border: '1px solid var(--border)', borderRadius: 3, padding: '2px 6px',
+                background: 'var(--bg-surface)', color: 'var(--text-2)',
+              }}>
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{
+          fontSize: 9, letterSpacing: '.18em', fontFamily: 'var(--font-mono)',
+          color: 'var(--text-3)', marginBottom: 6,
+        }}>
+          RECENT ACTIVITY
+        </div>
+        {loading ? <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading activity...</div> : null}
+        {!loading && panelData.recentActivity.length === 0 ? (
+          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>No recent activity entries.</div>
+        ) : null}
+        {!loading && panelData.recentActivity.map(a => (
+          <div key={a.id} style={{ padding: '5px 0', borderBottom: '1px dashed var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-2)' }}>{(a.action || '').replace(/_/g, ' ').toUpperCase()}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmtDate(a.created_at)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onViewDossier}>OPEN DOSSIER</button>
+        <button className="btn btn-ghost btn-sm" onClick={onMessage}>MESSAGE</button>
+        {canEdit && <button className="btn btn-primary btn-sm" onClick={onEdit}>EDIT</button>}
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 8, background: 'var(--bg-surface)' }}>
+      <div style={{ fontSize: 8.5, letterSpacing: '.15em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color }}>{value}</div>
+    </div>
   )
 }
