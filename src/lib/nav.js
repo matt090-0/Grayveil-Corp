@@ -13,6 +13,7 @@ export const NAV = [
   { to: '/ships',       icon: 'fleet',      label: 'SHIP CALENDAR' },
   { to: '/loadouts',    icon: 'loadouts',   label: 'LOADOUTS'      },
   { to: '/medals',      icon: 'medals',     label: 'COMMENDATIONS' },
+  { to: '/certifications', icon: 'certs',   label: 'CERT TRACKER'  },
   { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
   { to: '/analytics',   icon: 'reputation', label: 'ANALYTICS'     },
   { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },

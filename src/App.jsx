@@ -35,6 +35,7 @@ const KillBoard    = lazy(() => import('./pages/KillBoard'))
 const Wiki         = lazy(() => import('./pages/Wiki'))
 const Loadouts     = lazy(() => import('./pages/Loadouts'))
 const Medals       = lazy(() => import('./pages/Medals'))
+const Certifications = lazy(() => import('./pages/Certifications'))
 const Landing      = lazy(() => import('./pages/Landing'))
 const Messages     = lazy(() => import('./pages/Messages'))
 const Bounties     = lazy(() => import('./pages/Bounties'))
@@ -93,6 +94,7 @@ function AppRoutes() {
         <Route path="/wiki"         element={<Page gated><Wiki /></Page>} />
         <Route path="/loadouts"     element={<Page gated><Loadouts /></Page>} />
         <Route path="/medals"       element={<Page gated><Medals /></Page>} />
+        <Route path="/certifications" element={<Page gated><Certifications /></Page>} />
         <Route path="/messages"     element={<Page gated><Messages /></Page>} />
         <Route path="/bounties"     element={<Page gated><Bounties /></Page>} />
         <Route path="/templates"    element={<Page gated><OpTemplates /></Page>} />
