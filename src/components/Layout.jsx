@@ -10,6 +10,8 @@ import OnboardingTour from './OnboardingTour'
 import PageTransition from './PageTransition'
 import { NAV, MAINT_BYPASS_TIER } from '../lib/nav'
 import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
+import Modal from './Modal'
+import { get501stConfig, is501stChosen, verify501stPasscode, unlock501st } from '../lib/fleet501st'
 
 export default function Layout({ children }) {
   const { profile, signOut } = useAuth()
@@ -20,6 +22,10 @@ export default function Layout({ children }) {
   const accentColor = profile?.avatar_color || 'var(--accent)'
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [secretOpen, setSecretOpen] = useState(false)
+  const [secretCode, setSecretCode] = useState('')
+  const [secretError, setSecretError] = useState('')
+  const [secretBusy, setSecretBusy] = useState(false)
   // Tour replays whenever profile.onboarded_at flips back to null
   // (Profile page exposes a "restart tour" button that clears it).
   const [tourOpen, setTourOpen] = useState(false)
@@ -64,6 +70,37 @@ export default function Layout({ children }) {
   // Close mobile nav on route change
   function navClick() { setMobileOpen(false) }
 
+  async function openSecretModal() {
+    setSecretCode('')
+    setSecretError('')
+    setSecretOpen(true)
+  }
+
+  async function verifySecretCode() {
+    setSecretBusy(true)
+    const { config, error } = await get501stConfig()
+    if (error) {
+      setSecretBusy(false)
+      setSecretError('Secure channel unavailable. Try again.')
+      return
+    }
+    if (!is501stChosen(profile, config)) {
+      setSecretBusy(false)
+      setSecretError('You are not cleared for 501st access.')
+      return
+    }
+    if (!verify501stPasscode(profile, config, secretCode)) {
+      setSecretBusy(false)
+      setSecretError('Invalid passcode.')
+      return
+    }
+    unlock501st(profile)
+    setSecretBusy(false)
+    setSecretOpen(false)
+    setMobileOpen(false)
+    navigate('/501st')
+  }
+
   return (
     <div className="app-shell">
       {/* Mobile hamburger */}
@@ -75,7 +112,12 @@ export default function Layout({ children }) {
       {mobileOpen && <div className="mobile-overlay" onClick={() => setMobileOpen(false)} />}
 
       <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
-        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          className="sidebar-logo"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+          onClick={openSecretModal}
+          title="Restricted channel access"
+        >
           <GrayveilLogo size={36} />
           <div>
             <div className="sidebar-logo-mark">GRAYVEIL</div>
@@ -151,6 +193,31 @@ export default function Layout({ children }) {
 
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {tourOpen   && <OnboardingTour onClose={() => setTourOpen(false)} />}
+      {secretOpen && (
+        <Modal title="501ST // RESTRICTED ACCESS" onClose={() => setSecretOpen(false)} size="sm">
+          <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.7 }}>
+            This channel is compartmentalized. Enter your issued passcode to establish clearance.
+          </div>
+          <div className="form-group" style={{ marginBottom: 8 }}>
+            <label className="form-label">PASSCODE</label>
+            <input
+              className="form-input"
+              type="password"
+              value={secretCode}
+              onChange={e => setSecretCode(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') verifySecretCode() }}
+              autoFocus
+            />
+          </div>
+          {secretError && <div className="form-error" style={{ marginBottom: 8 }}>{secretError}</div>}
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setSecretOpen(false)}>CANCEL</button>
+            <button className="btn btn-primary" onClick={verifySecretCode} disabled={secretBusy || !secretCode.trim()}>
+              {secretBusy ? 'VERIFYING...' : 'VERIFY'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
