@@ -34,12 +34,31 @@ function safe(data) {
   return Array.isArray(data) ? data : []
 }
 
+const QUEUE_SLA_MS = {
+  maintenance_save: 5 * 60 * 1000,
+  maintenance_clear: 4 * 60 * 1000,
+  member_update: 12 * 60 * 1000,
+}
+
+function getQueueSlaMs(actionType) {
+  return QUEUE_SLA_MS[actionType] || 8 * 60 * 1000
+}
+
+function fmtCountdown(ms) {
+  const abs = Math.max(0, Math.floor(Math.abs(ms) / 1000))
+  const mm = String(Math.floor(abs / 60)).padStart(2, '0')
+  const ss = String(abs % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
 export default function CommandHQ() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [busyAction, setBusyAction] = useState('')
+  const [nowTick, setNowTick] = useState(Date.now())
+  const [lastSyncAt, setLastSyncAt] = useState(Date.now())
   const [events, setEvents] = useState([])
   const [signups, setSignups] = useState([])
   const [members, setMembers] = useState([])
@@ -83,11 +102,21 @@ export default function CommandHQ() {
     setPendingActions(safe(pick(10)))
     const t = queries[11].status === 'fulfilled' ? queries[11].value.data : null
     setTreasury(t?.balance || 0)
+    setLastSyncAt(Date.now())
     setLoading(false)
   }
 
   useEffect(() => {
     load()
+  }, [])
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNowTick(Date.now()), 1000)
+    const refresh = window.setInterval(() => load(), 20000)
+    return () => {
+      window.clearInterval(tick)
+      window.clearInterval(refresh)
+    }
   }, [])
 
   const certCountByMember = useMemo(() => {
@@ -377,6 +406,11 @@ export default function CommandHQ() {
               <StatCell label="PROMOTION PIPE" value={promotionCandidates.length} color="#c8a55a" glyph="⬆" desc="eligible candidates" />
               <StatCell label="TREASURY 30D" value={formatCredits(treasuryForecast.d30)} color={treasuryForecast.risk === 'LOW' ? '#5ce0a1' : '#e0a155'} glyph="◒" desc={`risk ${treasuryForecast.risk}`} />
             </div>
+            <div style={{ marginTop: -2, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-3)' }}>
+              <span style={{ color: nowTick % 2000 < 1000 ? '#5ce0a1' : '#7ca8ff' }}>●</span>
+              <span>LIVE STATUS STREAM · AUTO REFRESH 20s</span>
+              <span>· last sync {fmtDateTime(lastSyncAt)}</span>
+            </div>
 
             <SectionHeader label="OPS READINESS SCANNER" color="#7ca8ff" />
             {readinessRows.length === 0 ? <EmptyState>No scheduled operations to scan.</EmptyState> : (
@@ -552,16 +586,38 @@ export default function CommandHQ() {
                   const initiator = members.find(m => m.id === run.initiated_by)?.handle || 'unknown'
                   const approver = members.find(m => m.id === run.approved_by)?.handle || '—'
                   const statusColor = run.status === 'EXECUTED' ? '#5ce0a1' : run.status === 'PENDING' ? '#e0a155' : '#9099a8'
+                  const ageMs = Math.max(0, nowTick - new Date(run.initiated_at || Date.now()).getTime())
+                  const slaMs = getQueueSlaMs(run.action_type)
+                  const etaMs = slaMs - ageMs
+                  const progress = Math.min(1, ageMs / slaMs)
                   return (
                     <Card key={run.id} accent={statusColor}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                         <div style={{ fontWeight: 600 }}>Run {run.id.slice(0, 8)}</div>
-                        <StatusBadge label={run.status} color={statusColor} />
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <StatusBadge label={run.status} color={statusColor} />
+                          {run.status === 'PENDING' && (
+                            <StatusBadge
+                              label={etaMs >= 0 ? `ETA ${fmtCountdown(etaMs)}` : `OVERDUE ${fmtCountdown(etaMs)}`}
+                              color={etaMs >= 0 ? '#7ca8ff' : '#e05c5c'}
+                            />
+                          )}
+                        </div>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
                         {run.reason || '—'} · initiated {fmtDateTime(run.initiated_at)} by {initiator}
                         {run.approved_at ? ` · approved ${fmtDateTime(run.approved_at)} by ${approver}` : ''}
                       </div>
+                      {run.status === 'PENDING' && (
+                        <div style={{ marginTop: 7 }}>
+                          <div style={{ height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: etaMs >= 0 ? '#7ca8ff' : '#e05c5c', transition: 'width .6s linear' }} />
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-3)' }}>
+                            Queue age {fmtCountdown(ageMs)} · SLA {fmtCountdown(slaMs)}
+                          </div>
+                        </div>
+                      )}
                       {run.result_message && <div style={{ fontSize: 11, marginTop: 4 }}>{run.result_message}</div>}
                       <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {run.status === 'PENDING' && run.initiated_by === profile.id && (
@@ -586,13 +642,38 @@ export default function CommandHQ() {
               <div style={{ display: 'grid', gap: 8 }}>
                 {promotionQueueRows.map(row => (
                   <Card key={row.id} accent={row.status === 'EXECUTED' ? '#5ce0a1' : row.status === 'PENDING' ? '#e0a155' : '#9099a8'}>
+                    {(() => {
+                      const ageMs = Math.max(0, nowTick - new Date(row.initiated_at || Date.now()).getTime())
+                      const slaMs = getQueueSlaMs(row.action_type)
+                      const etaMs = slaMs - ageMs
+                      const progress = Math.min(1, ageMs / slaMs)
+                      return (
+                        <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{row.reason || 'Promotion proposal'}</div>
-                      <StatusBadge label={row.status} color={row.status === 'EXECUTED' ? '#5ce0a1' : row.status === 'PENDING' ? '#e0a155' : '#9099a8'} />
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <StatusBadge label={row.status} color={row.status === 'EXECUTED' ? '#5ce0a1' : row.status === 'PENDING' ? '#e0a155' : '#9099a8'} />
+                        {row.status === 'PENDING' && (
+                          <StatusBadge
+                            label={etaMs >= 0 ? `ETA ${fmtCountdown(etaMs)}` : `OVERDUE ${fmtCountdown(etaMs)}`}
+                            color={etaMs >= 0 ? '#7ca8ff' : '#e05c5c'}
+                          />
+                        )}
+                      </div>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
                       Requested {fmtDateTime(row.initiated_at)}
                     </div>
+                    {row.status === 'PENDING' && (
+                      <div style={{ marginTop: 7 }}>
+                        <div style={{ height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: etaMs >= 0 ? '#7ca8ff' : '#e05c5c', transition: 'width .6s linear' }} />
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-3)' }}>
+                          Queue age {fmtCountdown(ageMs)} · SLA {fmtCountdown(slaMs)}
+                        </div>
+                      </div>
+                    )}
                     {row.status === 'PENDING' && row.initiated_by === profile.id && (
                       <div style={{ marginTop: 8 }}>
                         <button className="btn btn-ghost btn-sm" disabled={busyAction === `cancel-${row.id}`} onClick={() => cancelQueuedAction(row)}>
@@ -600,6 +681,9 @@ export default function CommandHQ() {
                         </button>
                       </div>
                     )}
+                        </>
+                      )
+                    })()}
                   </Card>
                 ))}
               </div>
