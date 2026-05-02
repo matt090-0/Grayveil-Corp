@@ -25,7 +25,12 @@ const REQUIRED_DISCORD_KEYS = [
   'discord_webhook_promotions',
 ]
 const FLEET_501ST_MEMBERS_DEFAULT = { allow_founders: true, member_ids: [], handles: [] }
-const FLEET_501ST_PASSCODES_DEFAULT = { codes: [], member_codes_by_id: {}, member_codes_by_handle: {} }
+const FLEET_501ST_PASSCODES_DEFAULT = {
+  codes: [],
+  member_codes_by_id: {},
+  member_codes_by_handle: {},
+  rotating: { enabled: false, period_seconds: 60, secret: '' },
+}
 const ADMIN_ACTION_PERMISSIONS = {
   admin_console: 'ADMIN CONSOLE',
   manage_members: 'MEMBERS',
@@ -141,6 +146,7 @@ export default function Admin() {
   const [fleet501stMembers, setFleet501stMembers] = useState(FLEET_501ST_MEMBERS_DEFAULT)
   const [fleet501stPasscodes, setFleet501stPasscodes] = useState(FLEET_501ST_PASSCODES_DEFAULT)
   const [fleet501stSaving, setFleet501stSaving] = useState(false)
+  const [fleet501stRotatingPreview, setFleet501stRotatingPreview] = useState(null)
 
   const hasPermission = useCallback((key) => {
     if (me.is_founder) return true
@@ -231,6 +237,11 @@ export default function Admin() {
         codes: normalizeStringList(passcodesRow.codes),
         member_codes_by_id: passcodesRow.member_codes_by_id || {},
         member_codes_by_handle: passcodesRow.member_codes_by_handle || {},
+        rotating: {
+          enabled: !!passcodesRow.rotating?.enabled,
+          period_seconds: Number(passcodesRow.rotating?.period_seconds) || 60,
+          secret: String(passcodesRow.rotating?.secret || ''),
+        },
       })
     }
     setLoading(false)
@@ -284,6 +295,11 @@ export default function Admin() {
           .filter(([, code]) => !!code),
       ),
       member_codes_by_handle: {},
+      rotating: {
+        enabled: !!fleet501stPasscodes.rotating?.enabled,
+        period_seconds: Math.max(60, Math.min(3600, Number(fleet501stPasscodes.rotating?.period_seconds) || 60)),
+        secret: String(fleet501stPasscodes.rotating?.secret || '').trim(),
+      },
     }
 
     const [membersWrite, passcodesWrite] = await Promise.all([
@@ -304,6 +320,17 @@ export default function Admin() {
     setFleet501stMembers(nextMembers)
     setFleet501stPasscodes(nextPasscodes)
     flash('501st access settings saved.')
+  }
+
+  async function previewRotatingCode() {
+    if (!me.is_founder) return
+    const { data, error } = await supabase.rpc('get_501st_rotating_code')
+    if (error) {
+      flash(`Rotating code unavailable: ${error.message}`)
+      return
+    }
+    const row = Array.isArray(data) ? data[0] : data
+    setFleet501stRotatingPreview(row || null)
   }
 
   // ── DISCIPLINARY ACTIONS ──
@@ -1517,6 +1544,69 @@ export default function Admin() {
                       onChange={e => setFleet501stPasscodes(s => ({ ...s, codes: normalizeStringList(e.target.value.split('\n')) }))}
                       placeholder="One global code per line"
                     />
+                    <div style={{ marginTop: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                          <input
+                            type="checkbox"
+                            checked={!!fleet501stPasscodes.rotating?.enabled}
+                            onChange={e => setFleet501stPasscodes(s => ({
+                              ...s,
+                              rotating: { ...(s.rotating || {}), enabled: e.target.checked },
+                            }))}
+                            style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                          />
+                          ENABLE ROTATING CODE
+                        </label>
+                        <button className="btn btn-ghost btn-sm" onClick={previewRotatingCode}>
+                          PREVIEW LIVE CODE
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 8, marginTop: 8, alignItems: 'end' }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text-3)', marginBottom: 4 }}>ROTATING SECRET</div>
+                          <input
+                            className="form-input"
+                            style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                            value={fleet501stPasscodes.rotating?.secret || ''}
+                            onChange={e => setFleet501stPasscodes(s => ({
+                              ...s,
+                              rotating: { ...(s.rotating || {}), secret: e.target.value },
+                            }))}
+                            placeholder="Keep this private"
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text-3)', marginBottom: 4 }}>PERIOD (SEC)</div>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min={60}
+                            max={3600}
+                            value={fleet501stPasscodes.rotating?.period_seconds || 60}
+                            onChange={e => setFleet501stPasscodes(s => ({
+                              ...s,
+                              rotating: { ...(s.rotating || {}), period_seconds: Number(e.target.value) || 60 },
+                            }))}
+                          />
+                        </div>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setFleet501stPasscodes(s => ({
+                            ...s,
+                            rotating: { ...(s.rotating || {}), secret: randomCode('ROTATE') + randomCode('SEED') },
+                          }))}
+                        >
+                          GENERATE SECRET
+                        </button>
+                      </div>
+                      {fleet501stRotatingPreview?.code && (
+                        <div style={{ marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                          LIVE CODE: <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{fleet501stRotatingPreview.code}</span>
+                          {' · '}expires {fmt(fleet501stRotatingPreview.expires_at)}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="card" style={{ padding: 12 }}>

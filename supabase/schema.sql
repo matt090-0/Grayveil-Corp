@@ -1057,9 +1057,14 @@ DECLARE
   v_uid UUID := auth.uid();
   v_handle TEXT;
   v_passcodes JSONB := COALESCE((SELECT value FROM public.org_settings WHERE key = 'fleet_501st_passcodes'), '{}'::jsonb);
-  v_input TEXT := trim(COALESCE(p_code, ''));
+  v_input TEXT := upper(trim(COALESCE(p_code, '')));
   v_by_id TEXT;
   v_by_handle TEXT;
+  v_rot_enabled BOOLEAN := FALSE;
+  v_rot_secret TEXT;
+  v_rot_period INT := 60;
+  v_current TEXT;
+  v_prev TEXT;
 BEGIN
   IF v_uid IS NULL OR v_input = '' THEN
     RETURN FALSE;
@@ -1070,24 +1075,62 @@ BEGIN
   END IF;
 
   SELECT lower(handle) INTO v_handle FROM public.profiles WHERE id = v_uid;
-  v_by_id := NULLIF(trim(COALESCE(v_passcodes->'member_codes_by_id'->>v_uid::TEXT, '')), '');
+  v_by_id := NULLIF(upper(trim(COALESCE(v_passcodes->'member_codes_by_id'->>v_uid::TEXT, ''))), '');
   IF v_by_id IS NOT NULL THEN
     RETURN v_by_id = v_input;
   END IF;
 
-  v_by_handle := NULLIF(trim(COALESCE(v_passcodes->'member_codes_by_handle'->>COALESCE(v_handle, ''), '')), '');
+  v_by_handle := NULLIF(upper(trim(COALESCE(v_passcodes->'member_codes_by_handle'->>COALESCE(v_handle, ''), ''))), '');
   IF v_by_handle IS NOT NULL THEN
     RETURN v_by_handle = v_input;
   END IF;
 
-  RETURN EXISTS (
+  IF EXISTS (
     SELECT 1
     FROM jsonb_array_elements_text(COALESCE(v_passcodes->'codes', '[]'::jsonb)) AS c(code)
-    WHERE trim(c.code) = v_input
-  );
+    WHERE upper(trim(c.code)) = v_input
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  v_rot_enabled := COALESCE((v_passcodes->'rotating'->>'enabled')::BOOLEAN, FALSE);
+  IF NOT v_rot_enabled THEN
+    RETURN FALSE;
+  END IF;
+  v_rot_secret := NULLIF(trim(COALESCE(v_passcodes->'rotating'->>'secret', '')), '');
+  IF v_rot_secret IS NULL THEN
+    RETURN FALSE;
+  END IF;
+  v_rot_period := GREATEST(60, LEAST(3600, COALESCE((v_passcodes->'rotating'->>'period_seconds')::INT, 60)));
+  v_current := upper(substr(md5(v_rot_secret || ':' || floor(extract(epoch FROM now()) / v_rot_period)::TEXT), 1, 6));
+  v_prev := upper(substr(md5(v_rot_secret || ':' || floor(extract(epoch FROM (now() - make_interval(secs => v_rot_period))) / v_rot_period)::TEXT), 1, 6));
+  RETURN v_input = v_current OR v_input = v_prev;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION public.verify_501st_passcode(TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_501st_rotating_code()
+RETURNS TABLE (code TEXT, expires_at TIMESTAMPTZ) AS $$
+DECLARE
+  v_passcodes JSONB := COALESCE((SELECT value FROM public.org_settings WHERE key = 'fleet_501st_passcodes'), '{}'::jsonb);
+  v_rot_enabled BOOLEAN := COALESCE((v_passcodes->'rotating'->>'enabled')::BOOLEAN, FALSE);
+  v_rot_secret TEXT := NULLIF(trim(COALESCE(v_passcodes->'rotating'->>'secret', '')), '');
+  v_rot_period INT := GREATEST(60, LEAST(3600, COALESCE((v_passcodes->'rotating'->>'period_seconds')::INT, 60)));
+  v_slot BIGINT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = TRUE) THEN
+    RAISE EXCEPTION 'Only founders can preview rotating 501st codes.';
+  END IF;
+  IF NOT v_rot_enabled OR v_rot_secret IS NULL THEN
+    RAISE EXCEPTION 'Rotating code is not enabled.';
+  END IF;
+  v_slot := floor(extract(epoch FROM now()) / v_rot_period)::BIGINT;
+  code := upper(substr(md5(v_rot_secret || ':' || v_slot::TEXT), 1, 6));
+  expires_at := to_timestamp((v_slot + 1) * v_rot_period);
+  RETURN NEXT;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.get_501st_rotating_code() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_501st_cell_members()
 RETURNS TABLE (
