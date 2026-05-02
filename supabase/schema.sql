@@ -126,6 +126,15 @@ RETURNS INTEGER AS $$
   SELECT COALESCE((SELECT tier FROM public.profiles WHERE id = auth.uid()), 9);
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
+CREATE OR REPLACE FUNCTION public.get_my_profile()
+RETURNS public.profiles AS $$
+  SELECT p.*
+  FROM public.profiles p
+  WHERE p.id = auth.uid()
+  LIMIT 1;
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+GRANT EXECUTE ON FUNCTION public.get_my_profile() TO authenticated;
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -142,7 +151,13 @@ ALTER TABLE public.polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.poll_votes ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
-CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "profiles_select_all" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_select_self" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_select_active" ON public.profiles;
+CREATE POLICY "profiles_select_self" ON public.profiles FOR SELECT TO authenticated
+  USING (id = auth.uid());
+CREATE POLICY "profiles_select_active" ON public.profiles FOR SELECT TO authenticated
+  USING (status = 'ACTIVE' AND public.is_active_member());
 CREATE POLICY "profiles_insert_self" ON public.profiles FOR INSERT TO authenticated WITH CHECK (id = auth.uid());
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE TO authenticated
   USING (id = auth.uid() OR get_my_tier() <= 2);
@@ -442,16 +457,51 @@ GRANT EXECUTE ON FUNCTION public.clear_expired_suspension() TO authenticated;
 -- (policies below were already live in the production DB but were missing
 -- from this file; re-applied here with is_active_member() added so SUSPENDED
 -- and BANNED members are locked out of writes everywhere.)
--- activity_log inserts and anonymous application submissions are intentionally
--- left ungated.
+-- Activity log is now explicitly gated by RLS.
 -- ============================================================
+
+ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "activity_log_select" ON public.activity_log;
+CREATE POLICY "activity_log_select" ON public.activity_log FOR SELECT TO authenticated
+  USING (
+    (
+      actor_id = auth.uid()
+      AND EXISTS (
+        SELECT 1 FROM public.profiles me
+        WHERE me.id = auth.uid() AND me.status = 'ACTIVE'
+      )
+    )
+    OR (
+      EXISTS (
+        SELECT 1 FROM public.profiles me
+        WHERE me.id = auth.uid() AND me.status = 'ACTIVE' AND me.tier <= 4
+      )
+    )
+  );
+DROP POLICY IF EXISTS "activity_log_insert" ON public.activity_log;
+CREATE POLICY "activity_log_insert" ON public.activity_log FOR INSERT TO authenticated
+  WITH CHECK (
+    actor_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.profiles me
+      WHERE me.id = auth.uid() AND me.status = 'ACTIVE'
+    )
+  );
+DROP POLICY IF EXISTS "activity_log_delete" ON public.activity_log;
+CREATE POLICY "activity_log_delete" ON public.activity_log FOR DELETE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles me
+      WHERE me.id = auth.uid() AND me.status = 'ACTIVE' AND me.is_founder = TRUE
+    )
+  );
 
 DROP POLICY IF EXISTS "notif_select_own" ON public.notifications;
 CREATE POLICY "notif_select_own" ON public.notifications FOR SELECT TO authenticated
   USING (recipient_id = auth.uid());
 DROP POLICY IF EXISTS "notif_insert_auth" ON public.notifications;
 CREATE POLICY "notif_insert_auth" ON public.notifications FOR INSERT TO authenticated
-  WITH CHECK (is_active_member() AND get_my_tier() <= 6);
+  WITH CHECK (is_active_member() AND recipient_id = auth.uid());
 DROP POLICY IF EXISTS "notif_update_own" ON public.notifications;
 CREATE POLICY "notif_update_own" ON public.notifications FOR UPDATE TO authenticated
   USING (recipient_id = auth.uid());
@@ -484,7 +534,7 @@ DROP POLICY IF EXISTS "invite_select" ON public.invite_links;
 CREATE POLICY "invite_select" ON public.invite_links FOR SELECT TO authenticated
   USING (get_my_tier() <= 6);
 DROP POLICY IF EXISTS "invite_anon_select" ON public.invite_links;
-CREATE POLICY "invite_anon_select" ON public.invite_links FOR SELECT TO anon USING (true);
+CREATE POLICY "invite_anon_select" ON public.invite_links FOR SELECT TO anon USING (false);
 DROP POLICY IF EXISTS "invite_insert" ON public.invite_links;
 CREATE POLICY "invite_insert" ON public.invite_links FOR INSERT TO authenticated
   WITH CHECK (is_active_member() AND get_my_tier() <= 4);
@@ -601,7 +651,6 @@ DECLARE
   v_row public.pending_admin_actions%ROWTYPE;
   v_self_cooldown CONSTANT INTERVAL := INTERVAL '5 minutes';
   v_result TEXT;
-  v_is_nox BOOLEAN := FALSE;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
     RAISE EXCEPTION 'Only founders may approve admin actions.';
@@ -609,8 +658,6 @@ BEGIN
   IF NOT public.is_active_member() THEN
     RAISE EXCEPTION 'Suspended or banned founders cannot approve admin actions.';
   END IF;
-  SELECT (lower(handle) LIKE '%nox%') INTO v_is_nox FROM public.profiles WHERE id = auth.uid();
-
   SELECT * INTO v_row FROM public.pending_admin_actions WHERE id = p_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'No such pending action.'; END IF;
   IF v_row.status <> 'PENDING' THEN
@@ -622,7 +669,6 @@ BEGIN
   END IF;
 
   IF v_row.initiated_by = auth.uid()
-     AND NOT v_is_nox
      AND NOW() < (v_row.initiated_at + v_self_cooldown) THEN
     RAISE EXCEPTION 'Self-approval requires a 5-minute cool-off; try again after %.',
       to_char(v_row.initiated_at + v_self_cooldown, 'HH24:MI:SS');
@@ -821,7 +867,8 @@ BEGIN
   RETURN v_inserted;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-GRANT EXECUTE ON FUNCTION public.try_award_medal(UUID, TEXT, TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.try_award_medal(UUID, TEXT, TEXT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.try_award_medal(UUID, TEXT, TEXT) TO service_role;
 
 -- KILL LOG → combat medals
 CREATE OR REPLACE FUNCTION public.tg_medals_after_kill() RETURNS TRIGGER AS $$
@@ -949,11 +996,134 @@ DROP POLICY IF EXISTS "settings_select" ON public.org_settings;
 CREATE POLICY "settings_select" ON public.org_settings FOR SELECT TO authenticated
   USING (
     CASE
-      WHEN key LIKE 'discord_webhook_%' THEN
+      WHEN key LIKE 'discord_webhook_%' OR key IN ('fleet_501st_members', 'fleet_501st_passcodes') THEN
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true)
       ELSE true
     END
   );
+
+CREATE OR REPLACE FUNCTION public.is_501st_chosen()
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_members JSONB := COALESCE((SELECT value FROM public.org_settings WHERE key = 'fleet_501st_members'), '{}'::jsonb);
+  v_uid UUID := auth.uid();
+  v_handle TEXT;
+  v_is_founder BOOLEAN := FALSE;
+  v_allow_founders BOOLEAN := TRUE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT lower(handle), is_founder INTO v_handle, v_is_founder
+  FROM public.profiles
+  WHERE id = v_uid;
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  IF (v_members ? 'allow_founders') THEN
+    v_allow_founders := COALESCE((v_members->>'allow_founders')::BOOLEAN, TRUE);
+  END IF;
+
+  IF v_is_founder AND v_allow_founders THEN
+    RETURN TRUE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(COALESCE(v_members->'member_ids', '[]'::jsonb)) AS mid(member_id)
+    WHERE mid.member_id = v_uid::TEXT
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  IF v_handle IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(COALESCE(v_members->'handles', '[]'::jsonb)) AS h(handle)
+    WHERE lower(h.handle) = v_handle
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.is_501st_chosen() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.verify_501st_passcode(p_code TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_handle TEXT;
+  v_passcodes JSONB := COALESCE((SELECT value FROM public.org_settings WHERE key = 'fleet_501st_passcodes'), '{}'::jsonb);
+  v_input TEXT := trim(COALESCE(p_code, ''));
+  v_by_id TEXT;
+  v_by_handle TEXT;
+BEGIN
+  IF v_uid IS NULL OR v_input = '' THEN
+    RETURN FALSE;
+  END IF;
+
+  IF NOT public.is_501st_chosen() THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT lower(handle) INTO v_handle FROM public.profiles WHERE id = v_uid;
+  v_by_id := NULLIF(trim(COALESCE(v_passcodes->'member_codes_by_id'->>v_uid::TEXT, '')), '');
+  IF v_by_id IS NOT NULL THEN
+    RETURN v_by_id = v_input;
+  END IF;
+
+  v_by_handle := NULLIF(trim(COALESCE(v_passcodes->'member_codes_by_handle'->>COALESCE(v_handle, ''), '')), '');
+  IF v_by_handle IS NOT NULL THEN
+    RETURN v_by_handle = v_input;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(COALESCE(v_passcodes->'codes', '[]'::jsonb)) AS c(code)
+    WHERE trim(c.code) = v_input
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.verify_501st_passcode(TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_501st_cell_members()
+RETURNS TABLE (
+  id UUID,
+  handle TEXT,
+  rank TEXT,
+  tier INTEGER,
+  status TEXT,
+  last_seen_at TIMESTAMPTZ,
+  division TEXT,
+  speciality TEXT
+) AS $$
+DECLARE
+  v_members JSONB := COALESCE((SELECT value FROM public.org_settings WHERE key = 'fleet_501st_members'), '{}'::jsonb);
+  v_member_ids TEXT[] := ARRAY(SELECT jsonb_array_elements_text(COALESCE(v_members->'member_ids', '[]'::jsonb)));
+  v_handles TEXT[] := ARRAY(SELECT lower(jsonb_array_elements_text(COALESCE(v_members->'handles', '[]'::jsonb))));
+  v_allow_founders BOOLEAN := TRUE;
+BEGIN
+  IF NOT public.is_501st_chosen() THEN
+    RAISE EXCEPTION 'Access denied to 501st cell roster.';
+  END IF;
+
+  IF (v_members ? 'allow_founders') THEN
+    v_allow_founders := COALESCE((v_members->>'allow_founders')::BOOLEAN, TRUE);
+  END IF;
+
+  RETURN QUERY
+  SELECT p.id, p.handle, p.rank, p.tier, p.status, p.last_seen_at, p.division, p.speciality
+  FROM public.profiles p
+  WHERE p.id::TEXT = ANY(COALESCE(v_member_ids, ARRAY[]::TEXT[]))
+     OR lower(p.handle) = ANY(COALESCE(v_handles, ARRAY[]::TEXT[]))
+     OR (v_allow_founders AND p.id = auth.uid() AND p.is_founder = TRUE)
+  ORDER BY p.tier ASC, p.handle ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.get_501st_cell_members() TO authenticated;
 
 -- ── 2. Bound medal citation text ──
 -- User-supplied award text was unbounded. Cap at 500 chars to prevent bloat.
@@ -1511,7 +1681,7 @@ CREATE POLICY weapon_loadouts_select ON public.weapon_loadouts
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS weapon_loadouts_insert ON public.weapon_loadouts;
 CREATE POLICY weapon_loadouts_insert ON public.weapon_loadouts
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (created_by = auth.uid());
 DROP POLICY IF EXISTS weapon_loadouts_update ON public.weapon_loadouts;
 CREATE POLICY weapon_loadouts_update ON public.weapon_loadouts
   FOR UPDATE USING (created_by = auth.uid() OR public.get_my_tier() <= 4);
@@ -1540,7 +1710,7 @@ CREATE POLICY armor_loadouts_select ON public.armor_loadouts
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS armor_loadouts_insert ON public.armor_loadouts;
 CREATE POLICY armor_loadouts_insert ON public.armor_loadouts
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (created_by = auth.uid());
 DROP POLICY IF EXISTS armor_loadouts_update ON public.armor_loadouts;
 CREATE POLICY armor_loadouts_update ON public.armor_loadouts
   FOR UPDATE USING (created_by = auth.uid() OR public.get_my_tier() <= 4);

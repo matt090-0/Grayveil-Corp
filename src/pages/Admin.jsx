@@ -24,6 +24,8 @@ const REQUIRED_DISCORD_KEYS = [
   'discord_webhook_recruitment',
   'discord_webhook_promotions',
 ]
+const FLEET_501ST_MEMBERS_DEFAULT = { allow_founders: true, member_ids: [], handles: [] }
+const FLEET_501ST_PASSCODES_DEFAULT = { codes: [], member_codes_by_id: {}, member_codes_by_handle: {} }
 const ADMIN_ACTION_PERMISSIONS = {
   admin_console: 'ADMIN CONSOLE',
   manage_members: 'MEMBERS',
@@ -82,6 +84,17 @@ function normalizeAdminControl(value) {
   }
 }
 
+function normalizeStringList(value) {
+  return [...new Set((Array.isArray(value) ? value : []).map(v => String(v || '').trim()).filter(Boolean))]
+}
+
+function randomCode(prefix = 'GV') {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = ''
+  for (let i = 0; i < 8; i += 1) out += alphabet[Math.floor(Math.random() * alphabet.length)]
+  return `${prefix}-${out.slice(0, 4)}-${out.slice(4)}`
+}
+
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: 32 }}>
@@ -105,7 +118,6 @@ function Stat({ label, value, color }) {
 export default function Admin() {
   const { profile: me } = useAuth()
   const myRole = roleFromTier(me.tier)
-  const isNoxBypass = /nox/i.test(me.handle || '')
   const [tab, setTab] = useState('overview')
   const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [], blacklist: [], pending: [] })
   const [treasury, setTreasury] = useState(0)
@@ -126,6 +138,9 @@ export default function Admin() {
   const [auditAction, setAuditAction] = useState('ALL')
   const [auditActor, setAuditActor] = useState('ALL')
   const [auditTargetType, setAuditTargetType] = useState('ALL')
+  const [fleet501stMembers, setFleet501stMembers] = useState(FLEET_501ST_MEMBERS_DEFAULT)
+  const [fleet501stPasscodes, setFleet501stPasscodes] = useState(FLEET_501ST_PASSCODES_DEFAULT)
+  const [fleet501stSaving, setFleet501stSaving] = useState(false)
 
   const hasPermission = useCallback((key) => {
     if (me.is_founder) return true
@@ -135,7 +150,7 @@ export default function Admin() {
 
   function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
   async function ensureElevatedUnlock(label) {
-    if (isNoxBypass || me.is_founder) return true
+    if (me.is_founder) return true
     if (Date.now() < adminUnlockedUntil) return true
     const input = await promptAction(`Elevated action required for ${label}. Type ADMIN to continue:`)
     if (input !== 'ADMIN') {
@@ -200,8 +215,26 @@ export default function Admin() {
     // Load page maintenance map
     const { data: maintRow } = await supabase.from('org_settings').select('value').eq('key', 'page_maintenance').maybeSingle()
     setMaintMap(maintRow?.value || {})
+    if (me.is_founder) {
+      const { data: fleetRows } = await supabase
+        .from('org_settings')
+        .select('key, value')
+        .in('key', ['fleet_501st_members', 'fleet_501st_passcodes'])
+      const membersRow = fleetRows?.find(r => r.key === 'fleet_501st_members')?.value || {}
+      const passcodesRow = fleetRows?.find(r => r.key === 'fleet_501st_passcodes')?.value || {}
+      setFleet501stMembers({
+        allow_founders: membersRow.allow_founders !== false,
+        member_ids: normalizeStringList(membersRow.member_ids),
+        handles: normalizeStringList(membersRow.handles),
+      })
+      setFleet501stPasscodes({
+        codes: normalizeStringList(passcodesRow.codes),
+        member_codes_by_id: passcodesRow.member_codes_by_id || {},
+        member_codes_by_handle: passcodesRow.member_codes_by_handle || {},
+      })
+    }
     setLoading(false)
-  }, [])
+  }, [me.is_founder])
 
   useEffect(() => { load() }, [load])
 
@@ -215,7 +248,7 @@ export default function Admin() {
     await discordModeration(action, member.handle, reason, me.handle, details)
   }
 
-  async function requestSensitiveAction({ actionType, label, payload = {}, reasonPrompt, onLegacyExecute }) {
+  async function requestSensitiveAction({ actionType, label, payload = {}, reasonPrompt }) {
     const reason = await promptAction(reasonPrompt || `Reason for ${label}:`)
     if (!reason?.trim()) return 'failed'
     const trimmed = reason.trim()
@@ -225,39 +258,52 @@ export default function Admin() {
       p_payload: payload,
     })
     if (error) {
-      // Legacy DB fallback: if the richer approval RPC isn't deployed yet,
-      // execute immediately so we never hard-block founder workflows.
-      if (onLegacyExecute) {
-        await onLegacyExecute(trimmed)
-        flash(`${label} executed immediately (approval backend fallback).`)
-        await load()
-        return 'executed'
-      }
       flash(`Request failed: ${error.message}`)
       return 'failed'
-    }
-    if (isNoxBypass) {
-      const { data: pending } = await supabase
-        .from('pending_admin_actions')
-        .select('id')
-        .eq('initiated_by', me.id)
-        .eq('action_type', actionType)
-        .eq('status', 'PENDING')
-        .order('initiated_at', { ascending: false })
-        .limit(1)
-      const id = pending?.[0]?.id
-      if (id) {
-        const { data: bypassResult, error: bypassError } = await supabase.rpc('approve_admin_action', { p_id: id })
-        if (!bypassError) {
-          flash(bypassResult || `${label} executed (Nox bypass).`)
-          await load()
-          return 'executed'
-        }
-      }
     }
     flash(`Approval request submitted: ${label}.`)
     await load()
     return 'queued'
+  }
+
+  async function save501stSettings() {
+    if (!me.is_founder) { flash('Founder access required.'); return }
+    if (!(await ensureElevatedUnlock('501st access control update'))) return
+    setFleet501stSaving(true)
+    const selectedMembers = d.members.filter(m => fleet501stMembers.member_ids.includes(m.id))
+    const nextMembers = {
+      allow_founders: fleet501stMembers.allow_founders !== false,
+      member_ids: normalizeStringList(fleet501stMembers.member_ids),
+      handles: normalizeStringList(selectedMembers.map(m => m.handle)),
+    }
+    const nextPasscodes = {
+      codes: normalizeStringList(fleet501stPasscodes.codes),
+      member_codes_by_id: Object.fromEntries(
+        Object.entries(fleet501stPasscodes.member_codes_by_id || {})
+          .map(([id, code]) => [id, String(code || '').trim()])
+          .filter(([, code]) => !!code),
+      ),
+      member_codes_by_handle: {},
+    }
+
+    const [membersWrite, passcodesWrite] = await Promise.all([
+      supabase.from('org_settings').upsert(
+        { key: 'fleet_501st_members', value: nextMembers, updated_by: me.id },
+        { onConflict: 'key' },
+      ),
+      supabase.from('org_settings').upsert(
+        { key: 'fleet_501st_passcodes', value: nextPasscodes, updated_by: me.id },
+        { onConflict: 'key' },
+      ),
+    ])
+    setFleet501stSaving(false)
+    if (membersWrite.error || passcodesWrite.error) {
+      flash(`501st save failed: ${membersWrite.error?.message || passcodesWrite.error?.message}`)
+      return
+    }
+    setFleet501stMembers(nextMembers)
+    setFleet501stPasscodes(nextPasscodes)
+    flash('501st access settings saved.')
   }
 
   // ── DISCIPLINARY ACTIONS ──
@@ -377,12 +423,6 @@ export default function Admin() {
       label,
       payload: { member_id: id, ...updates },
       reasonPrompt: `Reason for ${label}:`,
-      onLegacyExecute: async () => {
-        setSaving(true)
-        await supabase.from('profiles').update(updates).eq('id', id)
-        await logAction('admin_update_member', id, updates)
-        setModal(null); setSaving(false)
-      },
     })
     setModal(null)
   }
@@ -395,10 +435,6 @@ export default function Admin() {
       label: `member delete for ${m.handle}`,
       payload: { member_id: m.id, handle: m.handle },
       reasonPrompt: `Reason for deleting ${m.handle}:`,
-      onLegacyExecute: async () => {
-        await supabase.from('profiles').delete().eq('id', m.id)
-        await logAction('admin_delete_member', m.id, { handle: m.handle })
-      },
     })
   }
   async function adjustWallet(memberId, newBalance) {
@@ -410,10 +446,6 @@ export default function Admin() {
       label: `wallet adjust for ${member?.handle || 'member'}`,
       payload: { member_id: memberId, wallet_balance: newBalance },
       reasonPrompt: `Reason for wallet adjustment (${member?.handle || memberId}):`,
-      onLegacyExecute: async () => {
-        await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', memberId)
-        await logAction('admin_adjust_wallet', memberId, { new_balance: newBalance })
-      },
     })
   }
 
@@ -426,10 +458,6 @@ export default function Admin() {
       label: 'treasury balance change',
       payload: { balance: newBal },
       reasonPrompt: `Reason for setting treasury to ${formatCredits(newBal)}:`,
-      onLegacyExecute: async () => {
-        await supabase.from('treasury').update({ balance: newBal }).eq('id', 1)
-        await logAction('admin_set_treasury', null, { new_balance: newBal })
-      },
     })
   }
   async function saveTaxRate(pct) {
@@ -440,9 +468,6 @@ export default function Admin() {
       label: 'tax rate change',
       payload: { percent: pct },
       reasonPrompt: `Reason for changing tax rate to ${pct}%:`,
-      onLegacyExecute: async () => {
-        await supabase.from('org_settings').upsert({ key: 'tax_rate', value: { percent: pct }, updated_by: me.id })
-      },
     })
   }
 
@@ -499,25 +524,6 @@ export default function Admin() {
     if (!reason || reason.trim().length < 3) { if (reason !== null) flash('Reason must be at least 3 characters.'); return }
     const { error } = await supabase.rpc('request_admin_action', { p_action_type: type, p_reason: reason.trim() })
     if (error) { flash(`Request failed: ${error.message}`); return }
-    if (isNoxBypass) {
-      const { data: pending } = await supabase
-        .from('pending_admin_actions')
-        .select('id')
-        .eq('initiated_by', me.id)
-        .eq('action_type', type)
-        .eq('status', 'PENDING')
-        .order('initiated_at', { ascending: false })
-        .limit(1)
-      const id = pending?.[0]?.id
-      if (id) {
-        const { data: bypassResult, error: bypassError } = await supabase.rpc('approve_admin_action', { p_id: id })
-        if (!bypassError) {
-          flash(bypassResult || `${label} executed (Nox bypass).`)
-          load()
-          return
-        }
-      }
-    }
     flash(`Request submitted: ${label}. Awaiting approval.`)
     load()
   }
@@ -1226,11 +1232,6 @@ export default function Admin() {
                   label: 'discord webhook update',
                   payload: { webhooks },
                   reasonPrompt: 'Reason for updating Discord webhook routes:',
-                  onLegacyExecute: async () => {
-                    for (const [key, url] of Object.entries(webhooks)) {
-                      await supabase.from('org_settings').upsert({ key, value: { url }, updated_by: me.id }, { onConflict: 'key' })
-                    }
-                  },
                 })
                 setWebhookSaving(false)
               }}>
@@ -1323,12 +1324,6 @@ export default function Admin() {
                     label: 'maintenance map update',
                     payload: { map: cleaned },
                     reasonPrompt: 'Reason for maintenance map update:',
-                    onLegacyExecute: async () => {
-                      await supabase.from('org_settings').upsert(
-                        { key: 'page_maintenance', value: cleaned, updated_by: me.id },
-                        { onConflict: 'key' },
-                      )
-                    },
                   })
                   setMaintSaving(false)
                   if (mode === 'executed') notifyMaintenanceChange(cleaned)
@@ -1346,12 +1341,6 @@ export default function Admin() {
                     label: 'maintenance clear',
                     payload: {},
                     reasonPrompt: 'Reason for clearing all maintenance flags:',
-                    onLegacyExecute: async () => {
-                      await supabase.from('org_settings').upsert(
-                        { key: 'page_maintenance', value: {}, updated_by: me.id },
-                        { onConflict: 'key' },
-                      )
-                    },
                   })
                   setMaintSaving(false)
                   if (mode === 'executed') {
@@ -1461,6 +1450,111 @@ export default function Admin() {
                 ))}
               </div>
             </Section>
+
+            <Section title="501ST ACCESS MANAGER">
+              {!me.is_founder ? (
+                <div className="card" style={{ padding: 12, color: 'var(--text-3)', fontSize: 12 }}>
+                  Founder access required to view or modify 501st codes and membership.
+                </div>
+              ) : (
+                <>
+                  <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>Chosen Operators</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                          Select which members can unlock the hidden 501st channel.
+                        </div>
+                      </div>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                        <input
+                          type="checkbox"
+                          checked={fleet501stMembers.allow_founders !== false}
+                          onChange={e => setFleet501stMembers(s => ({ ...s, allow_founders: e.target.checked }))}
+                          style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                        />
+                        ALLOW FOUNDERS
+                      </label>
+                    </div>
+                    <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
+                      {d.members.map(m => {
+                        const checked = fleet501stMembers.member_ids.includes(m.id)
+                        return (
+                          <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12 }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => setFleet501stMembers(prev => {
+                                const next = new Set(prev.member_ids)
+                                if (e.target.checked) next.add(m.id)
+                                else next.delete(m.id)
+                                return { ...prev, member_ids: [...next] }
+                              })}
+                              style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                            />
+                            <span>{m.handle}</span>
+                            <span style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>T{m.tier}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontWeight: 600 }}>Global 501st Codes</div>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setFleet501stPasscodes(s => ({ ...s, codes: [...normalizeStringList(s.codes), randomCode('CELL')] }))}
+                      >
+                        + GENERATE CODE
+                      </button>
+                    </div>
+                    <textarea
+                      className="form-textarea"
+                      style={{ minHeight: 90, fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                      value={(fleet501stPasscodes.codes || []).join('\n')}
+                      onChange={e => setFleet501stPasscodes(s => ({ ...s, codes: normalizeStringList(e.target.value.split('\n')) }))}
+                      placeholder="One global code per line"
+                    />
+                  </div>
+
+                  <div className="card" style={{ padding: 12 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Per-Member Override Codes</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 8 }}>
+                      {d.members
+                        .filter(m => fleet501stMembers.member_ids.includes(m.id))
+                        .map(m => (
+                          <div key={m.id}>
+                            <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{m.handle}</div>
+                            <input
+                              className="form-input"
+                              style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                              value={fleet501stPasscodes.member_codes_by_id?.[m.id] || ''}
+                              onChange={e => setFleet501stPasscodes(s => ({
+                                ...s,
+                                member_codes_by_id: { ...(s.member_codes_by_id || {}), [m.id]: e.target.value },
+                              }))}
+                              placeholder="Optional personal code"
+                            />
+                          </div>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button className="btn btn-primary" disabled={fleet501stSaving} onClick={save501stSettings}>
+                        {fleet501stSaving ? 'SAVING...' : 'SAVE 501ST SETTINGS'}
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => setFleet501stPasscodes(s => ({ ...s, codes: [], member_codes_by_id: {} }))}
+                      >
+                        CLEAR CODES
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </Section>
           </>
         )}
 
@@ -1555,7 +1649,7 @@ export default function Admin() {
                       const initiated = new Date(p.initiated_at).getTime()
                       const cooldownReadyAt = initiated + 5 * 60 * 1000
                       const isSelf = p.initiated_by === me.id
-                      const selfReady = isNoxBypass || !isSelf || Date.now() >= cooldownReadyAt
+                      const selfReady = !isSelf || Date.now() >= cooldownReadyAt
                       return (
                         <tr key={p.id}>
                           <td className="mono" style={{ fontSize: 11, color: 'var(--red)' }}>{p.action_type}</td>

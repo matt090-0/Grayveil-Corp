@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../supabaseClient'
 import { ClassificationBar, EmptyState, StatusBadge, fmtDateTime, timeUntil } from '../components/uee'
-import { get501stConfig, is501stChosen, is501stUnlocked } from '../lib/fleet501st'
+import { get501stCellMembers, is501stChosen, is501stUnlocked } from '../lib/fleet501st'
 
 const ACCENT = '#7b66c8'
 const DOCTRINE = [
@@ -25,8 +25,7 @@ export default function Fleet501st() {
 
   useEffect(() => {
     async function run() {
-      const { config } = await get501stConfig()
-      const chosen = is501stChosen(profile, config)
+      const { chosen } = await is501stChosen()
       const open = is501stUnlocked(profile)
       setAllowed(chosen)
       setUnlocked(open)
@@ -34,50 +33,8 @@ export default function Fleet501st() {
 
       if (!chosen || !open) return
       setIntelLoading(true)
-
-      const ids = [...(config?.memberIds || [])]
-      const handles = [...(config?.handles || [])]
-      let members = []
-
-      if (ids.length > 0) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, handle, rank, tier, status, last_seen_at, division, speciality')
-          .in('id', ids)
-        members = [...members, ...(data || [])]
-      }
-      if (handles.length > 0) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, handle, rank, tier, status, last_seen_at, division, speciality')
-          .in('handle', handles)
-        members = [...members, ...(data || [])]
-      }
-      if (profile?.is_founder && config?.allowFounders) {
-        members = [
-          ...members,
-          {
-            id: profile.id,
-            handle: profile.handle,
-            rank: profile.rank,
-            tier: profile.tier,
-            status: profile.status,
-            last_seen_at: profile.last_seen_at,
-            division: profile.division,
-            speciality: profile.speciality,
-          },
-        ]
-      }
-
-      const deduped = []
-      const seen = new Set()
-      members.forEach(m => {
-        if (!m?.id || seen.has(m.id)) return
-        seen.add(m.id)
-        deduped.push(m)
-      })
-      deduped.sort((a, b) => a.tier - b.tier || a.handle.localeCompare(b.handle))
-      setCellMembers(deduped)
+      const { members } = await get501stCellMembers()
+      setCellMembers(members)
 
       const { data: upcomingOps } = await supabase
         .from('events')
@@ -89,7 +46,7 @@ export default function Fleet501st() {
       setIntelLoading(false)
     }
     run()
-  }, [profile?.id])
+  }, [profile?.id, profile])
 
   if (loading) return <div className="page-body"><div className="loading">AUTHORIZING 501ST ACCESS...</div></div>
 

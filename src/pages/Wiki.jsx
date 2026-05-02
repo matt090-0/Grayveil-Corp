@@ -9,6 +9,18 @@ const CATEGORIES = ['GENERAL', 'SOP', 'COMBAT', 'TRADE', 'MINING', 'FITTING', 'R
 const CAT_BADGE = { GENERAL: 'badge-muted', SOP: 'badge-accent', COMBAT: 'badge-red', TRADE: 'badge-green', MINING: 'badge-amber', FITTING: 'badge-blue', RULES: 'badge-purple' }
 
 function fmt(ts) { return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+function safeUrlTransform(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (value.startsWith('#') || value.startsWith('/')) return value
+  try {
+    const parsed = new URL(value)
+    const protocol = parsed.protocol.toLowerCase()
+    return protocol === 'http:' || protocol === 'https:' ? parsed.toString() : ''
+  } catch {
+    return ''
+  }
+}
 
 export default function Wiki() {
   const { profile: me } = useAuth()
@@ -99,7 +111,7 @@ export default function Wiki() {
             <span style={{ fontSize: 11, color: 'var(--text-3)' }}>by {viewing.author?.handle} · updated {fmt(viewing.updated_at)}</span>
           </div>
           <div className="wiki-content" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8, fontFamily: 'var(--font-mono)', minHeight: 150, maxHeight: 500, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
-            <ReactMarkdown>{viewing.content}</ReactMarkdown>
+            <ReactMarkdown urlTransform={safeUrlTransform}>{viewing.content}</ReactMarkdown>
           </div>
           <div className="modal-footer">
             {me.tier <= 3 && <button className="btn btn-danger btn-sm" onClick={() => deleteArticle(viewing.id)}>DELETE</button>}

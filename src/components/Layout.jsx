@@ -11,7 +11,7 @@ import PageTransition from './PageTransition'
 import { NAV, MAINT_BYPASS_TIER } from '../lib/nav'
 import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
 import Modal from './Modal'
-import { get501stConfig, is501stChosen, verify501stPasscode, unlock501st } from '../lib/fleet501st'
+import { is501stChosen, verify501stPasscode, unlock501st } from '../lib/fleet501st'
 
 export default function Layout({ children }) {
   const { profile, signOut } = useAuth()
@@ -78,18 +78,24 @@ export default function Layout({ children }) {
 
   async function verifySecretCode() {
     setSecretBusy(true)
-    const { config, error } = await get501stConfig()
+    const { chosen, error } = await is501stChosen()
     if (error) {
       setSecretBusy(false)
       setSecretError('Secure channel unavailable. Try again.')
       return
     }
-    if (!is501stChosen(profile, config)) {
+    if (!chosen) {
       setSecretBusy(false)
       setSecretError('You are not cleared for 501st access.')
       return
     }
-    if (!verify501stPasscode(profile, config, secretCode)) {
+    const { valid, error: verifyError } = await verify501stPasscode(secretCode)
+    if (verifyError) {
+      setSecretBusy(false)
+      setSecretError('Passcode verification failed. Try again.')
+      return
+    }
+    if (!valid) {
       setSecretBusy(false)
       setSecretError('Invalid passcode.')
       return

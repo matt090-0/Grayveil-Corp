@@ -107,7 +107,7 @@ function AppRoutes() {
         <Route path="/referrals"    element={<Page gated><Referrals /></Page>} />
         <Route path="/updates"      element={<Page gated><Updates /></Page>} />
         <Route path="/inbox"        element={<Page gated><Inbox /></Page>} />
-        <Route path="/analytics"    element={<Page gated><Analytics /></Page>} />
+        <Route path="/analytics"    element={<Page gated minTier={4}><Analytics /></Page>} />
         <Route path="/profile"      element={<Page gated><Profile /></Page>} />
         <Route path="/admin"        element={<Page gated minTier={1}><Admin /></Page>} />
 

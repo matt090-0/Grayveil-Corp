@@ -29,6 +29,11 @@ function pingLastSeen(userId) {
     })
 }
 
+function normalizeProfileResult(value) {
+  if (!value) return null
+  return Array.isArray(value) ? (value[0] || null) : value
+}
+
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
@@ -82,11 +87,20 @@ export function AuthProvider({ children }) {
 
     async function loadProfile() {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .maybeSingle()
+
+        // RLS-safe fallback for rare policy drift / stale-token cases.
+        if (!data) {
+          const rpc = await supabase.rpc('get_my_profile')
+          if (!rpc.error) {
+            data = normalizeProfileResult(rpc.data)
+            error = null
+          }
+        }
 
         // Only apply if this is still the latest fetch
         if (ignore || fetchId !== profileFetchId.current) return
@@ -127,11 +141,15 @@ export function AuthProvider({ children }) {
     const { data: { session: s } } = await supabase.auth.getSession()
     if (!s?.user?.id) return null
     try {
-      const { data } = await supabase
+      let { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', s.user.id)
         .maybeSingle()
+      if (!data) {
+        const rpc = await supabase.rpc('get_my_profile')
+        if (!rpc.error) data = normalizeProfileResult(rpc.data)
+      }
       setProfile(data)
       return data
     } catch {
