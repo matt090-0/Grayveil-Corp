@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -116,6 +116,10 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    try { sessionStorage.removeItem('gv_chunk_reload_once') } catch {}
+  }, [])
+
   return (
     <BrowserRouter>
       <AuthProvider>
