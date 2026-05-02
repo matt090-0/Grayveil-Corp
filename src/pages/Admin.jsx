@@ -45,6 +45,12 @@ const DEFAULT_ROLE_PERMISSIONS = {
   specialist: ['admin_console', 'manage_comms', 'view_audit'],
   auxiliary: [],
 }
+const ROLE_GROUPS = [
+  { key: 'command', label: 'HIGH COMMAND', minTier: 1, maxTier: 2 },
+  { key: 'officer', label: 'OFFICER CORPS', minTier: 3, maxTier: 4 },
+  { key: 'specialist', label: 'SPECIALIST WINGS', minTier: 5, maxTier: 6 },
+  { key: 'auxiliary', label: 'AUXILIARY POOL', minTier: 7, maxTier: 9 },
+]
 const DEFAULT_ADMIN_CONTROL = {
   incident_mode: false,
   incident_note: '',
@@ -57,10 +63,8 @@ const DEFAULT_ADMIN_CONTROL = {
 }
 
 function roleFromTier(tier) {
-  if (tier <= 2) return 'command'
-  if (tier <= 4) return 'officer'
-  if (tier <= 6) return 'specialist'
-  return 'auxiliary'
+  const group = ROLE_GROUPS.find(g => tier >= g.minTier && tier <= g.maxTier)
+  return group?.key || 'auxiliary'
 }
 
 function normalizeAdminControl(value) {
@@ -698,6 +702,14 @@ export default function Admin() {
     () => [...new Set(d.log.map(l => l.target_type).filter(Boolean))].sort(),
     [d.log],
   )
+  const roleBandMeta = useMemo(() => (
+    ROLE_GROUPS.map(group => ({
+      ...group,
+      rankLabels: RANKS
+        .filter(r => r.tier >= group.minTier && r.tier <= group.maxTier)
+        .map(r => r.label),
+    }))
+  ), [])
   useEffect(() => {
     if (!availableTabs.includes(tab)) setTab(availableTabs[0] || 'overview')
   }, [availableTabs, tab])
@@ -1411,14 +1423,20 @@ export default function Admin() {
 
             <Section title="ROLE PERMISSIONS">
               <div className="card" style={{ padding: 12 }}>
-                {Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([role]) => (
-                  <div key={role} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+                  Permissions are configured by rank band so they match your roster tiers.
+                </div>
+                {roleBandMeta.map((role) => (
+                  <div key={role.key} style={{ marginBottom: 12 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.18em', color: 'var(--accent)', marginBottom: 6 }}>
-                      {role.toUpperCase()}
+                      {role.label} · T{role.minTier}-{role.maxTier}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>
+                      {role.rankLabels.join(' · ')}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 6 }}>
                       {Object.entries(ADMIN_ACTION_PERMISSIONS).map(([perm, label]) => {
-                        const checked = !!adminControl.role_permissions?.[role]?.includes(perm)
+                        const checked = !!adminControl.role_permissions?.[role.key]?.includes(perm)
                         return (
                           <label key={perm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
                             <input
@@ -1426,10 +1444,10 @@ export default function Admin() {
                               checked={checked}
                               onChange={e => {
                                 setAdminControl(c => {
-                                  const current = new Set(c.role_permissions?.[role] || [])
+                                  const current = new Set(c.role_permissions?.[role.key] || [])
                                   if (e.target.checked) current.add(perm)
                                   else current.delete(perm)
-                                  return { ...c, role_permissions: { ...c.role_permissions, [role]: [...current] } }
+                                  return { ...c, role_permissions: { ...c.role_permissions, [role.key]: [...current] } }
                                 })
                               }}
                               style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
