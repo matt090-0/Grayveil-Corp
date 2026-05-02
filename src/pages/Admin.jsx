@@ -15,6 +15,15 @@ const STRIKE_SUSPEND_THRESHOLD = 3
 const STRIKE_BAN_THRESHOLD = 5
 const AUTO_SUSPEND_DAYS = 7
 const ADMIN_UNLOCK_WINDOW_MS = 10 * 60 * 1000
+const REQUIRED_DISCORD_KEYS = [
+  'discord_webhook_announcements',
+  'discord_webhook_moderation',
+  'discord_webhook_operations',
+  'discord_webhook_kills',
+  'discord_webhook_contracts',
+  'discord_webhook_recruitment',
+  'discord_webhook_promotions',
+]
 const ADMIN_ACTION_PERMISSIONS = {
   admin_console: 'ADMIN CONSOLE',
   manage_members: 'MEMBERS',
@@ -472,9 +481,80 @@ export default function Admin() {
     danger: 'manage_danger',
     control: 'manage_control',
   }
-  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'maintenance', 'log', 'danger', 'control']
+  const TAB_GROUPS = [
+    { key: 'mission', label: 'MISSION CONTROL', tabs: ['overview'] },
+    { key: 'ops', label: 'OPERATIONS', tabs: ['members', 'discipline', 'comms', 'contracts'] },
+    { key: 'economy', label: 'ECONOMY', tabs: ['bank', 'loans', 'funds'] },
+    { key: 'system', label: 'SYSTEM', tabs: ['discord', 'maintenance', 'control'] },
+    { key: 'security', label: 'SECURITY', tabs: ['log', 'danger'] },
+  ]
+  const tabLabel = {
+    overview: 'OVERVIEW',
+    members: 'MEMBERS',
+    discipline: 'DISCIPLINE',
+    bank: 'BANK',
+    loans: 'LOANS',
+    funds: 'FUNDS',
+    comms: 'COMMS',
+    contracts: 'CONTRACTS',
+    discord: 'DISCORD',
+    maintenance: 'MAINTENANCE',
+    log: 'AUDIT LOG',
+    danger: 'DANGER',
+    control: 'CONTROL',
+  }
+  const TABS = TAB_GROUPS.flatMap(g => g.tabs)
   const availableTabs = TABS.filter(t => hasPermission(tabPermission[t]))
   const hasAdminAccess = me.is_founder || hasPermission('admin_console')
+  const pendingApprovals = d.pending.filter(p => p.status === 'PENDING').length
+  const maintenanceLive = Object.values(maintMap || {}).filter(v => v?.enabled).length
+  const missingWebhooks = REQUIRED_DISCORD_KEYS.filter(k => !(webhooks[k] || '').trim()).length
+  const highRiskRecent = d.log.filter(l =>
+    (l.action || '').startsWith('discipline_')
+    || ['admin_delete_member', 'admin_set_treasury', 'maintenance_updated', 'maintenance_cleared'].includes(l.action)
+    || (l.action || '').includes('danger')
+  ).slice(0, 6)
+  const needsActionCards = [
+    {
+      key: 'approvals',
+      title: 'Pending approvals',
+      value: pendingApprovals,
+      tone: pendingApprovals > 0 ? 'var(--amber)' : 'var(--text-2)',
+      cta: 'Open security queue',
+      tab: 'danger',
+    },
+    {
+      key: 'maintenance',
+      title: 'Maintenance pages live',
+      value: maintenanceLive,
+      tone: maintenanceLive > 0 ? 'var(--amber)' : 'var(--text-2)',
+      cta: 'Review maintenance flags',
+      tab: 'maintenance',
+    },
+    {
+      key: 'discord',
+      title: 'Discord routes missing',
+      value: missingWebhooks,
+      tone: missingWebhooks > 0 ? 'var(--red)' : 'var(--green)',
+      cta: 'Check webhooks',
+      tab: 'discord',
+    },
+    {
+      key: 'loans',
+      title: 'Loan approvals waiting',
+      value: pendingLoans,
+      tone: pendingLoans > 0 ? 'var(--amber)' : 'var(--text-2)',
+      cta: 'Review loan requests',
+      tab: 'loans',
+    },
+  ]
+  function tabBadge(tabKey) {
+    if (tabKey === 'danger') return pendingApprovals
+    if (tabKey === 'loans') return pendingLoans
+    if (tabKey === 'maintenance') return maintenanceLive
+    if (tabKey === 'discord') return missingWebhooks
+    return 0
+  }
   const filteredAudit = useMemo(() => {
     const q = auditQuery.trim().toLowerCase()
     return d.log.filter(l => {
@@ -528,13 +608,50 @@ export default function Admin() {
             <div className="page-subtitle">Full administrative control — {me.handle}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {availableTabs.map(t => (
-            <button key={t} style={{ background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent', padding: '10px 16px', fontSize: 11, letterSpacing: '.08em', fontFamily: 'var(--font-mono)', color: tab === t ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer' }}
-              onClick={() => setTab(t)}>{t.toUpperCase()}
-              {t === 'loans' && pendingLoans > 0 && <span style={{ color: 'var(--red)', marginLeft: 4 }}>({pendingLoans})</span>}
-            </button>
-          ))}
+        <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+          {TAB_GROUPS.map(group => {
+            const groupTabs = group.tabs.filter(t => availableTabs.includes(t))
+            if (!groupTabs.length) return null
+            return (
+              <div key={group.key} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span style={{
+                  fontSize: 9,
+                  letterSpacing: '.18em',
+                  color: 'var(--text-3)',
+                  fontFamily: 'var(--font-mono)',
+                  minWidth: 120,
+                }}>
+                  {group.label}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  {groupTabs.map(t => {
+                    const badge = tabBadge(t)
+                    const active = tab === t
+                    return (
+                      <button
+                        key={t}
+                        style={{
+                          background: active ? 'var(--accent-glow)' : 'transparent',
+                          border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                          borderRadius: 4,
+                          padding: '7px 10px',
+                          fontSize: 10,
+                          letterSpacing: '.08em',
+                          fontFamily: 'var(--font-mono)',
+                          color: active ? 'var(--accent)' : 'var(--text-2)',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => setTab(t)}
+                      >
+                        {tabLabel[t] || t.toUpperCase()}
+                        {badge > 0 && <span style={{ color: badge > 0 && (t === 'discord' ? 'var(--red)' : 'var(--amber)'), marginLeft: 6 }}>● {badge}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -544,6 +661,53 @@ export default function Admin() {
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
           <>
+            <Section title="COMMAND DECK — LIVE STATUS">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12, marginBottom: 14 }}>
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ fontSize: 10, letterSpacing: '.16em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>INCIDENT STATE</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: adminControl.incident_mode ? 'var(--red)' : 'var(--green)' }}>
+                    {adminControl.incident_mode ? 'ACTIVE INCIDENT' : 'NOMINAL'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                    {adminControl.incident_note || 'No incident note logged.'}
+                  </div>
+                </div>
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ fontSize: 10, letterSpacing: '.16em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>APPROVAL QUEUE</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: pendingApprovals > 0 ? 'var(--amber)' : 'var(--text-1)' }}>
+                    {pendingApprovals} pending
+                  </div>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setTab('danger')}>OPEN SECURITY QUEUE</button>
+                </div>
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ fontSize: 10, letterSpacing: '.16em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>DISCORD HEALTH</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: missingWebhooks > 0 ? 'var(--red)' : 'var(--green)' }}>
+                    {missingWebhooks > 0 ? `${missingWebhooks} routes missing` : 'ALL ROUTES LIVE'}
+                  </div>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setTab('discord')}>CHECK WEBHOOKS</button>
+                </div>
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ fontSize: 10, letterSpacing: '.16em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>MAINTENANCE</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: maintenanceLive > 0 ? 'var(--amber)' : 'var(--text-1)' }}>
+                    {maintenanceLive} page{maintenanceLive === 1 ? '' : 's'} gated
+                  </div>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setTab('maintenance')}>REVIEW FLAGS</button>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="NEEDS ACTION NOW">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
+                {needsActionCards.map(card => (
+                  <div key={card.key} className="card" style={{ padding: 12, borderLeft: `2px solid ${card.tone}` }}>
+                    <div style={{ fontSize: 10, letterSpacing: '.14em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{card.title.toUpperCase()}</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, color: card.tone, marginTop: 4 }}>{card.value}</div>
+                    <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setTab(card.tab)}>{card.cta}</button>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
             <Section title="ORG VITALS">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
                 <Stat label="MEMBERS" value={activeMembers} />
@@ -561,9 +725,26 @@ export default function Admin() {
                 <Stat label="ACTIVITY LOG" value={`${d.log.length} entries`} />
               </div>
             </Section>
+            <Section title="HIGH-RISK ACTION TIMELINE">
+              <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                <thead><tr><th>TIME</th><th>ACTION</th><th>ACTOR</th><th>TARGET</th><th>DETAIL</th></tr></thead>
+                <tbody>
+                  {highRiskRecent.map(l => (
+                    <tr key={l.id}>
+                      <td className="mono text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(l.created_at)}</td>
+                      <td className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>{l.action}</td>
+                      <td>{l.actor?.handle || '—'}</td>
+                      <td>{l.target_type || '—'}</td>
+                      <td style={{ fontSize: 11, color: 'var(--text-2)' }}>{l.details?.reason || l.details?.title || '—'}</td>
+                    </tr>
+                  ))}
+                  {highRiskRecent.length === 0 && <tr><td colSpan={5} className="empty-state">NO HIGH-RISK ACTIONS RECENTLY</td></tr>}
+                </tbody>
+              </table></div></div>
+            </Section>
             <Section title="MEMBER WEALTH DISTRIBUTION">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {d.members.sort((a, b) => (b.wallet_balance||0) - (a.wallet_balance||0)).map(m => {
+                {[...d.members].sort((a, b) => (b.wallet_balance||0) - (a.wallet_balance||0)).map(m => {
                   const pct = totalWealth > 0 ? Math.round(((m.wallet_balance||0) / totalWealth) * 100) : 0
                   return (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
