@@ -117,6 +117,22 @@ export default function Certifications() {
       return
     }
     if (already) {
+      const cert = certs.find(c => c.id === certId)
+      const selectedHandle = selectedMemberProfile?.handle || members.find(m => m.id === selectedMember)?.handle || 'MEMBER'
+      // If the row already exists but isn't visible due environment-specific
+      // read policies, still reflect it as certified in this tracker view.
+      setMemberCerts(prev => {
+        if (prev.some(r => r.member_id === selectedMember && r.cert_id === certId)) return prev
+        return [{
+          id: `known-existing-${Date.now()}-${certId}`,
+          member_id: selectedMember,
+          cert_id: certId,
+          certified_at: new Date().toISOString(),
+          cert: { id: certId, name: cert?.name || 'Certification', category: cert?.category || 'GENERAL' },
+          member: { id: selectedMember, handle: selectedHandle },
+          certifier: { handle: 'ON RECORD' },
+        }, ...prev]
+      })
       toast('Member already has this certification', 'info')
       setSaving(false)
       return
