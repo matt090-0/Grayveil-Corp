@@ -47,8 +47,11 @@ export default function Reputation() {
   const canManageRep = me.is_founder || me.tier <= 4
 
   async function load() {
+    const memberSelect = canManageRep
+      ? 'id, handle, tier, rank, division, speciality, rep_score, rep_streak, avatar_color, wallet_balance, status'
+      : 'id, handle, tier, rank, division, speciality, rep_score, rep_streak, avatar_color, status'
     const [{ data: mem }, { data: mc }] = await Promise.all([
-      supabase.from('profiles').select('id, handle, tier, rank, division, speciality, rep_score, rep_streak, avatar_color, wallet_balance, status').eq('status', 'ACTIVE').order('rep_score', { ascending: false }),
+      supabase.from('profiles').select(memberSelect).eq('status', 'ACTIVE').order('rep_score', { ascending: false }),
       supabase.from('member_certifications').select('cert:certifications(name)').eq('member_id', me.id),
     ])
     setMembers(mem || [])
@@ -192,10 +195,12 @@ export default function Reputation() {
                             <div style={{ fontSize: 8, letterSpacing: '.1em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>TOTAL REP</div>
                             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent)' }}>{d.totalRep}</div>
                           </div>
-                          <div>
-                            <div style={{ fontSize: 8, letterSpacing: '.1em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>TOTAL WEALTH</div>
-                            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>{formatCredits(d.totalWealth)}</div>
-                          </div>
+                          {canManageRep && (
+                            <div>
+                              <div style={{ fontSize: 8, letterSpacing: '.1em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>TOTAL WEALTH</div>
+                              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>{formatCredits(d.totalWealth)}</div>
+                            </div>
+                          )}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 8, fontFamily: 'var(--font-mono)' }}>TOP: {d.topMember}</div>
                       </div>

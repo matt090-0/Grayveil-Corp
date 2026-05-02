@@ -16,6 +16,19 @@ const THREAT_STYLES = {
 
 const CATEGORIES = ['HOSTILE', 'PIRATE', 'GRIEFER', 'SCAMMER', 'RIVAL', 'KOS']
 
+function normalizeEvidenceUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw)
+    const protocol = parsed.protocol.toLowerCase()
+    if (protocol !== 'http:' && protocol !== 'https:') return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
 export default function Blacklist() {
   const { profile: me } = useAuth()
   const toast = useToast()
@@ -40,6 +53,11 @@ export default function Blacklist() {
 
   async function saveEntry() {
     if (!form.target_handle || !form.reason) { toast('Target handle and reason required', 'error'); return }
+    const evidenceUrl = normalizeEvidenceUrl(form.evidence_url)
+    if (form.evidence_url?.trim() && !evidenceUrl) {
+      toast('Evidence URL must be a valid http(s) link', 'error')
+      return
+    }
     setSaving(true)
     const payload = {
       target_handle: form.target_handle.trim(),
@@ -49,7 +67,7 @@ export default function Blacklist() {
       reason: form.reason.trim(),
       last_known_location: form.last_known_location?.trim() || null,
       last_known_ship: form.last_known_ship?.trim() || null,
-      evidence_url: form.evidence_url?.trim() || null,
+      evidence_url: evidenceUrl,
       bounty_offered: parseInt(form.bounty_offered) || 0,
     }
     if (modal === 'add') {
@@ -122,6 +140,7 @@ export default function Blacklist() {
             {filtered.map(e => {
               const ts = THREAT_STYLES[e.threat_level] || THREAT_STYLES.MODERATE
               const isMine = e.added_by === me.id
+              const evidenceHref = normalizeEvidenceUrl(e.evidence_url)
               return (
                 <div key={e.id} className="card" style={{
                   padding: 14, borderLeft: `3px solid ${ts.color}`,
@@ -155,7 +174,7 @@ export default function Blacklist() {
                         {e.last_known_location && <span>📍 {e.last_known_location}</span>}
                         {e.last_known_ship && <span>🛸 {e.last_known_ship}</span>}
                         {e.bounty_offered > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600 }}>💰 {formatCredits(e.bounty_offered)} aUEC</span>}
-                        {e.evidence_url && <a href={e.evidence_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue)' }}>📎 EVIDENCE</a>}
+                        {evidenceHref && <a href={evidenceHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue)' }}>📎 EVIDENCE</a>}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 6 }}>
                         Added by {e.added_by_profile?.handle || '—'} · {timeAgo(e.created_at)}

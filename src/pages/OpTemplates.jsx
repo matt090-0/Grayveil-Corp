@@ -31,6 +31,18 @@ const SORTS = [
   { id: 'recent',  label: 'NEWEST' },
   { id: 'name',    label: 'A → Z' },
 ]
+function safeUrlTransform(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (value.startsWith('#') || value.startsWith('/')) return value
+  try {
+    const parsed = new URL(value)
+    const protocol = parsed.protocol.toLowerCase()
+    return protocol === 'http:' || protocol === 'https:' ? parsed.toString() : ''
+  } catch {
+    return ''
+  }
+}
 
 export default function OpTemplates() {
   const { profile: me } = useAuth()
@@ -393,7 +405,7 @@ export default function OpTemplates() {
               padding: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8,
               fontFamily: 'var(--font-mono)', maxHeight: 380, overflowY: 'auto', whiteSpace: 'pre-wrap',
             }}>
-              <ReactMarkdown>{viewing.briefing}</ReactMarkdown>
+              <ReactMarkdown urlTransform={safeUrlTransform}>{viewing.briefing}</ReactMarkdown>
             </div>
           </UeeModal>
         )

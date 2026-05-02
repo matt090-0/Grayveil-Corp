@@ -23,6 +23,18 @@ const CAT_BADGE = {
 function fmt(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
+function safeUrlTransform(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (value.startsWith('#') || value.startsWith('/')) return value
+  try {
+    const parsed = new URL(value)
+    const protocol = parsed.protocol.toLowerCase()
+    return protocol === 'http:' || protocol === 'https:' ? parsed.toString() : ''
+  } catch {
+    return ''
+  }
+}
 
 export default function Updates() {
   const { profile: me } = useAuth()
@@ -162,7 +174,7 @@ export default function Updates() {
                     whiteSpace: 'pre-wrap',
                   }}
                 >
-                  <ReactMarkdown>{r.body}</ReactMarkdown>
+                  <ReactMarkdown urlTransform={safeUrlTransform}>{r.body}</ReactMarkdown>
                 </div>
                 {canPublish && (
                   <div className="flex gap-8 mt-10" style={{ justifyContent: 'flex-end' }}>

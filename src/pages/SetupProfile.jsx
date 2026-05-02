@@ -34,6 +34,15 @@ export default function SetupProfile() {
     })
 
     if (error) {
+      // If profile row already exists for this auth user, recover gracefully.
+      if (error.code === '23505' && /profiles_pkey|profiles_id/i.test(error.message || '')) {
+        const existing = await refreshProfile()
+        if (existing) {
+          setLoading(false)
+          navigate('/', { replace: true })
+          return
+        }
+      }
       setError(error.code === '23505' ? 'That handle is already taken.' : error.message)
       setLoading(false)
       return

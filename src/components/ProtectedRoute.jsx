@@ -8,7 +8,7 @@ import MaintenanceScreen from './MaintenanceScreen'
 import { findMaintenanceForPath, MAINT_BYPASS_TIER } from '../lib/nav'
 import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, minTier }) {
   const { session, profile, loading, refreshProfile } = useAuth()
   const location = useLocation()
   const maintenance = useMaintenanceMap()
@@ -58,6 +58,7 @@ export default function ProtectedRoute({ children }) {
 
   if (!session) return <Navigate to="/welcome" replace />
   if (!profile) return <Navigate to="/setup" replace />
+  if (typeof minTier === 'number' && profile.tier > minTier) return <Navigate to="/" replace />
 
   if (profile.status === 'BANNED') return <BanScreen profile={profile} />
   if (profile.status === 'SUSPENDED' && !needsExpiryHeal) return <BanScreen profile={profile} />

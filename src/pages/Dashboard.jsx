@@ -53,6 +53,7 @@ const PRIORITY_META = {
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const canViewGlobalActivity = profile.tier <= 4
   const [stats, setStats]       = useState({ members: 0, contracts: 0, fleet: 0, intel: 0 })
   const [announcements, setAnn] = useState([])
   const [myClaims, setMyClaims] = useState([])
@@ -75,7 +76,9 @@ export default function Dashboard() {
         supabase.from('intelligence').select('*', { count: 'exact', head: true }),
         supabase.from('announcements').select('*, posted_by:profiles(handle, tier)').order('created_at', { ascending: false }).limit(5),
         supabase.from('contract_claims').select('*, contract:contracts(id, title, contract_type, status, reward, location)').eq('member_id', profile.id).limit(5),
-        supabase.from('activity_log').select('*, actor:profiles(handle)').order('created_at', { ascending: false }).limit(15),
+        (canViewGlobalActivity
+          ? supabase.from('activity_log').select('*, actor:profiles(handle)').order('created_at', { ascending: false }).limit(15)
+          : supabase.from('activity_log').select('*, actor:profiles(handle)').eq('actor_id', profile.id).order('created_at', { ascending: false }).limit(15)),
         supabase.from('events').select('id, title, starts_at, location, status, event_type, max_slots').in('status', ['SCHEDULED', 'LIVE']).order('starts_at', { ascending: true }).limit(6),
         supabase.from('event_signups').select('event_id, member_id, status'),
       ])
@@ -110,6 +113,7 @@ export default function Dashboard() {
 
     const channel = supabase.channel('dashboard-live')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, async (payload) => {
+        if (!canViewGlobalActivity && payload.new.actor_id !== profile.id) return
         const { data } = await supabase.from('activity_log')
           .select('*, actor:profiles(handle)').eq('id', payload.new.id).maybeSingle()
         if (data) setActivity(prev => [data, ...prev.slice(0, 14)])
@@ -122,7 +126,7 @@ export default function Dashboard() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [profile.id])
+  }, [profile.id, canViewGlobalActivity])
 
   const isOfficer = profile.tier <= 4
   const mySignups = new Set(eventSignups.filter(s => s.member_id === profile.id).map(s => s.event_id))
