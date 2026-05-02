@@ -705,9 +705,9 @@ export default function Admin() {
   const roleBandMeta = useMemo(() => (
     ROLE_GROUPS.map(group => ({
       ...group,
-      rankLabels: RANKS
+      rankMeta: RANKS
         .filter(r => r.tier >= group.minTier && r.tier <= group.maxTier)
-        .map(r => r.label),
+        .map(r => ({ tier: r.tier, label: r.label })),
     }))
   ), [])
   useEffect(() => {
@@ -1429,10 +1429,10 @@ export default function Admin() {
                 {roleBandMeta.map((role) => (
                   <div key={role.key} style={{ marginBottom: 12 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.18em', color: 'var(--accent)', marginBottom: 6 }}>
-                      {role.label} · T{role.minTier}-{role.maxTier}
+                      {role.rankMeta.map(r => `T${r.tier} ${String(r.label || '').toUpperCase()}`).join(' · ')}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>
-                      {role.rankLabels.join(' · ')}
+                      Permission band key: {role.label}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 6 }}>
                       {Object.entries(ADMIN_ACTION_PERMISSIONS).map(([perm, label]) => {
