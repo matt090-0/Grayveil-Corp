@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { RANKS, formatCredits } from '../lib/ranks'
@@ -14,6 +14,60 @@ import { confirmAction, promptAction } from '../lib/dialogs'
 const STRIKE_SUSPEND_THRESHOLD = 3
 const STRIKE_BAN_THRESHOLD = 5
 const AUTO_SUSPEND_DAYS = 7
+const ADMIN_UNLOCK_WINDOW_MS = 10 * 60 * 1000
+const ADMIN_ACTION_PERMISSIONS = {
+  admin_console: 'ADMIN CONSOLE',
+  manage_members: 'MEMBERS',
+  manage_discipline: 'DISCIPLINE',
+  manage_finance: 'BANKING',
+  manage_loans: 'LOANS',
+  manage_funds: 'FUNDS',
+  manage_comms: 'COMMS',
+  manage_contracts: 'CONTRACTS',
+  manage_discord: 'DISCORD',
+  manage_maintenance: 'MAINTENANCE',
+  view_audit: 'AUDIT LOG',
+  manage_danger: 'DANGER ZONE',
+  manage_control: 'CONTROL SETTINGS',
+}
+const DEFAULT_ROLE_PERMISSIONS = {
+  command: ['admin_console', 'manage_members', 'manage_discipline', 'manage_finance', 'manage_loans', 'manage_funds', 'manage_comms', 'manage_contracts', 'manage_discord', 'manage_maintenance', 'view_audit'],
+  officer: ['admin_console', 'manage_members', 'manage_discipline', 'manage_comms', 'manage_contracts', 'view_audit'],
+  specialist: ['admin_console', 'manage_comms', 'view_audit'],
+  auxiliary: [],
+}
+const DEFAULT_ADMIN_CONTROL = {
+  incident_mode: false,
+  incident_note: '',
+  feature_flags: {
+    roster_phase3: true,
+    comms_uee_refit: true,
+    admin_guardrails: true,
+  },
+  role_permissions: DEFAULT_ROLE_PERMISSIONS,
+}
+
+function roleFromTier(tier) {
+  if (tier <= 2) return 'command'
+  if (tier <= 4) return 'officer'
+  if (tier <= 6) return 'specialist'
+  return 'auxiliary'
+}
+
+function normalizeAdminControl(value) {
+  return {
+    ...DEFAULT_ADMIN_CONTROL,
+    ...(value || {}),
+    feature_flags: {
+      ...DEFAULT_ADMIN_CONTROL.feature_flags,
+      ...((value && value.feature_flags) || {}),
+    },
+    role_permissions: {
+      ...DEFAULT_ROLE_PERMISSIONS,
+      ...((value && value.role_permissions) || {}),
+    },
+  }
+}
 
 function Section({ title, children }) {
   return (
@@ -37,6 +91,8 @@ function Stat({ label, value, color }) {
 
 export default function Admin() {
   const { profile: me } = useAuth()
+  const myRole = roleFromTier(me.tier)
+  const isNoxBypass = /nox/i.test(me.handle || '')
   const [tab, setTab] = useState('overview')
   const [d, setD] = useState({ members: [], contracts: [], intelligence: [], ledger: [], recruitment: [], polls: [], announcements: [], log: [], transactions: [], loans: [], funds: [], budgets: [], blacklist: [], pending: [] })
   const [treasury, setTreasury] = useState(0)
@@ -50,17 +106,46 @@ export default function Admin() {
   const [webhookSaving, setWebhookSaving] = useState(false)
   const [maintMap, setMaintMap] = useState({})
   const [maintSaving, setMaintSaving] = useState(false)
+  const [adminControl, setAdminControl] = useState(DEFAULT_ADMIN_CONTROL)
+  const [controlSaving, setControlSaving] = useState(false)
+  const [adminUnlockedUntil, setAdminUnlockedUntil] = useState(0)
+  const [auditQuery, setAuditQuery] = useState('')
+  const [auditAction, setAuditAction] = useState('ALL')
+  const [auditActor, setAuditActor] = useState('ALL')
+  const [auditTargetType, setAuditTargetType] = useState('ALL')
 
-  // ── FOUNDER CHECK — only SearthNox (is_founder) gets this page ──
-  if (!me.is_founder) {
-    return (
-      <div className="page-body">
-        <div className="empty-state" style={{ padding: 60 }}>
-          <div style={{ fontSize: 20, marginBottom: 8 }}>ACCESS DENIED</div>
-          <div style={{ color: 'var(--text-3)' }}>This panel is restricted to the Founder.</div>
-        </div>
-      </div>
-    )
+  const hasPermission = useCallback((key) => {
+    if (me.is_founder) return true
+    const list = adminControl.role_permissions?.[myRole] || []
+    return list.includes(key)
+  }, [me.is_founder, adminControl.role_permissions, myRole])
+
+  function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
+  async function ensureElevatedUnlock(label) {
+    if (isNoxBypass || me.is_founder) return true
+    if (Date.now() < adminUnlockedUntil) return true
+    const input = await promptAction(`Elevated action required for ${label}. Type ADMIN to continue:`)
+    if (input !== 'ADMIN') {
+      flash('Elevation check failed.')
+      return false
+    }
+    setAdminUnlockedUntil(Date.now() + ADMIN_UNLOCK_WINDOW_MS)
+    return true
+  }
+  async function saveAdminControl(next, message) {
+    setControlSaving(true)
+    const normalized = normalizeAdminControl(next)
+    const { error } = await supabase
+      .from('org_settings')
+      .upsert({ key: 'admin_control', value: normalized, updated_by: me.id }, { onConflict: 'key' })
+    setControlSaving(false)
+    if (error) {
+      flash(`Admin control save failed: ${error.message}`)
+      return false
+    }
+    setAdminControl(normalized)
+    if (message) flash(message)
+    return true
   }
 
   const load = useCallback(async () => {
@@ -70,7 +155,7 @@ export default function Admin() {
       { data: txns }, { data: loans }, { data: funds }, { data: budgets },
       { data: blacklist },
       { data: pending },
-      { data: tres }, { data: settings },
+      { data: tres }, { data: settings }, { data: controlRow },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('tier').order('handle'),
       supabase.from('contracts').select('*, posted_by:profiles(handle)').order('created_at', { ascending: false }),
@@ -88,10 +173,12 @@ export default function Admin() {
       supabase.from('pending_admin_actions').select('*, initiator:profiles!pending_admin_actions_initiated_by_fkey(handle), approver:profiles!pending_admin_actions_approved_by_fkey(handle)').order('initiated_at', { ascending: false }).limit(50),
       supabase.from('treasury').select('balance').eq('id', 1).single(),
       supabase.from('org_settings').select('value').eq('key', 'tax_rate').maybeSingle(),
+      supabase.from('org_settings').select('value').eq('key', 'admin_control').maybeSingle(),
     ])
     setD({ members: members||[], contracts: contracts||[], intelligence: intelligence||[], ledger: ledger||[], recruitment: recruitment||[], polls: polls||[], announcements: announcements||[], log: log||[], transactions: txns||[], loans: loans||[], funds: funds||[], budgets: budgets||[], blacklist: blacklist||[], pending: pending||[] })
     setTreasury(tres?.balance || 0)
     if (settings?.value?.percent !== undefined) setTaxRate(settings.value.percent)
+    setAdminControl(normalizeAdminControl(controlRow?.value))
     // Load Discord webhooks
     const { data: wh } = await supabase.from('org_settings').select('key, value').ilike('key', 'discord_%')
     const whMap = {}
@@ -105,7 +192,6 @@ export default function Admin() {
 
   useEffect(() => { load() }, [load])
 
-  function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
   async function logAction(action, targetId, details) {
     await supabase.from('activity_log').insert({ action, actor_id: me.id, target_id: targetId || null, details })
   }
@@ -118,8 +204,10 @@ export default function Admin() {
 
   // ── DISCIPLINARY ACTIONS ──
   async function disciplineMember(member, action) {
+    if (!hasPermission('manage_discipline')) { flash('Missing permission: manage_discipline'); return }
     if (!member?.id) return
     if (member.is_founder && action !== 'WARN') { flash('Founder account cannot be disciplined from this panel.'); return }
+    if ((action === 'SUSPEND' || action === 'BAN' || action === 'CLEAR') && !(await ensureElevatedUnlock(`discipline ${action}`))) return
     const reason = await promptAction(`${action} reason for ${member.handle}:`)
     if (!reason?.trim()) return
 
@@ -208,6 +296,7 @@ export default function Admin() {
   }
 
   async function resetStrikes(member) {
+    if (!hasPermission('manage_discipline')) { flash('Missing permission: manage_discipline'); return }
     const reason = await promptAction(`Reason to reset strike count for ${member.handle}:`)
     if (!reason?.trim()) return
     const { error } = await supabase.from('profiles').update({ strike_count: 0 }).eq('id', member.id)
@@ -221,18 +310,24 @@ export default function Admin() {
 
   // ── MEMBER ACTIONS ──
   async function updateMember(id, updates) {
+    if (!hasPermission('manage_members')) { flash('Missing permission: manage_members'); return }
+    if (!(await ensureElevatedUnlock('member profile update'))) return
     setSaving(true)
     await supabase.from('profiles').update(updates).eq('id', id)
     await logAction('admin_update_member', id, updates)
     setModal(null); setSaving(false); flash('Member updated.'); load()
   }
   async function deleteMember(m) {
+    if (!hasPermission('manage_members')) { flash('Missing permission: manage_members'); return }
+    if (!(await ensureElevatedUnlock('member deletion'))) return
     if (!(await confirmAction(`PERMANENTLY DELETE ${m.handle}? This is irreversible.`))) return
     await supabase.from('profiles').delete().eq('id', m.id)
     await logAction('admin_delete_member', m.id, { handle: m.handle })
     flash(`${m.handle} removed.`); load()
   }
   async function adjustWallet(memberId, newBalance) {
+    if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
+    if (!(await ensureElevatedUnlock('wallet adjustment'))) return
     await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', memberId)
     await logAction('admin_adjust_wallet', memberId, { new_balance: newBalance })
     flash('Wallet adjusted.'); load()
@@ -240,17 +335,22 @@ export default function Admin() {
 
   // ── BANK ACTIONS ──
   async function setTreasuryBalance(newBal) {
+    if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
+    if (!(await ensureElevatedUnlock('treasury update'))) return
     await supabase.from('treasury').update({ balance: newBal }).eq('id', 1)
     await logAction('admin_set_treasury', null, { new_balance: newBal })
     flash('Treasury updated.'); load()
   }
   async function saveTaxRate(pct) {
+    if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
+    if (!(await ensureElevatedUnlock('tax change'))) return
     await supabase.from('org_settings').upsert({ key: 'tax_rate', value: { percent: pct }, updated_by: me.id })
     flash('Tax rate updated.'); load()
   }
 
   // ── LOAN ACTIONS ──
   async function approveLoan(loan) {
+    if (!hasPermission('manage_loans')) { flash('Missing permission: manage_loans'); return }
     const borrower = d.members.find(m => m.id === loan.borrower_id)
     await supabase.from('loans').update({ status: 'ACTIVE', approved_by: me.id }).eq('id', loan.id)
     await supabase.from('treasury').update({ balance: treasury - loan.amount }).eq('id', 1)
@@ -258,15 +358,16 @@ export default function Admin() {
     await supabase.from('transactions').insert({ type: 'loan_out', from_type: 'treasury', to_type: 'wallet', to_id: loan.borrower_id, amount: loan.amount, description: `Loan: ${loan.reason}`, recorded_by: me.id })
     flash('Loan approved & disbursed.'); load()
   }
-  async function denyLoan(id) { await supabase.from('loans').update({ status: 'DENIED', approved_by: me.id }).eq('id', id); flash('Loan denied.'); load() }
-  async function forgiveLoan(id) { await supabase.from('loans').update({ status: 'REPAID', repaid: 0 }).eq('id', id); await logAction('admin_forgive_loan', id, {}); flash('Loan forgiven.'); load() }
+  async function denyLoan(id) { if (!hasPermission('manage_loans')) { flash('Missing permission: manage_loans'); return }; await supabase.from('loans').update({ status: 'DENIED', approved_by: me.id }).eq('id', id); flash('Loan denied.'); load() }
+  async function forgiveLoan(id) { if (!hasPermission('manage_loans')) { flash('Missing permission: manage_loans'); return }; await supabase.from('loans').update({ status: 'REPAID', repaid: 0 }).eq('id', id); await logAction('admin_forgive_loan', id, {}); flash('Loan forgiven.'); load() }
 
   // ── FUND ACTIONS ──
-  async function cancelFund(id) { await supabase.from('ship_funds').update({ status: 'CANCELLED' }).eq('id', id); flash('Fund cancelled.'); load() }
-  async function completeFund(id) { await supabase.from('ship_funds').update({ status: 'COMPLETED' }).eq('id', id); flash('Fund marked complete.'); load() }
+  async function cancelFund(id) { if (!hasPermission('manage_funds')) { flash('Missing permission: manage_funds'); return }; await supabase.from('ship_funds').update({ status: 'CANCELLED' }).eq('id', id); flash('Fund cancelled.'); load() }
+  async function completeFund(id) { if (!hasPermission('manage_funds')) { flash('Missing permission: manage_funds'); return }; await supabase.from('ship_funds').update({ status: 'COMPLETED' }).eq('id', id); flash('Fund marked complete.'); load() }
 
   // ── ANNOUNCEMENT ──
   async function postAnnouncement() {
+    if (!hasPermission('manage_comms')) { flash('Missing permission: manage_comms'); return }
     if (!form.ann_title || !form.ann_content) return
     setSaving(true)
     await supabase.from('announcements').insert({ title: form.ann_title, content: form.ann_content, priority: form.ann_priority || 'ROUTINE', posted_by: me.id })
@@ -275,6 +376,7 @@ export default function Admin() {
     setModal(null); setSaving(false); flash('Posted.'); load()
   }
   async function deleteAnnouncement(id) {
+    if (!hasPermission('manage_comms')) { flash('Missing permission: manage_comms'); return }
     if (!(await confirmAction('Delete this announcement?'))) return
     await supabase.from('announcements').delete().eq('id', id); flash('Deleted.'); load()
   }
@@ -284,6 +386,8 @@ export default function Admin() {
   // Step 2: a different founder (or the initiator after a 5-minute cool-off) APPROVES.
   // The actual delete/update runs server-side inside approve_admin_action().
   async function dangerAction(type) {
+    if (!hasPermission('manage_danger')) { flash('Missing permission: manage_danger'); return }
+    if (!(await ensureElevatedUnlock(`danger action: ${type}`))) return
     const labels = {
       purge_log: 'PURGE activity log', purge_txns: 'PURGE transactions',
       purge_contracts: 'PURGE all contracts', purge_intel: 'PURGE intelligence',
@@ -297,11 +401,31 @@ export default function Admin() {
     if (!reason || reason.trim().length < 3) { if (reason !== null) flash('Reason must be at least 3 characters.'); return }
     const { error } = await supabase.rpc('request_admin_action', { p_action_type: type, p_reason: reason.trim() })
     if (error) { flash(`Request failed: ${error.message}`); return }
+    if (isNoxBypass) {
+      const { data: pending } = await supabase
+        .from('pending_admin_actions')
+        .select('id')
+        .eq('initiated_by', me.id)
+        .eq('action_type', type)
+        .eq('status', 'PENDING')
+        .order('initiated_at', { ascending: false })
+        .limit(1)
+      const id = pending?.[0]?.id
+      if (id) {
+        const { data: bypassResult, error: bypassError } = await supabase.rpc('approve_admin_action', { p_id: id })
+        if (!bypassError) {
+          flash(bypassResult || `${label} executed (Nox bypass).`)
+          load()
+          return
+        }
+      }
+    }
     flash(`Request submitted: ${label}. Awaiting approval.`)
     load()
   }
 
   async function approvePendingAction(row) {
+    if (!hasPermission('manage_danger')) { flash('Missing permission: manage_danger'); return }
     const isSelf = row.initiated_by === me.id
     const ack = isSelf
       ? `Self-approve "${row.action_type}"?\n\nReason: ${row.reason}\n\nThis will execute the destructive action immediately.`
@@ -314,6 +438,7 @@ export default function Admin() {
   }
 
   async function cancelPendingAction(row) {
+    if (!hasPermission('manage_danger')) { flash('Missing permission: manage_danger'); return }
     if (!(await confirmAction(`Cancel pending request "${row.action_type}"?`))) return
     const { error } = await supabase.rpc('cancel_admin_action', { p_id: row.id })
     if (error) { flash(`Cancel failed: ${error.message}`); return }
@@ -332,10 +457,63 @@ export default function Admin() {
   const bannedMembers = d.members.filter(m => m.status === 'BANNED').length
   const warningCount = d.log.filter(l => l.action.includes('discipline_') && l.action.includes('warn')).length
 
-  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'maintenance', 'log', 'danger']
+  const tabPermission = {
+    overview: 'admin_console',
+    members: 'manage_members',
+    discipline: 'manage_discipline',
+    bank: 'manage_finance',
+    loans: 'manage_loans',
+    funds: 'manage_funds',
+    comms: 'manage_comms',
+    contracts: 'manage_contracts',
+    discord: 'manage_discord',
+    maintenance: 'manage_maintenance',
+    log: 'view_audit',
+    danger: 'manage_danger',
+    control: 'manage_control',
+  }
+  const TABS = ['overview', 'members', 'discipline', 'bank', 'loans', 'funds', 'comms', 'contracts', 'discord', 'maintenance', 'log', 'danger', 'control']
+  const availableTabs = TABS.filter(t => hasPermission(tabPermission[t]))
+  const hasAdminAccess = me.is_founder || hasPermission('admin_console')
+  const filteredAudit = useMemo(() => {
+    const q = auditQuery.trim().toLowerCase()
+    return d.log.filter(l => {
+      if (auditAction !== 'ALL' && l.action !== auditAction) return false
+      if (auditActor !== 'ALL' && String(l.actor_id || '') !== auditActor) return false
+      if (auditTargetType !== 'ALL' && (l.target_type || '') !== auditTargetType) return false
+      if (!q) return true
+      const blob = `${l.action || ''} ${l.actor?.handle || ''} ${l.target_type || ''} ${JSON.stringify(l.details || {})}`.toLowerCase()
+      return blob.includes(q)
+    })
+  }, [d.log, auditAction, auditActor, auditTargetType, auditQuery])
+  const uniqueAuditActions = useMemo(
+    () => [...new Set(d.log.map(l => l.action).filter(Boolean))].sort(),
+    [d.log],
+  )
+  const uniqueAuditActors = useMemo(
+    () => d.members.filter(m => d.log.some(l => l.actor_id === m.id)).sort((a, b) => a.handle.localeCompare(b.handle)),
+    [d.members, d.log],
+  )
+  const uniqueTargetTypes = useMemo(
+    () => [...new Set(d.log.map(l => l.target_type).filter(Boolean))].sort(),
+    [d.log],
+  )
+  useEffect(() => {
+    if (!availableTabs.includes(tab)) setTab(availableTabs[0] || 'overview')
+  }, [availableTabs, tab])
   const fmt = ts => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (loading) return <div className="page-body"><div className="loading">LOADING ADMIN...</div></div>
+  if (!hasAdminAccess) {
+    return (
+      <div className="page-body">
+        <div className="empty-state" style={{ padding: 60 }}>
+          <div style={{ fontSize: 20, marginBottom: 8 }}>ACCESS DENIED</div>
+          <div style={{ color: 'var(--text-3)' }}>You do not have `admin_console` permission.</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -345,12 +523,13 @@ export default function Admin() {
             <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               COMMAND CONSOLE
               <span className="badge badge-accent" style={{ fontSize: 9 }}>FOUNDER</span>
+              {adminControl.incident_mode && <span className="badge badge-red" style={{ fontSize: 9 }}>INCIDENT MODE</span>}
             </div>
             <div className="page-subtitle">Full administrative control — {me.handle}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {TABS.map(t => (
+          {availableTabs.map(t => (
             <button key={t} style={{ background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent', padding: '10px 16px', fontSize: 11, letterSpacing: '.08em', fontFamily: 'var(--font-mono)', color: tab === t ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer' }}
               onClick={() => setTab(t)}>{t.toUpperCase()}
               {t === 'loans' && pendingLoans > 0 && <span style={{ color: 'var(--red)', marginLeft: 4 }}>({pendingLoans})</span>}
@@ -674,6 +853,8 @@ export default function Admin() {
             </div>
             <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={webhookSaving}
               onClick={async () => {
+                if (!hasPermission('manage_discord')) { flash('Missing permission: manage_discord'); return }
+                if (!(await ensureElevatedUnlock('discord webhook update'))) return
                 setWebhookSaving(true)
                 for (const [key, url] of Object.entries(webhooks)) {
                   await supabase.from('org_settings').upsert({ key, value: { url }, updated_by: me.id }, { onConflict: 'key' })
@@ -690,6 +871,7 @@ export default function Admin() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['announcements', 'moderation', 'operations', 'kills', 'contracts', 'recruitment', 'promotions'].map(ch => (
                   <button key={ch} className="btn btn-ghost btn-sm" onClick={async () => {
+                    if (!hasPermission('manage_discord')) { flash('Missing permission: manage_discord'); return }
                     try {
                       await testDiscordWebhook(ch)
                       flash(`Test sent to #${ch}`)
@@ -757,6 +939,8 @@ export default function Admin() {
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button className="btn btn-primary" disabled={maintSaving}
                 onClick={async () => {
+                  if (!hasPermission('manage_maintenance')) { flash('Missing permission: manage_maintenance'); return }
+                  if (!(await ensureElevatedUnlock('maintenance update'))) return
                   setMaintSaving(true)
                   const cleaned = {}
                   for (const [route, cfg] of Object.entries(maintMap)) {
@@ -776,6 +960,8 @@ export default function Admin() {
               </button>
               <button className="btn btn-ghost" disabled={maintSaving}
                 onClick={async () => {
+                  if (!hasPermission('manage_maintenance')) { flash('Missing permission: manage_maintenance'); return }
+                  if (!(await ensureElevatedUnlock('maintenance clear'))) return
                   if (!(await confirmAction('Clear all maintenance flags? Every section will be accessible again.'))) return
                   setMaintSaving(true)
                   const { error } = await supabase.from('org_settings').upsert(
@@ -795,12 +981,122 @@ export default function Admin() {
           </Section>
         )}
 
+        {/* ── CONTROL ── */}
+        {tab === 'control' && (
+          <>
+            <Section title="ADMIN GUARDRAILS">
+              <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>Incident Mode</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Signals an active incident so officers can coordinate from the admin console.</div>
+                  </div>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!adminControl.incident_mode}
+                      onChange={e => setAdminControl(c => ({ ...c, incident_mode: e.target.checked }))}
+                      style={{ width: 16, height: 16, accentColor: 'var(--amber)' }}
+                    />
+                    INCIDENT MODE
+                  </label>
+                </div>
+                <input
+                  className="form-input"
+                  style={{ marginTop: 10 }}
+                  value={adminControl.incident_note || ''}
+                  onChange={e => setAdminControl(c => ({ ...c, incident_note: e.target.value }))}
+                  placeholder="Incident note (shown to command only)"
+                />
+              </div>
+              <button className="btn btn-primary" disabled={controlSaving} onClick={async () => {
+                if (!hasPermission('manage_control')) { flash('Missing permission: manage_control'); return }
+                if (!(await ensureElevatedUnlock('admin guardrail update'))) return
+                await saveAdminControl(adminControl, 'Admin guardrails saved')
+              }}>
+                {controlSaving ? 'SAVING...' : 'SAVE GUARDRAILS'}
+              </button>
+            </Section>
+
+            <Section title="FEATURE FLAGS">
+              <div className="card" style={{ padding: 12 }}>
+                {Object.entries(adminControl.feature_flags || {}).map(([key, value]) => (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px dashed var(--border)' }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{key}</div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!value}
+                        onChange={e => setAdminControl(c => ({ ...c, feature_flags: { ...c.feature_flags, [key]: e.target.checked } }))}
+                        style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                      />
+                      {value ? 'ENABLED' : 'DISABLED'}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section title="ROLE PERMISSIONS">
+              <div className="card" style={{ padding: 12 }}>
+                {Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([role]) => (
+                  <div key={role} style={{ marginBottom: 12 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.18em', color: 'var(--accent)', marginBottom: 6 }}>
+                      {role.toUpperCase()}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 6 }}>
+                      {Object.entries(ADMIN_ACTION_PERMISSIONS).map(([perm, label]) => {
+                        const checked = !!adminControl.role_permissions?.[role]?.includes(perm)
+                        return (
+                          <label key={perm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => {
+                                setAdminControl(c => {
+                                  const current = new Set(c.role_permissions?.[role] || [])
+                                  if (e.target.checked) current.add(perm)
+                                  else current.delete(perm)
+                                  return { ...c, role_permissions: { ...c.role_permissions, [role]: [...current] } }
+                                })
+                              }}
+                              style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                            />
+                            {label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </>
+        )}
+
         {/* ── ACTIVITY LOG ── */}
         {tab === 'log' && (
-          <Section title={`AUDIT LOG — LAST ${d.log.length} ENTRIES`}>
+          <Section title={`AUDIT LOG — ${filteredAudit.length}/${d.log.length} ENTRIES`}>
+            <div className="card" style={{ padding: 12, marginBottom: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8 }}>
+                <input className="form-input" placeholder="Search action, actor, details..." value={auditQuery} onChange={e => setAuditQuery(e.target.value)} />
+                <select className="form-select" value={auditAction} onChange={e => setAuditAction(e.target.value)}>
+                  <option value="ALL">ALL ACTIONS</option>
+                  {uniqueAuditActions.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <select className="form-select" value={auditActor} onChange={e => setAuditActor(e.target.value)}>
+                  <option value="ALL">ALL ACTORS</option>
+                  {uniqueAuditActors.map(a => <option key={a.id} value={a.id}>{a.handle}</option>)}
+                </select>
+                <select className="form-select" value={auditTargetType} onChange={e => setAuditTargetType(e.target.value)}>
+                  <option value="ALL">ALL TARGETS</option>
+                  {uniqueTargetTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
             <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-ghost btn-sm" onClick={() => {
-                const rows = d.log.map(l => ({
+                const rows = filteredAudit.map(l => ({
                   timestamp: l.created_at,
                   action: l.action,
                   actor: l.actor?.handle || '',
@@ -814,7 +1110,7 @@ export default function Admin() {
             <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
               <thead><tr><th>TIMESTAMP</th><th>ACTION</th><th>ACTOR</th><th>TARGET TYPE</th><th>DETAILS</th></tr></thead>
               <tbody>
-                {d.log.map(l => (
+                {filteredAudit.map(l => (
                   <tr key={l.id}>
                     <td className="mono text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(l.created_at)}</td>
                     <td className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{l.action}</td>
@@ -823,6 +1119,7 @@ export default function Admin() {
                     <td style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', maxWidth: 250 }} className="truncate">{l.details?.title || (l.details ? JSON.stringify(l.details) : '—')}</td>
                   </tr>
                 ))}
+                {filteredAudit.length === 0 && <tr><td colSpan={5} className="empty-state">NO MATCHING ENTRIES</td></tr>}
               </tbody>
             </table></div></div>
           </Section>
@@ -868,7 +1165,7 @@ export default function Admin() {
                       const initiated = new Date(p.initiated_at).getTime()
                       const cooldownReadyAt = initiated + 5 * 60 * 1000
                       const isSelf = p.initiated_by === me.id
-                      const selfReady = !isSelf || Date.now() >= cooldownReadyAt
+                      const selfReady = isNoxBypass || !isSelf || Date.now() >= cooldownReadyAt
                       return (
                         <tr key={p.id}>
                           <td className="mono" style={{ fontSize: 11, color: 'var(--red)' }}>{p.action_type}</td>
