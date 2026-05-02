@@ -468,6 +468,7 @@ export default function Admin() {
 
   const tabPermission = {
     overview: 'admin_console',
+    approvals: 'admin_console',
     members: 'manage_members',
     discipline: 'manage_discipline',
     bank: 'manage_finance',
@@ -483,6 +484,7 @@ export default function Admin() {
   }
   const TAB_GROUPS = [
     { key: 'mission', label: 'MISSION CONTROL', tabs: ['overview'] },
+    { key: 'queue', label: 'APPROVALS', tabs: ['approvals'] },
     { key: 'ops', label: 'OPERATIONS', tabs: ['members', 'discipline', 'comms', 'contracts'] },
     { key: 'economy', label: 'ECONOMY', tabs: ['bank', 'loans', 'funds'] },
     { key: 'system', label: 'SYSTEM', tabs: ['discord', 'maintenance', 'control'] },
@@ -490,6 +492,7 @@ export default function Admin() {
   ]
   const tabLabel = {
     overview: 'OVERVIEW',
+    approvals: 'APPROVALS',
     members: 'MEMBERS',
     discipline: 'DISCIPLINE',
     bank: 'BANK',
@@ -549,12 +552,40 @@ export default function Admin() {
     },
   ]
   function tabBadge(tabKey) {
+    if (tabKey === 'approvals') return pendingApprovals + pendingLoans
     if (tabKey === 'danger') return pendingApprovals
     if (tabKey === 'loans') return pendingLoans
     if (tabKey === 'maintenance') return maintenanceLive
     if (tabKey === 'discord') return missingWebhooks
     return 0
   }
+  const unifiedApprovals = useMemo(() => {
+    const dangerRows = d.pending
+      .filter(p => p.status === 'PENDING')
+      .map(p => ({
+        id: `danger-${p.id}`,
+        kind: 'DANGER',
+        risk: 'CRITICAL',
+        created_at: p.initiated_at,
+        summary: p.action_type,
+        requester: p.initiator?.handle || 'Founder',
+        detail: p.reason || 'No reason',
+        row: p,
+      }))
+    const loanRows = d.loans
+      .filter(l => l.status === 'PENDING')
+      .map(l => ({
+        id: `loan-${l.id}`,
+        kind: 'LOAN',
+        risk: 'MEDIUM',
+        created_at: l.created_at,
+        summary: `Loan ${formatCredits(l.amount)}`,
+        requester: l.borrower?.handle || 'Unknown',
+        detail: l.reason || 'No reason',
+        row: l,
+      }))
+    return [...dangerRows, ...loanRows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }, [d.pending, d.loans])
   const filteredAudit = useMemo(() => {
     const q = auditQuery.trim().toLowerCase()
     return d.log.filter(l => {
@@ -706,6 +737,9 @@ export default function Admin() {
                   </div>
                 ))}
               </div>
+              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => setTab('approvals')}>OPEN UNIFIED APPROVALS</button>
+              </div>
             </Section>
 
             <Section title="ORG VITALS">
@@ -757,6 +791,55 @@ export default function Admin() {
                   )
                 })}
               </div>
+            </Section>
+          </>
+        )}
+
+        {/* ── APPROVALS INBOX ── */}
+        {tab === 'approvals' && (
+          <>
+            <Section title={`UNIFIED APPROVALS INBOX — ${unifiedApprovals.length}`}>
+              <div className="card" style={{ padding: 12, marginBottom: 10, fontSize: 12, color: 'var(--text-2)' }}>
+                One queue for sensitive command actions. Danger requests require explicit approval flow;
+                loan requests can be approved/denied from this same inbox.
+              </div>
+              <div className="card" style={{ padding: 0 }}><div className="table-wrap"><table className="data-table">
+                <thead><tr><th>TIME</th><th>TYPE</th><th>RISK</th><th>REQUEST</th><th>REQUESTER</th><th>DETAIL</th><th>ACTIONS</th></tr></thead>
+                <tbody>
+                  {unifiedApprovals.map(item => (
+                    <tr key={item.id}>
+                      <td className="mono text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(item.created_at)}</td>
+                      <td><span className={`badge ${item.kind === 'DANGER' ? 'badge-red' : 'badge-amber'}`}>{item.kind}</span></td>
+                      <td>
+                        <span className={`badge ${item.risk === 'CRITICAL' ? 'badge-red' : item.risk === 'HIGH' ? 'badge-amber' : 'badge-muted'}`}>
+                          {item.risk}
+                        </span>
+                      </td>
+                      <td className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{item.summary}</td>
+                      <td>{item.requester}</td>
+                      <td style={{ fontSize: 12, maxWidth: 260 }}>{item.detail}</td>
+                      <td>
+                        {item.kind === 'DANGER' ? (
+                          <div className="flex gap-8">
+                            <button className="btn btn-danger btn-sm" onClick={() => approvePendingAction(item.row)}>APPROVE</button>
+                            {item.row.initiated_by === me.id && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => cancelPendingAction(item.row)}>CANCEL</button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex gap-8">
+                            <button className="btn btn-primary btn-sm" onClick={() => approveLoan(item.row)}>APPROVE</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => denyLoan(item.row.id)}>DENY</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {unifiedApprovals.length === 0 && (
+                    <tr><td colSpan={7} className="empty-state">NO PENDING APPROVALS</td></tr>
+                  )}
+                </tbody>
+              </table></div></div>
             </Section>
           </>
         )}
