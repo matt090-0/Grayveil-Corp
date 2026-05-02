@@ -530,6 +530,7 @@ CREATE TABLE IF NOT EXISTS public.pending_admin_actions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   action_type TEXT NOT NULL,
   reason TEXT,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   initiated_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   initiated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
@@ -539,24 +540,36 @@ CREATE TABLE IF NOT EXISTS public.pending_admin_actions (
   result_message TEXT
 );
 ALTER TABLE public.pending_admin_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pending_admin_actions ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 DROP POLICY IF EXISTS "paa_select" ON public.pending_admin_actions;
 CREATE POLICY "paa_select" ON public.pending_admin_actions FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true));
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true)
+    OR initiated_by = auth.uid()
+  );
 -- No insert/update/delete policies on purpose — all mutations go through the RPCs below.
 
-CREATE OR REPLACE FUNCTION public.request_admin_action(p_action_type TEXT, p_reason TEXT)
+CREATE OR REPLACE FUNCTION public.request_admin_action(p_action_type TEXT, p_reason TEXT, p_payload JSONB DEFAULT '{}'::jsonb)
 RETURNS UUID AS $$
 DECLARE
   v_id UUID;
+  v_tier INT;
+  v_is_founder BOOLEAN;
   v_allowed TEXT[] := ARRAY[
     'purge_log','purge_txns','purge_contracts','purge_intel','purge_fleet',
     'purge_polls','purge_ledger','purge_loans','purge_funds',
-    'reset_wallets','reset_treasury'
+    'reset_wallets','reset_treasury',
+    'set_tax_rate','set_treasury_balance',
+    'member_update','member_delete','member_wallet_adjust',
+    'maintenance_save','maintenance_clear','discord_save_webhooks'
   ];
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
-    RAISE EXCEPTION 'Only founders may initiate admin actions.';
+  SELECT tier, is_founder INTO v_tier, v_is_founder
+  FROM public.profiles
+  WHERE id = auth.uid();
+  IF NOT FOUND OR (NOT v_is_founder AND v_tier > 4) THEN
+    RAISE EXCEPTION 'Only command officers or founders may initiate admin actions.';
   END IF;
   IF NOT public.is_active_member() THEN
     RAISE EXCEPTION 'Suspended or banned founders cannot initiate admin actions.';
@@ -567,10 +580,17 @@ BEGIN
   IF p_reason IS NULL OR length(trim(p_reason)) < 3 THEN
     RAISE EXCEPTION 'A reason of at least 3 characters is required.';
   END IF;
-  INSERT INTO public.pending_admin_actions (action_type, reason, initiated_by)
-  VALUES (p_action_type, trim(p_reason), auth.uid())
+  INSERT INTO public.pending_admin_actions (action_type, reason, payload, initiated_by)
+  VALUES (p_action_type, trim(p_reason), COALESCE(p_payload, '{}'::jsonb), auth.uid())
   RETURNING id INTO v_id;
   RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.request_admin_action(TEXT, TEXT, JSONB) TO authenticated;
+CREATE OR REPLACE FUNCTION public.request_admin_action(p_action_type TEXT, p_reason TEXT)
+RETURNS UUID AS $$
+BEGIN
+  RETURN public.request_admin_action(p_action_type, p_reason, '{}'::jsonb);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION public.request_admin_action(TEXT, TEXT) TO authenticated;
@@ -581,6 +601,7 @@ DECLARE
   v_row public.pending_admin_actions%ROWTYPE;
   v_self_cooldown CONSTANT INTERVAL := INTERVAL '5 minutes';
   v_result TEXT;
+  v_is_nox BOOLEAN := FALSE;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_founder = true) THEN
     RAISE EXCEPTION 'Only founders may approve admin actions.';
@@ -588,6 +609,7 @@ BEGIN
   IF NOT public.is_active_member() THEN
     RAISE EXCEPTION 'Suspended or banned founders cannot approve admin actions.';
   END IF;
+  SELECT (lower(handle) LIKE '%nox%') INTO v_is_nox FROM public.profiles WHERE id = auth.uid();
 
   SELECT * INTO v_row FROM public.pending_admin_actions WHERE id = p_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'No such pending action.'; END IF;
@@ -600,6 +622,7 @@ BEGIN
   END IF;
 
   IF v_row.initiated_by = auth.uid()
+     AND NOT v_is_nox
      AND NOW() < (v_row.initiated_at + v_self_cooldown) THEN
     RAISE EXCEPTION 'Self-approval requires a 5-minute cool-off; try again after %.',
       to_char(v_row.initiated_at + v_self_cooldown, 'HH24:MI:SS');
@@ -644,6 +667,61 @@ BEGIN
     WHEN 'reset_treasury' THEN
       UPDATE public.treasury SET balance = 0 WHERE id = 1;
       v_result := 'Treasury reset to 0.';
+    WHEN 'set_tax_rate' THEN
+      INSERT INTO public.org_settings (key, value, updated_by)
+      VALUES (
+        'tax_rate',
+        jsonb_build_object('percent', GREATEST(0, LEAST(100, COALESCE((v_row.payload->>'percent')::INT, 10)))),
+        auth.uid()
+      )
+      ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by;
+      v_result := 'Tax rate updated via approval.';
+    WHEN 'set_treasury_balance' THEN
+      UPDATE public.treasury
+      SET balance = COALESCE((v_row.payload->>'balance')::BIGINT, balance)
+      WHERE id = 1;
+      v_result := 'Treasury balance set via approval.';
+    WHEN 'member_update' THEN
+      UPDATE public.profiles
+      SET
+        rank = CASE WHEN v_row.payload ? 'rank' THEN (v_row.payload->>'rank') ELSE rank END,
+        tier = CASE WHEN v_row.payload ? 'tier' THEN (v_row.payload->>'tier')::INT ELSE tier END,
+        division = CASE WHEN v_row.payload ? 'division' THEN NULLIF(v_row.payload->>'division', '') ELSE division END,
+        status = CASE WHEN v_row.payload ? 'status' THEN (v_row.payload->>'status') ELSE status END,
+        is_founder = CASE WHEN v_row.payload ? 'is_founder' THEN (v_row.payload->>'is_founder')::BOOLEAN ELSE is_founder END,
+        wallet_balance = CASE WHEN v_row.payload ? 'wallet_balance' THEN (v_row.payload->>'wallet_balance')::BIGINT ELSE wallet_balance END
+      WHERE id = (v_row.payload->>'member_id')::UUID;
+      v_result := 'Member profile updated via approval.';
+    WHEN 'member_delete' THEN
+      DELETE FROM public.profiles
+      WHERE id = (v_row.payload->>'member_id')::UUID;
+      v_result := 'Member deleted via approval.';
+    WHEN 'member_wallet_adjust' THEN
+      UPDATE public.profiles
+      SET wallet_balance = COALESCE((v_row.payload->>'wallet_balance')::BIGINT, wallet_balance)
+      WHERE id = (v_row.payload->>'member_id')::UUID;
+      v_result := 'Member wallet adjusted via approval.';
+    WHEN 'maintenance_save' THEN
+      INSERT INTO public.org_settings (key, value, updated_by)
+      VALUES ('page_maintenance', COALESCE(v_row.payload->'map', '{}'::jsonb), auth.uid())
+      ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by;
+      v_result := 'Maintenance map updated via approval.';
+    WHEN 'maintenance_clear' THEN
+      INSERT INTO public.org_settings (key, value, updated_by)
+      VALUES ('page_maintenance', '{}'::jsonb, auth.uid())
+      ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by;
+      v_result := 'Maintenance map cleared via approval.';
+    WHEN 'discord_save_webhooks' THEN
+      INSERT INTO public.org_settings (key, value, updated_by)
+      SELECT k, jsonb_build_object('url', v), auth.uid()
+      FROM jsonb_each_text(COALESCE(v_row.payload->'webhooks', '{}'::jsonb)) AS t(k, v)
+      WHERE k LIKE 'discord_%'
+      ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by;
+      v_result := 'Discord webhook map updated via approval.';
     ELSE
       RAISE EXCEPTION 'Unknown action type: %', v_row.action_type;
   END CASE;

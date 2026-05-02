@@ -211,6 +211,51 @@ export default function Admin() {
     await discordModeration(action, member.handle, reason, me.handle, details)
   }
 
+  async function requestSensitiveAction({ actionType, label, payload = {}, reasonPrompt, onLegacyExecute }) {
+    const reason = await promptAction(reasonPrompt || `Reason for ${label}:`)
+    if (!reason?.trim()) return 'failed'
+    const trimmed = reason.trim()
+    const { error } = await supabase.rpc('request_admin_action', {
+      p_action_type: actionType,
+      p_reason: trimmed,
+      p_payload: payload,
+    })
+    if (error) {
+      // Legacy DB fallback: if the richer approval RPC isn't deployed yet,
+      // execute immediately so we never hard-block founder workflows.
+      if (onLegacyExecute) {
+        await onLegacyExecute(trimmed)
+        flash(`${label} executed immediately (approval backend fallback).`)
+        await load()
+        return 'executed'
+      }
+      flash(`Request failed: ${error.message}`)
+      return 'failed'
+    }
+    if (isNoxBypass) {
+      const { data: pending } = await supabase
+        .from('pending_admin_actions')
+        .select('id')
+        .eq('initiated_by', me.id)
+        .eq('action_type', actionType)
+        .eq('status', 'PENDING')
+        .order('initiated_at', { ascending: false })
+        .limit(1)
+      const id = pending?.[0]?.id
+      if (id) {
+        const { data: bypassResult, error: bypassError } = await supabase.rpc('approve_admin_action', { p_id: id })
+        if (!bypassError) {
+          flash(bypassResult || `${label} executed (Nox bypass).`)
+          await load()
+          return 'executed'
+        }
+      }
+    }
+    flash(`Approval request submitted: ${label}.`)
+    await load()
+    return 'queued'
+  }
+
   // ── DISCIPLINARY ACTIONS ──
   async function disciplineMember(member, action) {
     if (!hasPermission('manage_discipline')) { flash('Missing permission: manage_discipline'); return }
@@ -321,40 +366,80 @@ export default function Admin() {
   async function updateMember(id, updates) {
     if (!hasPermission('manage_members')) { flash('Missing permission: manage_members'); return }
     if (!(await ensureElevatedUnlock('member profile update'))) return
-    setSaving(true)
-    await supabase.from('profiles').update(updates).eq('id', id)
-    await logAction('admin_update_member', id, updates)
-    setModal(null); setSaving(false); flash('Member updated.'); load()
+    const member = d.members.find(m => m.id === id)
+    const label = `member update for ${member?.handle || 'member'}`
+    await requestSensitiveAction({
+      actionType: 'member_update',
+      label,
+      payload: { member_id: id, ...updates },
+      reasonPrompt: `Reason for ${label}:`,
+      onLegacyExecute: async () => {
+        setSaving(true)
+        await supabase.from('profiles').update(updates).eq('id', id)
+        await logAction('admin_update_member', id, updates)
+        setModal(null); setSaving(false)
+      },
+    })
+    setModal(null)
   }
   async function deleteMember(m) {
     if (!hasPermission('manage_members')) { flash('Missing permission: manage_members'); return }
     if (!(await ensureElevatedUnlock('member deletion'))) return
     if (!(await confirmAction(`PERMANENTLY DELETE ${m.handle}? This is irreversible.`))) return
-    await supabase.from('profiles').delete().eq('id', m.id)
-    await logAction('admin_delete_member', m.id, { handle: m.handle })
-    flash(`${m.handle} removed.`); load()
+    await requestSensitiveAction({
+      actionType: 'member_delete',
+      label: `member delete for ${m.handle}`,
+      payload: { member_id: m.id, handle: m.handle },
+      reasonPrompt: `Reason for deleting ${m.handle}:`,
+      onLegacyExecute: async () => {
+        await supabase.from('profiles').delete().eq('id', m.id)
+        await logAction('admin_delete_member', m.id, { handle: m.handle })
+      },
+    })
   }
   async function adjustWallet(memberId, newBalance) {
     if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
     if (!(await ensureElevatedUnlock('wallet adjustment'))) return
-    await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', memberId)
-    await logAction('admin_adjust_wallet', memberId, { new_balance: newBalance })
-    flash('Wallet adjusted.'); load()
+    const member = d.members.find(m => m.id === memberId)
+    await requestSensitiveAction({
+      actionType: 'member_wallet_adjust',
+      label: `wallet adjust for ${member?.handle || 'member'}`,
+      payload: { member_id: memberId, wallet_balance: newBalance },
+      reasonPrompt: `Reason for wallet adjustment (${member?.handle || memberId}):`,
+      onLegacyExecute: async () => {
+        await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', memberId)
+        await logAction('admin_adjust_wallet', memberId, { new_balance: newBalance })
+      },
+    })
   }
 
   // ── BANK ACTIONS ──
   async function setTreasuryBalance(newBal) {
     if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
     if (!(await ensureElevatedUnlock('treasury update'))) return
-    await supabase.from('treasury').update({ balance: newBal }).eq('id', 1)
-    await logAction('admin_set_treasury', null, { new_balance: newBal })
-    flash('Treasury updated.'); load()
+    await requestSensitiveAction({
+      actionType: 'set_treasury_balance',
+      label: 'treasury balance change',
+      payload: { balance: newBal },
+      reasonPrompt: `Reason for setting treasury to ${formatCredits(newBal)}:`,
+      onLegacyExecute: async () => {
+        await supabase.from('treasury').update({ balance: newBal }).eq('id', 1)
+        await logAction('admin_set_treasury', null, { new_balance: newBal })
+      },
+    })
   }
   async function saveTaxRate(pct) {
     if (!hasPermission('manage_finance')) { flash('Missing permission: manage_finance'); return }
     if (!(await ensureElevatedUnlock('tax change'))) return
-    await supabase.from('org_settings').upsert({ key: 'tax_rate', value: { percent: pct }, updated_by: me.id })
-    flash('Tax rate updated.'); load()
+    await requestSensitiveAction({
+      actionType: 'set_tax_rate',
+      label: 'tax rate change',
+      payload: { percent: pct },
+      reasonPrompt: `Reason for changing tax rate to ${pct}%:`,
+      onLegacyExecute: async () => {
+        await supabase.from('org_settings').upsert({ key: 'tax_rate', value: { percent: pct }, updated_by: me.id })
+      },
+    })
   }
 
   // ── LOAN ACTIONS ──
@@ -560,12 +645,16 @@ export default function Admin() {
     return 0
   }
   const unifiedApprovals = useMemo(() => {
+    const dangerTypes = new Set([
+      'purge_log','purge_txns','purge_contracts','purge_intel','purge_fleet',
+      'purge_polls','purge_ledger','purge_loans','purge_funds','reset_wallets','reset_treasury',
+    ])
     const dangerRows = d.pending
       .filter(p => p.status === 'PENDING')
       .map(p => ({
         id: `danger-${p.id}`,
-        kind: 'DANGER',
-        risk: 'CRITICAL',
+        kind: dangerTypes.has(p.action_type) ? 'DANGER' : 'ADMIN',
+        risk: dangerTypes.has(p.action_type) ? 'CRITICAL' : 'HIGH',
         created_at: p.initiated_at,
         summary: p.action_type,
         requester: p.initiator?.handle || 'Founder',
@@ -809,7 +898,7 @@ export default function Admin() {
                   {unifiedApprovals.map(item => (
                     <tr key={item.id}>
                       <td className="mono text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(item.created_at)}</td>
-                      <td><span className={`badge ${item.kind === 'DANGER' ? 'badge-red' : 'badge-amber'}`}>{item.kind}</span></td>
+                      <td><span className={`badge ${item.kind === 'DANGER' ? 'badge-red' : item.kind === 'ADMIN' ? 'badge-blue' : 'badge-amber'}`}>{item.kind}</span></td>
                       <td>
                         <span className={`badge ${item.risk === 'CRITICAL' ? 'badge-red' : item.risk === 'HIGH' ? 'badge-amber' : 'badge-muted'}`}>
                           {item.risk}
@@ -819,7 +908,7 @@ export default function Admin() {
                       <td>{item.requester}</td>
                       <td style={{ fontSize: 12, maxWidth: 260 }}>{item.detail}</td>
                       <td>
-                        {item.kind === 'DANGER' ? (
+                        {item.kind !== 'LOAN' ? (
                           <div className="flex gap-8">
                             <button className="btn btn-danger btn-sm" onClick={() => approvePendingAction(item.row)}>APPROVE</button>
                             {item.row.initiated_by === me.id && (
@@ -1120,11 +1209,18 @@ export default function Admin() {
                 if (!hasPermission('manage_discord')) { flash('Missing permission: manage_discord'); return }
                 if (!(await ensureElevatedUnlock('discord webhook update'))) return
                 setWebhookSaving(true)
-                for (const [key, url] of Object.entries(webhooks)) {
-                  await supabase.from('org_settings').upsert({ key, value: { url }, updated_by: me.id }, { onConflict: 'key' })
-                }
+                await requestSensitiveAction({
+                  actionType: 'discord_save_webhooks',
+                  label: 'discord webhook update',
+                  payload: { webhooks },
+                  reasonPrompt: 'Reason for updating Discord webhook routes:',
+                  onLegacyExecute: async () => {
+                    for (const [key, url] of Object.entries(webhooks)) {
+                      await supabase.from('org_settings').upsert({ key, value: { url }, updated_by: me.id }, { onConflict: 'key' })
+                    }
+                  },
+                })
                 setWebhookSaving(false)
-                flash('Discord webhooks saved')
               }}>
               {webhookSaving ? 'SAVING...' : 'SAVE ALL WEBHOOKS'}
             </button>
@@ -1210,15 +1306,20 @@ export default function Admin() {
                   for (const [route, cfg] of Object.entries(maintMap)) {
                     if (cfg?.enabled || cfg?.note) cleaned[route] = { enabled: !!cfg.enabled, note: cfg.note || '' }
                   }
-                  const { error } = await supabase.from('org_settings').upsert(
-                    { key: 'page_maintenance', value: cleaned, updated_by: me.id },
-                    { onConflict: 'key' },
-                  )
+                  const mode = await requestSensitiveAction({
+                    actionType: 'maintenance_save',
+                    label: 'maintenance map update',
+                    payload: { map: cleaned },
+                    reasonPrompt: 'Reason for maintenance map update:',
+                    onLegacyExecute: async () => {
+                      await supabase.from('org_settings').upsert(
+                        { key: 'page_maintenance', value: cleaned, updated_by: me.id },
+                        { onConflict: 'key' },
+                      )
+                    },
+                  })
                   setMaintSaving(false)
-                  if (error) { flash(`Save failed: ${error.message}`); return }
-                  notifyMaintenanceChange(cleaned)
-                  await logAction('maintenance_updated', null, { routes: Object.keys(cleaned).filter(k => cleaned[k].enabled) })
-                  flash('Maintenance settings saved')
+                  if (mode === 'executed') notifyMaintenanceChange(cleaned)
                 }}>
                 {maintSaving ? 'SAVING...' : 'SAVE MAINTENANCE SETTINGS'}
               </button>
@@ -1228,16 +1329,23 @@ export default function Admin() {
                   if (!(await ensureElevatedUnlock('maintenance clear'))) return
                   if (!(await confirmAction('Clear all maintenance flags? Every section will be accessible again.'))) return
                   setMaintSaving(true)
-                  const { error } = await supabase.from('org_settings').upsert(
-                    { key: 'page_maintenance', value: {}, updated_by: me.id },
-                    { onConflict: 'key' },
-                  )
+                  const mode = await requestSensitiveAction({
+                    actionType: 'maintenance_clear',
+                    label: 'maintenance clear',
+                    payload: {},
+                    reasonPrompt: 'Reason for clearing all maintenance flags:',
+                    onLegacyExecute: async () => {
+                      await supabase.from('org_settings').upsert(
+                        { key: 'page_maintenance', value: {}, updated_by: me.id },
+                        { onConflict: 'key' },
+                      )
+                    },
+                  })
                   setMaintSaving(false)
-                  if (error) { flash(`Clear failed: ${error.message}`); return }
-                  setMaintMap({})
-                  notifyMaintenanceChange({})
-                  await logAction('maintenance_cleared', null, {})
-                  flash('All sections back online')
+                  if (mode === 'executed') {
+                    setMaintMap({})
+                    notifyMaintenanceChange({})
+                  }
                 }}>
                 CLEAR ALL
               </button>
