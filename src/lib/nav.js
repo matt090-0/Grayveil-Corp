@@ -16,6 +16,7 @@ export const NAV = [
   { to: '/certifications', icon: 'certs',   label: 'CERT TRACKER'  },
   { to: '/reputation',  icon: 'reputation', label: 'REPUTATION'    },
   { to: '/analytics',   icon: 'reputation', label: 'ANALYTICS'     },
+  { to: '/command-hq',  icon: 'sitrep',     label: 'COMMAND HQ', minTier: 4 },
   { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
 
   { section: 'OPERATIONS' },
