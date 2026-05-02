@@ -65,7 +65,7 @@ export default function CommandHQ() {
         supabase.from('applications').select('id, status, source, referral_code, created_at'),
         supabase.from('recruitment').select('id, handle, status, created_at, updated_at'),
         supabase.from('messages').select('id, content, created_at').is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
-        supabase.from('pending_admin_actions').select('id, action_type, status, initiated_at, approved_at').order('initiated_at', { ascending: false }).limit(100),
+        supabase.from('pending_admin_actions').select('id, action_type, status, initiated_at, approved_at, initiated_by, approved_by, reason, result_message').order('initiated_at', { ascending: false }).limit(150),
         supabase.from('treasury').select('balance').eq('id', 1).maybeSingle(),
       ])
 
@@ -196,6 +196,12 @@ export default function CommandHQ() {
   }, [applications, recruitment, members])
 
   const pendingPromotions = pendingActions.filter(p => p.action_type === 'member_update' && p.status === 'PENDING').length
+  const incidentTimeline = useMemo(() => pendingActions
+    .filter(p => p.action_type === 'maintenance_save' && /Incident playbook trigger:/i.test(String(p.reason || '')))
+    .slice(0, 20), [pendingActions])
+  const promotionQueueRows = useMemo(() => pendingActions
+    .filter(p => p.action_type === 'member_update' && /Promotion proposal for/i.test(String(p.reason || '')))
+    .slice(0, 20), [pendingActions])
 
   async function suggestSwap(row, kind) {
     const candidate = kind === 'medic' ? row.availableMedic : row.availableLogi
@@ -311,6 +317,42 @@ export default function CommandHQ() {
       return
     }
     toast('Incident playbook queued for approval.', 'success')
+    load()
+  }
+
+  async function cancelQueuedAction(action) {
+    if (!action?.id) return
+    if (action.initiated_by !== profile.id) {
+      toast('Only the initiator can cancel this queued action.', 'error')
+      return
+    }
+    setBusyAction(`cancel-${action.id}`)
+    const { error } = await supabase.rpc('cancel_admin_action', { p_id: action.id })
+    setBusyAction('')
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Queued action cancelled.', 'success')
+    load()
+  }
+
+  async function queueIncidentRollback(action) {
+    setBusyAction(`rollback-${action?.id || 'global'}`)
+    const reason = action?.id
+      ? `Rollback requested from Command HQ for playbook request ${action.id}.`
+      : 'Emergency rollback requested from Command HQ.'
+    const { error } = await supabase.rpc('request_admin_action', {
+      p_action_type: 'maintenance_clear',
+      p_reason: reason,
+      p_payload: {},
+    })
+    setBusyAction('')
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Rollback queued for approval.', 'success')
     load()
   }
 
@@ -497,6 +539,71 @@ export default function CommandHQ() {
                 </Card>
               ))}
             </div>
+
+            <SectionHeader label="INCIDENT TIMELINE + ROLLBACK CONTROL" color="#e05c5c" />
+            <div style={{ marginBottom: 8 }}>
+              <button className="btn btn-ghost btn-sm" disabled={busyAction === 'rollback-global'} onClick={() => queueIncidentRollback(null)}>
+                {busyAction === 'rollback-global' ? 'QUEUING...' : 'Queue global rollback'}
+              </button>
+            </div>
+            {incidentTimeline.length === 0 ? <EmptyState>No incident playbooks recorded yet.</EmptyState> : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {incidentTimeline.map(run => {
+                  const initiator = members.find(m => m.id === run.initiated_by)?.handle || 'unknown'
+                  const approver = members.find(m => m.id === run.approved_by)?.handle || '—'
+                  const statusColor = run.status === 'EXECUTED' ? '#5ce0a1' : run.status === 'PENDING' ? '#e0a155' : '#9099a8'
+                  return (
+                    <Card key={run.id} accent={statusColor}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                        <div style={{ fontWeight: 600 }}>Run {run.id.slice(0, 8)}</div>
+                        <StatusBadge label={run.status} color={statusColor} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                        {run.reason || '—'} · initiated {fmtDateTime(run.initiated_at)} by {initiator}
+                        {run.approved_at ? ` · approved ${fmtDateTime(run.approved_at)} by ${approver}` : ''}
+                      </div>
+                      {run.result_message && <div style={{ fontSize: 11, marginTop: 4 }}>{run.result_message}</div>}
+                      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {run.status === 'PENDING' && run.initiated_by === profile.id && (
+                          <button className="btn btn-ghost btn-sm" disabled={busyAction === `cancel-${run.id}`} onClick={() => cancelQueuedAction(run)}>
+                            {busyAction === `cancel-${run.id}` ? 'CANCELLING...' : 'Cancel queued run'}
+                          </button>
+                        )}
+                        {run.status === 'EXECUTED' && (
+                          <button className="btn btn-ghost btn-sm" disabled={busyAction === `rollback-${run.id}`} onClick={() => queueIncidentRollback(run)}>
+                            {busyAction === `rollback-${run.id}` ? 'QUEUING...' : 'Queue rollback from this run'}
+                          </button>
+                        )}
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+
+            <SectionHeader label="PROMOTION QUEUE TIMELINE" color="#c8a55a" />
+            {promotionQueueRows.length === 0 ? <EmptyState>No promotion queue actions yet.</EmptyState> : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {promotionQueueRows.map(row => (
+                  <Card key={row.id} accent={row.status === 'EXECUTED' ? '#5ce0a1' : row.status === 'PENDING' ? '#e0a155' : '#9099a8'}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{row.reason || 'Promotion proposal'}</div>
+                      <StatusBadge label={row.status} color={row.status === 'EXECUTED' ? '#5ce0a1' : row.status === 'PENDING' ? '#e0a155' : '#9099a8'} />
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                      Requested {fmtDateTime(row.initiated_at)}
+                    </div>
+                    {row.status === 'PENDING' && row.initiated_by === profile.id && (
+                      <div style={{ marginTop: 8 }}>
+                        <button className="btn btn-ghost btn-sm" disabled={busyAction === `cancel-${row.id}`} onClick={() => cancelQueuedAction(row)}>
+                          {busyAction === `cancel-${row.id}` ? 'CANCELLING...' : 'Cancel queued promotion'}
+                        </button>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
