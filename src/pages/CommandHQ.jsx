@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/Toast'
 import {
   ClassificationBar, StatCell, Card, SectionHeader, StatusBadge, EmptyState, timeUntil, fmtDateTime,
 } from '../components/uee'
@@ -36,7 +37,9 @@ function safe(data) {
 export default function CommandHQ() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [loading, setLoading] = useState(true)
+  const [busyAction, setBusyAction] = useState('')
   const [events, setEvents] = useState([])
   const [signups, setSignups] = useState([])
   const [members, setMembers] = useState([])
@@ -50,9 +53,8 @@ export default function CommandHQ() {
   const [pendingActions, setPendingActions] = useState([])
   const [treasury, setTreasury] = useState(0)
 
-  useEffect(() => {
-    async function load() {
-      const queries = await Promise.allSettled([
+  async function load() {
+    const queries = await Promise.allSettled([
         supabase.from('events').select('id, title, event_type, starts_at, status, location, max_slots, min_tier, created_by').order('starts_at', { ascending: true }),
         supabase.from('event_signups').select('event_id, member_id, role, status'),
         supabase.from('profiles').select('id, handle, tier, status, speciality, division, rep_score, strike_count, last_seen_at, joined_at').eq('status', 'ACTIVE'),
@@ -67,22 +69,24 @@ export default function CommandHQ() {
         supabase.from('treasury').select('balance').eq('id', 1).maybeSingle(),
       ])
 
-      const pick = (idx) => (queries[idx].status === 'fulfilled' ? queries[idx].value.data : [])
-      setEvents(safe(pick(0)))
-      setSignups(safe(pick(1)))
-      setMembers(safe(pick(2)))
-      setCerts(safe(pick(3)))
-      setAars(safe(pick(4)))
-      setLoans(safe(pick(5)))
-      setFunds(safe(pick(6)))
-      setApplications(safe(pick(7)))
-      setRecruitment(safe(pick(8)))
-      setMessages(safe(pick(9)))
-      setPendingActions(safe(pick(10)))
-      const t = queries[11].status === 'fulfilled' ? queries[11].value.data : null
-      setTreasury(t?.balance || 0)
-      setLoading(false)
-    }
+    const pick = (idx) => (queries[idx].status === 'fulfilled' ? queries[idx].value.data : [])
+    setEvents(safe(pick(0)))
+    setSignups(safe(pick(1)))
+    setMembers(safe(pick(2)))
+    setCerts(safe(pick(3)))
+    setAars(safe(pick(4)))
+    setLoans(safe(pick(5)))
+    setFunds(safe(pick(6)))
+    setApplications(safe(pick(7)))
+    setRecruitment(safe(pick(8)))
+    setMessages(safe(pick(9)))
+    setPendingActions(safe(pick(10)))
+    const t = queries[11].status === 'fulfilled' ? queries[11].value.data : null
+    setTreasury(t?.balance || 0)
+    setLoading(false)
+  }
+
+  useEffect(() => {
     load()
   }, [])
 
@@ -104,10 +108,10 @@ export default function CommandHQ() {
     const lowCert = roster.filter(r => (certCountByMember[r.member_id] || 0) < 2).length
     const availableMedic = members.find(m =>
       !roster.some(r => r.member_id === m.id) && /(medic|medical)/i.test(String(m.speciality || '')),
-    )?.handle
+    ) || null
     const availableLogi = members.find(m =>
       !roster.some(r => r.member_id === m.id) && /(logistics|support|hauler|engineer)/i.test(String(m.speciality || '')),
-    )?.handle
+    ) || null
     return { op, rosterCount: roster.length, missingMedic, missingLogistics, lowCert, availableMedic, availableLogi }
   }), [upcomingOps, signups, certCountByMember, members])
 
@@ -193,6 +197,123 @@ export default function CommandHQ() {
 
   const pendingPromotions = pendingActions.filter(p => p.action_type === 'member_update' && p.status === 'PENDING').length
 
+  async function suggestSwap(row, kind) {
+    const candidate = kind === 'medic' ? row.availableMedic : row.availableLogi
+    if (!candidate?.id) {
+      toast('No suitable swap candidate found.', 'error')
+      return
+    }
+    setBusyAction(`swap-${row.op.id}-${kind}`)
+    const reason = kind === 'medic' ? 'Missing medic coverage' : 'Missing logistics coverage'
+    await supabase.from('notifications').insert({
+      recipient_id: row.op.created_by,
+      type: 'op_signup',
+      title: `HQ swap suggestion for ${row.op.title}`,
+      message: `${reason}. Suggest assigning ${candidate.handle}.`,
+      link: '/events',
+    })
+    await supabase.from('activity_log').insert({
+      actor_id: profile.id,
+      action: 'hq_swap_suggested',
+      target_type: 'event',
+      target_id: row.op.id,
+      details: { kind, suggested_handle: candidate.handle, reason },
+    })
+    setBusyAction('')
+    toast(`Swap suggested: ${candidate.handle}`, 'success')
+  }
+
+  async function sendTrackReminders(track) {
+    setBusyAction(`track-${track.key}`)
+    const required = track.certs.map(c => c.toLowerCase())
+    const rows = members.filter(m => {
+      const names = certs.filter(c => c.member_id === m.id).map(c => String(c.cert?.name || '').toLowerCase())
+      return !required.every(r => names.includes(r))
+    }).slice(0, 25)
+    if (rows.length === 0) {
+      setBusyAction('')
+      toast(`No reminders needed for ${track.label}.`, 'info')
+      return
+    }
+    await supabase.from('notifications').insert(rows.map(m => ({
+      recipient_id: m.id,
+      type: 'promotion',
+      title: `${track.label} campaign recommendation`,
+      message: `Recommended next training: ${track.certs.join(' · ')}`,
+      link: '/certifications',
+    })))
+    await supabase.from('activity_log').insert({
+      actor_id: profile.id,
+      action: 'hq_training_reminder_burst',
+      target_type: 'campaign',
+      details: { track: track.key, recipients: rows.length },
+    })
+    setBusyAction('')
+    toast(`Sent ${rows.length} training reminders.`, 'success')
+  }
+
+  async function queuePromotion(candidate) {
+    setBusyAction(`promo-${candidate.id}`)
+    const reason = `HQ score ${candidate.score}; AAR ${candidate.attendance}; certs ${candidate.certs}; strikes ${candidate.strike_count || 0}`
+    const { error } = await supabase.rpc('request_admin_action', {
+      p_action_type: 'member_update',
+      p_reason: `Promotion proposal for ${candidate.handle}. ${reason}`,
+      p_payload: { member_id: candidate.id, tier: candidate.recommendedTier },
+    })
+    setBusyAction('')
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast(`Promotion proposal queued for ${candidate.handle}.`, 'success')
+    load()
+  }
+
+  async function syncDiscord(kind) {
+    setBusyAction(`discord-${kind}`)
+    const op = upcomingOps[0]
+    const payload = {
+      username: 'Grayveil Command HQ',
+      embeds: [{
+        title: kind === 'op' ? '/op sync' : kind === 'roster' ? '/roster sync' : '/501st-status sync',
+        description: kind === 'op'
+          ? (op ? `Next op: **${op.title}** · ${timeUntil(op.starts_at)} · ${op.location || 'TBD'}` : 'No upcoming ops.')
+          : kind === 'roster'
+            ? `Online now: **${overlay.online.length}** · Live ops: **${overlay.liveOps.length}**`
+            : '501st rotating code system is active. Use command deck to preview.',
+        color: 0x7289da,
+        timestamp: new Date().toISOString(),
+      }],
+    }
+    const { error } = await supabase.rpc('post_discord_webhook', { p_channel: 'operations', p_payload: payload })
+    setBusyAction('')
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Discord sync posted.', 'success')
+  }
+
+  async function runIncident(playbook) {
+    setBusyAction(`incident-${playbook}`)
+    const map = { '/messages': { enabled: false, note: '' }, '/events': { enabled: false, note: '' }, '/bank': { enabled: false, note: '' } }
+    if (playbook === 'comms_outage') map['/messages'] = { enabled: true, note: 'Comms outage response active. Fallback to Ops Board.' }
+    if (playbook === 'sabotage') map['/bank'] = { enabled: true, note: 'Finance freeze during sabotage response.' }
+    if (playbook === 'mass_ban') map['/admin'] = { enabled: true, note: 'Admin incident lock while moderation rollback executes.' }
+    const { error } = await supabase.rpc('request_admin_action', {
+      p_action_type: 'maintenance_save',
+      p_reason: `Incident playbook trigger: ${playbook}`,
+      p_payload: { map },
+    })
+    setBusyAction('')
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Incident playbook queued for approval.', 'success')
+    load()
+  }
+
   return (
     <>
       <ClassificationBar
@@ -227,10 +348,24 @@ export default function CommandHQ() {
                     <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{fmtDateTime(r.op.starts_at)} · {r.op.location || 'TBD'}</div>
                     <div style={{ marginTop: 7, fontSize: 12 }}>Roster {r.rosterCount}{r.op.max_slots ? `/${r.op.max_slots}` : ''} · Low-cert {r.lowCert}</div>
                     <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {r.missingMedic && <StatusBadge label={`NO MEDIC${r.availableMedic ? ` · swap ${r.availableMedic}` : ''}`} color="#e05c5c" />}
-                      {r.missingLogistics && <StatusBadge label={`NO LOGI${r.availableLogi ? ` · swap ${r.availableLogi}` : ''}`} color="#e0a155" />}
+                      {r.missingMedic && <StatusBadge label={`NO MEDIC${r.availableMedic ? ` · swap ${r.availableMedic.handle}` : ''}`} color="#e05c5c" />}
+                      {r.missingLogistics && <StatusBadge label={`NO LOGI${r.availableLogi ? ` · swap ${r.availableLogi.handle}` : ''}`} color="#e0a155" />}
                       {!r.missingMedic && !r.missingLogistics && r.lowCert === 0 && <StatusBadge label="READY" color="#5ce0a1" />}
                     </div>
+                    {(r.missingMedic || r.missingLogistics) && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {r.missingMedic && r.availableMedic && (
+                          <button className="btn btn-ghost btn-sm" disabled={busyAction === `swap-${r.op.id}-medic`} onClick={() => suggestSwap(r, 'medic')}>
+                            {busyAction === `swap-${r.op.id}-medic` ? 'SENDING...' : `Suggest ${r.availableMedic.handle}`}
+                          </button>
+                        )}
+                        {r.missingLogistics && r.availableLogi && (
+                          <button className="btn btn-ghost btn-sm" disabled={busyAction === `swap-${r.op.id}-logistics`} onClick={() => suggestSwap(r, 'logistics')}>
+                            {busyAction === `swap-${r.op.id}-logistics` ? 'SENDING...' : `Suggest ${r.availableLogi.handle}`}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>
@@ -244,6 +379,11 @@ export default function CommandHQ() {
                   <div style={{ marginTop: 6, fontSize: 22, fontFamily: 'var(--font-display)' }}>{t.pct}%</div>
                   <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{t.complete}/{members.length} complete</div>
                   <div style={{ marginTop: 8, fontSize: 11 }}>{t.certs.join(' · ')}</div>
+                  <div style={{ marginTop: 8 }}>
+                    <button className="btn btn-ghost btn-sm" disabled={busyAction === `track-${t.key}`} onClick={() => sendTrackReminders(t)}>
+                      {busyAction === `track-${t.key}` ? 'SENDING...' : 'Auto-remind missing members'}
+                    </button>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -258,6 +398,11 @@ export default function CommandHQ() {
                       <span style={{ fontFamily: 'var(--font-mono)', color: '#c8a55a' }}>SCORE {c.score}</span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>T{c.tier} → T{c.recommendedTier} · REP {c.rep_score || 0} · AAR {c.attendance} · CERT {c.certs} · STRIKE {c.strike_count || 0}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <button className="btn btn-ghost btn-sm" disabled={busyAction === `promo-${c.id}`} onClick={() => queuePromotion(c)}>
+                        {busyAction === `promo-${c.id}` ? 'QUEUING...' : 'Queue promotion approval'}
+                      </button>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -315,19 +460,42 @@ export default function CommandHQ() {
 
             <SectionHeader label="DISCORD OPS AUTOMATION PACK" color="#7289da" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 10 }}>
-              <Card accent="#7289da"><div><b>/op</b> next-up preview · {upcomingOps[0] ? `${upcomingOps[0].title} in ${timeUntil(upcomingOps[0].starts_at)}` : 'none'}</div></Card>
-              <Card accent="#7289da"><div><b>/roster</b> online summary · {overlay.online.length} online</div></Card>
-              <Card accent="#7289da"><div><b>/501st-status</b> rolling code enabled in admin control</div></Card>
+              <Card accent="#7289da">
+                <div><b>/op</b> next-up preview · {upcomingOps[0] ? `${upcomingOps[0].title} in ${timeUntil(upcomingOps[0].starts_at)}` : 'none'}</div>
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-op'} onClick={() => syncDiscord('op')}>
+                  {busyAction === 'discord-op' ? 'SYNCING...' : 'Sync /op now'}
+                </button>
+              </Card>
+              <Card accent="#7289da">
+                <div><b>/roster</b> online summary · {overlay.online.length} online</div>
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-roster'} onClick={() => syncDiscord('roster')}>
+                  {busyAction === 'discord-roster' ? 'SYNCING...' : 'Sync /roster now'}
+                </button>
+              </Card>
+              <Card accent="#7289da">
+                <div><b>/501st-status</b> rolling code enabled in admin control</div>
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-501st'} onClick={() => syncDiscord('501st')}>
+                  {busyAction === 'discord-501st' ? 'SYNCING...' : 'Sync /501st-status now'}
+                </button>
+              </Card>
             </div>
 
             <SectionHeader label="INCIDENT PLAYBOOKS" color="#e05c5c" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
               {[
-                { k: 'Account Compromise', s: 'Lock account, rotate 501st, invalidate webhooks, audit log review' },
-                { k: 'Sabotage Event', s: 'Freeze payouts, isolate actor, pull AAR timeline, command notice' },
-                { k: 'Mass-ban Mistake', s: 'Pause discipline actions, restore from queue, announce rollback' },
-                { k: 'Comms Outage', s: 'Switch to fallback channels, pin live op summaries, status beacons' },
-              ].map(p => <Card key={p.k} accent="#e05c5c"><div style={{ fontWeight: 600 }}>{p.k}</div><div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{p.s}</div></Card>)}
+                { key: 'account_compromise', k: 'Account Compromise', s: 'Lock account, rotate 501st, invalidate webhooks, audit log review' },
+                { key: 'sabotage', k: 'Sabotage Event', s: 'Freeze payouts, isolate actor, pull AAR timeline, command notice' },
+                { key: 'mass_ban', k: 'Mass-ban Mistake', s: 'Pause discipline actions, restore from queue, announce rollback' },
+                { key: 'comms_outage', k: 'Comms Outage', s: 'Switch to fallback channels, pin live op summaries, status beacons' },
+              ].map(p => (
+                <Card key={p.k} accent="#e05c5c">
+                  <div style={{ fontWeight: 600 }}>{p.k}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{p.s}</div>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === `incident-${p.key}`} onClick={() => runIncident(p.key)}>
+                    {busyAction === `incident-${p.key}` ? 'QUEUING...' : 'Queue playbook'}
+                  </button>
+                </Card>
+              ))}
             </div>
           </>
         )}
