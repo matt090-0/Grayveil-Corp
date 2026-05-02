@@ -8,6 +8,7 @@ import { initSentry, Sentry } from './lib/sentry'
 import './index.css'
 
 const CHUNK_RELOAD_KEY = 'gv_chunk_reload_once'
+const CHUNK_PURGE_KEY = 'gv_chunk_cache_purged_once'
 function isChunkLoadFailure(err) {
   const text = String(err?.message || err || '').toLowerCase()
   return (
@@ -19,11 +20,34 @@ function isChunkLoadFailure(err) {
 }
 function recoverFromChunkError(err) {
   if (!isChunkLoadFailure(err)) return
-  try {
-    if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1') return
-    sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
-  } catch {}
-  window.location.reload()
+  ;(async () => {
+    try {
+      const reloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1'
+      const purged = sessionStorage.getItem(CHUNK_PURGE_KEY) === '1'
+      if (!purged) {
+        sessionStorage.setItem(CHUNK_PURGE_KEY, '1')
+        // First recovery pass: clear stale SW + caches, then hard reload.
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations()
+            await Promise.all(regs.map(r => r.unregister().catch(() => {})))
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map(k => caches.delete(k).catch(() => {})))
+          }
+        } catch {}
+        window.location.reload()
+        return
+      }
+      if (!reloaded) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+        window.location.reload()
+      }
+    } catch {
+      window.location.reload()
+    }
+  })()
 }
 
 window.addEventListener('error', (event) => recoverFromChunkError(event?.error || event?.message))
