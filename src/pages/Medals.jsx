@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast'
 import { goldBurst } from '../lib/confetti'
 import { discordMedal } from '../lib/discord'
 import { confirmAction } from '../lib/dialogs'
+import { grantCertification } from '../lib/certifications'
 import {
   UEE_AMBER, ClassificationBar, TabStrip, StatCell, FilterRow, Card,
   StatusBadge, EmptyState, UeeModal, SectionHeader, btnMicro,
@@ -176,15 +177,37 @@ export default function Medals() {
   async function grantCert() {
     if (!form.member_id || !form.cert_id) { setError('Select member and certification.'); return }
     setSaving(true)
-    await supabase.from('member_certifications').upsert({
-      member_id: form.member_id, cert_id: form.cert_id, certified_by: me.id,
-    }, { onConflict: 'member_id,cert_id' })
+    const { error, already } = await grantCertification(supabase, {
+      memberId: form.member_id,
+      certId: form.cert_id,
+      certifiedBy: me.id,
+    })
+    if (error) {
+      setSaving(false)
+      setError(error.code === '42501'
+        ? 'RLS blocked certification grant. Add INSERT policy for member_certifications.'
+        : error.message)
+      return
+    }
+    if (already) {
+      setSaving(false)
+      toast('Member already has this certification', 'info')
+      setModal(null)
+      return
+    }
     const cert = certs.find(c => c.id === form.cert_id)
     await supabase.from('notifications').insert({
       recipient_id: form.member_id, type: 'promotion',
       title: `Certified: ${cert?.name || ''}`,
       message: `Signed off by ${me.handle}`,
       link: '/medals',
+    })
+    await supabase.from('activity_log').insert({
+      actor_id: me.id,
+      action: 'cert_granted',
+      target_type: 'profile',
+      target_id: form.member_id,
+      details: { cert: cert?.name || form.cert_id },
     })
     toast(`${cert?.name} granted`, 'success')
     setModal(null); setSaving(false); load()

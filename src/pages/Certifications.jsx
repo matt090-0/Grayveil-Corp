@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
+import { grantCertification } from '../lib/certifications'
 
 const TRAINING_PATHS = [
   { role: 'Bengal Bridge Crew', certs: ['Capital Ship Crew', 'Fleet Navigation', 'Electronic Warfare'], minTier: 5, repReq: 200 },
@@ -101,12 +102,22 @@ export default function Certifications() {
   async function grantCert(certId) {
     if (!selectedMember || !certId) return
     setSaving(true)
-    const { error } = await supabase.from('member_certifications').upsert(
-      { member_id: selectedMember, cert_id: certId, certified_by: me.id },
-      { onConflict: 'member_id,cert_id' },
-    )
+    const { error, already } = await grantCertification(supabase, {
+      memberId: selectedMember,
+      certId,
+      certifiedBy: me.id,
+    })
     if (error) {
-      toast(error.message, 'error')
+      if (error.code === '42501') {
+        toast('RLS blocks certification grants. Add an INSERT policy for member_certifications.', 'error')
+      } else {
+        toast(error.message, 'error')
+      }
+      setSaving(false)
+      return
+    }
+    if (already) {
+      toast('Member already has this certification', 'info')
       setSaving(false)
       return
     }
@@ -117,6 +128,13 @@ export default function Certifications() {
       title: `Certified: ${cert?.name || 'Certification'}`,
       message: `Signed off by ${me.handle}`,
       link: '/certifications',
+    })
+    await supabase.from('activity_log').insert({
+      actor_id: me.id,
+      action: 'cert_granted',
+      target_type: 'profile',
+      target_id: selectedMember,
+      details: { cert: cert?.name || certId },
     })
     toast(`Granted ${cert?.name || 'certification'}`, 'success')
     setSaving(false)
@@ -132,6 +150,13 @@ export default function Certifications() {
       setSaving(false)
       return
     }
+    await supabase.from('activity_log').insert({
+      actor_id: me.id,
+      action: 'cert_revoked',
+      target_type: 'profile',
+      target_id: selectedMember,
+      details: { cert_row_id: rowId },
+    })
     toast('Certification revoked', 'info')
     setSaving(false)
     load()
