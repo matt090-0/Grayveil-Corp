@@ -122,6 +122,23 @@ export default function Certifications() {
       return
     }
     const cert = certs.find(c => c.id === certId)
+    const selectedHandle = selectedMemberProfile?.handle || members.find(m => m.id === selectedMember)?.handle || 'MEMBER'
+
+    // Optimistic state update so the UI flips immediately even if the
+    // post-write read path is restricted by environment-specific RLS.
+    setMemberCerts(prev => {
+      if (prev.some(r => r.member_id === selectedMember && r.cert_id === certId)) return prev
+      return [{
+        id: `optimistic-${Date.now()}-${certId}`,
+        member_id: selectedMember,
+        cert_id: certId,
+        certified_at: new Date().toISOString(),
+        cert: { id: certId, name: cert?.name || 'Certification', category: cert?.category || 'GENERAL' },
+        member: { id: selectedMember, handle: selectedHandle },
+        certifier: { handle: me.handle },
+      }, ...prev]
+    })
+
     await supabase.from('notifications').insert({
       recipient_id: selectedMember,
       type: 'promotion',
@@ -138,7 +155,6 @@ export default function Certifications() {
     })
     toast(`Granted ${cert?.name || 'certification'}`, 'success')
     setSaving(false)
-    load()
   }
 
   async function revokeCert(rowId) {
@@ -157,9 +173,10 @@ export default function Certifications() {
       target_id: selectedMember,
       details: { cert_row_id: rowId },
     })
+    // Optimistic remove so the card state/completion updates immediately.
+    setMemberCerts(prev => prev.filter(r => r.id !== rowId))
     toast('Certification revoked', 'info')
     setSaving(false)
-    load()
   }
 
   return (
