@@ -1,46 +1,76 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import { timeAgo, fmtDate } from '../lib/dates'
+import { fmtDate, timeAgo } from '../lib/dates'
 import { useToast } from '../components/Toast'
+import { ClassificationBar, StatusBadge, UEE_AMBER } from '../components/uee'
 
-const REACTIONS = ['👍', '❤️', '😂', '🎯', '🔥', '⚡', '💀', '🫡']
+const REACTIONS = ['👍', '🫡', '✅', '⚡', '🎯', '🔥', '💀']
+const CHANNELS = ['DIRECT', 'SQUAD', 'COMMAND', 'INTEL']
+const PRIORITIES = ['ROUTINE', 'IMPORTANT', 'URGENT', 'CRITICAL']
+const QUICK_TEMPLATES = [
+  { label: 'FORM-UP', text: 'FORM-UP at designated rally point. Confirm ship status and role.' },
+  { label: 'CONTACT', text: 'CONTACT reported. Marking hostile vector and awaiting command directives.' },
+  { label: 'MEDEVAC', text: 'MEDEVAC required. Casualty location transmitted. Cover requested.' },
+  { label: 'RTB', text: 'RTB ordered. Disengage and return to base in disciplined sequence.' },
+]
 
 function isOnline(ts) {
   if (!ts) return false
-  return (Date.now() - new Date(ts)) < 300000
+  return Date.now() - new Date(ts) < 300000
 }
-
+function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
 function dateSep(ts) {
-  const d = new Date(ts), now = new Date()
+  const d = new Date(ts)
+  const now = new Date()
   if (d.toDateString() === now.toDateString()) return 'TODAY'
   const y = new Date(now); y.setDate(y.getDate() - 1)
   if (d.toDateString() === y.toDateString()) return 'YESTERDAY'
   return fmtDate(ts).toUpperCase()
 }
-
-function fmtTime(ts) { return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) }
+function decodePriority(content) {
+  const match = (content || '').match(/^\[(ROUTINE|IMPORTANT|URGENT|CRITICAL)\]\s+/)
+  if (!match) return { priority: 'ROUTINE', body: content || '' }
+  return { priority: match[1], body: (content || '').slice(match[0].length) }
+}
+function encodePriority(content, priority) {
+  const plain = (content || '').trim()
+  if (!plain) return plain
+  return priority === 'ROUTINE' ? plain : `[${priority}] ${plain}`
+}
+function accentForPriority(priority) {
+  if (priority === 'CRITICAL') return '#e05c5c'
+  if (priority === 'URGENT') return '#e0a155'
+  if (priority === 'IMPORTANT') return '#5a80d9'
+  return UEE_AMBER
+}
 
 export default function Messages() {
   const { profile: me } = useAuth()
   const toast = useToast()
+  const endRef = useRef(null)
+  const inputRef = useRef(null)
+
+  const [channel, setChannel] = useState('DIRECT')
   const [members, setMembers] = useState([])
   const [conversations, setConversations] = useState([])
   const [activeConv, setActiveConv] = useState(null)
   const [messages, setMessages] = useState([])
-  const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
+
+  const [text, setText] = useState('')
+  const [priority, setPriority] = useState('ROUTINE')
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
   const [chatSearch, setChatSearch] = useState('')
+  const [newConv, setNewConv] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
   const [editing, setEditing] = useState(null)
   const [hoveredMsg, setHoveredMsg] = useState(null)
   const [reactingTo, setReactingTo] = useState(null)
   const [showPinned, setShowPinned] = useState(false)
-  const [newConv, setNewConv] = useState(false)
-  const endRef = useRef(null)
-  const inputRef = useRef(null)
 
   async function loadConvos() {
     const [{ data: mem }, { data: msgs, error }] = await Promise.all([
@@ -58,7 +88,15 @@ export default function Messages() {
       const otherId = m.sender_id === me.id ? m.recipient_id : m.sender_id
       const other = memMap[otherId]
       if (!convMap[otherId]) {
-        convMap[otherId] = { id: otherId, handle: other?.handle || 'Unknown', avatar_color: other?.avatar_color || '#d4d8e0', last_seen_at: other?.last_seen_at, lastMessage: m.content, lastTime: m.created_at, unread: 0 }
+        convMap[otherId] = {
+          id: otherId,
+          handle: other?.handle || 'Unknown',
+          avatar_color: other?.avatar_color || '#d4d8e0',
+          last_seen_at: other?.last_seen_at,
+          lastMessage: decodePriority(m.content).body,
+          lastTime: m.created_at,
+          unread: 0,
+        }
       }
       if (m.recipient_id === me.id && !m.is_read) convMap[otherId].unread++
     })
@@ -68,28 +106,22 @@ export default function Messages() {
 
   useEffect(() => {
     loadConvos()
-    const ch = supabase.channel('dm-live')
+    const ch = supabase
+      .channel(`dm-convos-${me.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadConvos() })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [me.id])
 
-  // Reload messages when conversation changes or on interval
-  useEffect(() => {
-    if (!activeConv) return
-    loadMsgs(activeConv)
-    const interval = setInterval(() => loadMsgs(activeConv), 4000)
-    return () => clearInterval(interval)
-  }, [activeConv, me.id])
-
   async function loadMsgs(convId) {
+    if (!convId) return
     const { data, error } = await supabase.from('messages')
       .select('*')
       .or(`and(sender_id.eq.${me.id},recipient_id.eq.${convId}),and(sender_id.eq.${convId},recipient_id.eq.${me.id})`)
       .is('deleted_at', null)
-      .order('created_at', { ascending: true }).limit(300)
+      .order('created_at', { ascending: true })
+      .limit(300)
     if (error) { console.error('Messages load error:', error.message); return }
-    // Resolve replies client-side (reply is always in same conversation)
     const msgMap = {}
     ;(data || []).forEach(m => { msgMap[m.id] = m })
     const resolved = (data || []).map(m => ({
@@ -97,55 +129,114 @@ export default function Messages() {
       reply: m.reply_to_id ? msgMap[m.reply_to_id] || null : null,
     }))
     setMessages(resolved)
-    await supabase.from('messages').update({ is_read: true }).eq('sender_id', convId).eq('recipient_id', me.id).eq('is_read', false)
+    await supabase.from('messages').update({ is_read: true })
+      .eq('sender_id', convId).eq('recipient_id', me.id).eq('is_read', false)
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
 
+  useEffect(() => {
+    if (!activeConv || channel !== 'DIRECT') return
+    loadMsgs(activeConv)
+  }, [activeConv, me.id, channel])
+
+  // Realtime for active uplink — replaces polling loop.
+  useEffect(() => {
+    if (!activeConv || channel !== 'DIRECT') return
+    const ch = supabase
+      .channel(`dm-active-${me.id}-${activeConv}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
+        const m = payload.new || payload.old || {}
+        const inThread =
+          (m.sender_id === me.id && m.recipient_id === activeConv)
+          || (m.sender_id === activeConv && m.recipient_id === me.id)
+        if (!inThread) return
+        loadMsgs(activeConv)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [activeConv, me.id, channel])
+
   async function send() {
-    if (!text.trim() || !activeConv) return
+    if (!text.trim() || !activeConv || channel !== 'DIRECT') return
     setSending(true)
+    const outgoing = encodePriority(text, priority)
     if (editing) {
-      await supabase.from('messages').update({ content: text.trim(), edited_at: new Date().toISOString() }).eq('id', editing.id)
+      await supabase.from('messages')
+        .update({ content: outgoing, edited_at: new Date().toISOString() })
+        .eq('id', editing.id)
       setEditing(null)
     } else {
-      await supabase.from('messages').insert({ sender_id: me.id, recipient_id: activeConv, content: text.trim(), reply_to_id: replyTo?.id || null })
+      await supabase.from('messages').insert({
+        sender_id: me.id,
+        recipient_id: activeConv,
+        content: outgoing,
+        reply_to_id: replyTo?.id || null,
+      })
     }
-    setText(''); setReplyTo(null); setSending(false); loadMsgs(activeConv)
+    setText('')
+    setReplyTo(null)
+    setPriority('ROUTINE')
+    setSending(false)
+    loadMsgs(activeConv)
   }
 
   async function deleteMsg(id) {
     await supabase.from('messages').update({ deleted_at: new Date().toISOString() }).eq('id', id)
-    toast('Message deleted', 'info'); loadMsgs(activeConv)
+    toast('Transmission purged', 'info')
+    loadMsgs(activeConv)
   }
-
   async function toggleReaction(msg, emoji) {
-    const r = { ...(msg.reactions || {}) }
-    const u = r[emoji] || []
-    if (u.includes(me.id)) { r[emoji] = u.filter(x => x !== me.id); if (!r[emoji].length) delete r[emoji] }
-    else r[emoji] = [...u, me.id]
-    await supabase.from('messages').update({ reactions: r }).eq('id', msg.id)
-    setReactingTo(null); loadMsgs(activeConv)
+    const next = { ...(msg.reactions || {}) }
+    const users = next[emoji] || []
+    if (users.includes(me.id)) {
+      next[emoji] = users.filter(x => x !== me.id)
+      if (!next[emoji].length) delete next[emoji]
+    } else {
+      next[emoji] = [...users, me.id]
+    }
+    await supabase.from('messages').update({ reactions: next }).eq('id', msg.id)
+    setReactingTo(null)
+    loadMsgs(activeConv)
   }
-
   async function togglePin(msg) {
     await supabase.from('messages').update({ is_pinned: !msg.is_pinned }).eq('id', msg.id)
-    toast(msg.is_pinned ? 'Unpinned' : 'Pinned', 'info'); loadMsgs(activeConv)
+    toast(msg.is_pinned ? 'Transmission unpinned' : 'Transmission pinned', 'info')
+    loadMsgs(activeConv)
+  }
+  function startReply(msg) {
+    setReplyTo(msg)
+    setEditing(null)
+    setPriority(decodePriority(msg.content).priority)
+    inputRef.current?.focus()
+  }
+  function startEdit(msg) {
+    setEditing(msg)
+    const decoded = decodePriority(msg.content)
+    setText(decoded.body)
+    setPriority(decoded.priority)
+    setReplyTo(null)
+    inputRef.current?.focus()
   }
 
-  function startEdit(msg) { setEditing(msg); setText(msg.content); setReplyTo(null); inputRef.current?.focus() }
-  function startReply(msg) { setReplyTo(msg); setEditing(null); inputRef.current?.focus() }
-
   const activeProfile = members.find(m => m.id === activeConv) || conversations.find(c => c.id === activeConv)
-  const totalUnread = conversations.reduce((s, c) => s + c.unread, 0)
+  const filteredConvs = search
+    ? conversations.filter(c => c.handle?.toLowerCase().includes(search.toLowerCase()))
+    : conversations
+  const filteredMsgs = chatSearch
+    ? messages.filter(m => decodePriority(m.content).body.toLowerCase().includes(chatSearch.toLowerCase()))
+    : messages
   const pinnedMessages = messages.filter(m => m.is_pinned)
-  const filteredConvs = search ? conversations.filter(c => c.handle?.toLowerCase().includes(search.toLowerCase())) : conversations
-  const filteredMsgs = chatSearch ? messages.filter(m => m.content?.toLowerCase().includes(chatSearch.toLowerCase())) : messages
+  const totalUnread = conversations.reduce((s, c) => s + c.unread, 0)
 
   const groupedMsgs = useMemo(() => {
-    const groups = []; let lastDate = ''
+    const groups = []
+    let lastDate = ''
     filteredMsgs.forEach(m => {
       const d = dateSep(m.created_at)
-      if (d !== lastDate) { groups.push({ type: 'date', label: d, id: 'date-' + d }); lastDate = d }
+      if (d !== lastDate) {
+        groups.push({ type: 'date', id: `date-${d}`, label: d })
+        lastDate = d
+      }
       groups.push({ type: 'msg', ...m })
     })
     return groups
@@ -153,204 +244,275 @@ export default function Messages() {
 
   return (
     <>
-      <div className="page-header" style={{ paddingBottom: 12 }}>
+      <ClassificationBar
+        section="UEE COMMS GRID"
+        label="SECURE TRANSMISSIONS"
+        right={(
+          <>
+            <span>UPLINKS · {conversations.length}</span>
+            <span>QUEUE · {totalUnread}</span>
+            <span style={{ color: UEE_AMBER }}>ACTIVE · {channel}</span>
+          </>
+        )}
+      />
+
+      <div className="page-header" style={{ paddingBottom: 10 }}>
         <div className="page-title">COMMS</div>
-        <div className="page-subtitle">Encrypted channel{totalUnread > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600 }}> — {totalUnread} unread</span>}</div>
+        <div className="page-subtitle">
+          Fleet uplink and command traffic relay.
+          {totalUnread > 0 && <span style={{ color: UEE_AMBER, fontWeight: 600 }}> · {totalUnread} unread packets</span>}
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          {CHANNELS.map(c => (
+            <button
+              key={c}
+              className="btn btn-ghost btn-sm"
+              style={channel === c ? { color: UEE_AMBER, borderColor: `${UEE_AMBER}66`, background: `${UEE_AMBER}10` } : undefined}
+              onClick={() => setChannel(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="page-body" style={{ display: 'flex', gap: 0, padding: 0, overflow: 'hidden' }}>
-
-        {/* ═══ SIDEBAR ═══ */}
-        <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-raised)' }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
-            <input className="form-input" style={{ flex: 1, fontSize: 11, padding: '6px 10px' }} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search people..." />
-            <button className="btn btn-primary btn-sm" style={{ padding: '4px 10px', fontSize: 14, lineHeight: 1 }} onClick={() => setNewConv(!newConv)}>+</button>
-          </div>
-
-          {newConv && (
-            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-              <select className="form-select" style={{ fontSize: 11 }} value="" onChange={e => { if (e.target.value) { setActiveConv(e.target.value); setNewConv(false) } }}>
-                <option value="">Select member...</option>
-                {members.filter(m => !conversations.find(c => c.id === m.id)).map(m => <option key={m.id} value={m.id}>{m.handle}</option>)}
-              </select>
+        {channel !== 'DIRECT' ? (
+          <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 420 }}>
+            <div className="empty-state" style={{ maxWidth: 560 }}>
+              {channel} channel uplink is reserved for the next COMMS phase. DIRECT traffic remains live.
             </div>
-          )}
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading ? <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>Loading...</div> :
-            filteredConvs.length === 0 ? <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>{search ? 'No matches' : 'No conversations'}</div> :
-            filteredConvs.map(c => (
-              <div key={c.id} onClick={() => setActiveConv(c.id)} style={{
-                padding: '12px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
-                background: activeConv === c.id ? 'var(--bg-surface)' : 'transparent',
-                borderLeft: activeConv === c.id ? '2px solid var(--accent)' : '2px solid transparent',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${c.avatar_color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: c.avatar_color }}>{c.handle?.slice(0, 2).toUpperCase()}</div>
-                    {isOnline(c.last_seen_at) && <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#5ab870', border: '2px solid var(--bg-raised)' }} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 13, fontWeight: c.unread ? 600 : 400 }}>{c.handle}</span>
-                      <span style={{ fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{timeAgo(c.lastTime)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                      <span style={{ fontSize: 11, color: c.unread ? 'var(--text-1)' : 'var(--text-3)', fontWeight: c.unread ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{c.lastMessage}</span>
-                      {c.unread > 0 && <span style={{ background: 'var(--accent)', color: '#0a0a10', fontSize: 9, fontWeight: 700, borderRadius: 10, padding: '1px 6px', minWidth: 16, textAlign: 'center' }}>{c.unread}</span>}
-                    </div>
-                  </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-raised)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.2em', color: UEE_AMBER, fontFamily: 'var(--font-mono)', marginBottom: 8 }}>DIRECT UPLINKS</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="form-input" style={{ flex: 1, fontSize: 11 }} value={search} onChange={e => setSearch(e.target.value)} placeholder="Find operative..." />
+                  <button className="btn btn-primary btn-sm" style={{ minWidth: 34 }} onClick={() => setNewConv(v => !v)}>+</button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ═══ CHAT ═══ */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {!activeConv ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 32, opacity: 0.12 }}>💬</div>
-              <div style={{ color: 'var(--text-3)', fontSize: 13 }}>Select a conversation</div>
-            </div>
-          ) : (
-            <>
-              {/* Header */}
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-raised)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${activeProfile?.avatar_color || '#d4d8e0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: activeProfile?.avatar_color || '#d4d8e0' }}>{activeProfile?.handle?.slice(0, 2).toUpperCase() || '??'}</div>
-                    {isOnline(activeProfile?.last_seen_at) && <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#5ab870', border: '2px solid var(--bg-raised)' }} />}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{activeProfile?.handle || 'Unknown'}</div>
-                    <div style={{ fontSize: 10, color: isOnline(activeProfile?.last_seen_at) ? '#5ab870' : 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
-                      {isOnline(activeProfile?.last_seen_at) ? 'ONLINE' : activeProfile?.last_seen_at ? `Last seen ${timeAgo(activeProfile.last_seen_at)}` : 'Offline'}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {pinnedMessages.length > 0 && <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, padding: '3px 8px' }} onClick={() => setShowPinned(!showPinned)}>📌 {pinnedMessages.length}</button>}
-                  <input className="form-input" style={{ width: 140, fontSize: 10, padding: '4px 8px' }} value={chatSearch} onChange={e => setChatSearch(e.target.value)} placeholder="Search..." />
-                </div>
-              </div>
-
-              {showPinned && pinnedMessages.length > 0 && (
-                <div style={{ padding: '8px 16px', background: 'rgba(212,216,224,0.05)', borderBottom: '1px solid rgba(212,216,224,0.15)', maxHeight: 100, overflowY: 'auto', flexShrink: 0 }}>
-                  <div style={{ fontSize: 9, letterSpacing: '.15em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>📌 PINNED</div>
-                  {pinnedMessages.map(m => (
-                    <div key={m.id} style={{ fontSize: 11, color: 'var(--text-2)', padding: '2px 0' }}>
-                      <span style={{ fontWeight: 500 }}>{m.sender_id === me.id ? 'You' : activeProfile?.handle}</span>: {m.content?.slice(0, 80)}
-                    </div>
-                  ))}
+              {newConv && (
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <select
+                    className="form-select"
+                    value=""
+                    onChange={e => {
+                      if (!e.target.value) return
+                      setActiveConv(e.target.value)
+                      setNewConv(false)
+                    }}
+                  >
+                    <option value="">Open new uplink...</option>
+                    {members.filter(m => !conversations.some(c => c.id === m.id)).map(m => (
+                      <option key={m.id} value={m.id}>{m.handle}</option>
+                    ))}
+                  </select>
                 </div>
               )}
-
-              {/* Messages */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {chatSearch && <div style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>{filteredMsgs.length} result{filteredMsgs.length !== 1 ? 's' : ''} for "{chatSearch}"</div>}
-
-                {groupedMsgs.map((item, idx) => {
-                  if (item.type === 'date') return (
-                    <div key={item.id} style={{ textAlign: 'center', padding: '14px 0 6px' }}>
-                      <span style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', background: 'var(--bg-base)', padding: '0 12px' }}>{item.label}</span>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {loading ? <div style={{ padding: 20, color: 'var(--text-3)', textAlign: 'center' }}>Linking channels...</div> : null}
+                {!loading && filteredConvs.length === 0 ? (
+                  <div style={{ padding: 20, color: 'var(--text-3)', textAlign: 'center' }}>
+                    {search ? 'No matching operatives' : 'No active uplinks'}
+                  </div>
+                ) : null}
+                {filteredConvs.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveConv(c.id)}
+                    style={{
+                      width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                      borderBottom: '1px solid var(--border)', background: activeConv === c.id ? 'var(--bg-surface)' : 'transparent',
+                      padding: '11px 12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${c.avatar_color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: c.avatar_color }}>
+                          {c.handle?.slice(0, 2).toUpperCase()}
+                        </div>
+                        {isOnline(c.last_seen_at) && <div style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, borderRadius: '50%', background: '#5ab870', border: '2px solid var(--bg-raised)' }} />}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: c.unread ? 600 : 500 }}>{c.handle}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-3)' }}>{timeAgo(c.lastTime)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+                          <span style={{ fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastMessage}</span>
+                          {c.unread > 0 && <span style={{ fontSize: 9, background: `${UEE_AMBER}33`, color: UEE_AMBER, borderRadius: 10, padding: '1px 6px' }}>{c.unread}</span>}
+                        </div>
+                      </div>
                     </div>
-                  )
-                  const m = item, isMine = m.sender_id === me.id
-                  const prev = groupedMsgs[idx - 1]
-                  const isGrouped = prev?.type === 'msg' && prev.sender_id === m.sender_id && (new Date(m.created_at) - new Date(prev.created_at)) < 120000
-                  const rxns = m.reactions || {}
-
-                  return (
-                    <div key={m.id} onMouseEnter={() => setHoveredMsg(m.id)} onMouseLeave={() => { setHoveredMsg(null); if (reactingTo === m.id) setReactingTo(null) }}
-                      style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '72%', position: 'relative', marginTop: isGrouped ? 0 : 8 }}>
-
-                      {m.reply?.content && (
-                        <div style={{ fontSize: 11, color: 'var(--text-3)', padding: '3px 10px', borderLeft: '2px solid var(--accent)', marginBottom: 2, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: isMine ? 'auto' : 0 }}>
-                          {m.reply.sender_id === me.id ? 'You' : activeProfile?.handle}: {m.reply.content.slice(0, 50)}
-                        </div>
-                      )}
-
-                      <div style={{
-                        background: isMine ? 'rgba(212,216,224,0.08)' : 'var(--bg-raised)',
-                        border: `1px solid ${isMine ? 'rgba(212,216,224,0.2)' : 'var(--border)'}`,
-                        borderRadius: isGrouped ? (isMine ? '8px 4px 4px 8px' : '4px 8px 8px 4px') : (isMine ? '12px 12px 4px 12px' : '12px 12px 12px 4px'),
-                        padding: '8px 12px', fontSize: 13, color: 'var(--text-1)', lineHeight: 1.6, wordBreak: 'break-word',
-                      }}>{m.content}</div>
-
-                      {!isGrouped && (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 2, justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                          <span>{fmtTime(m.created_at)}</span>
-                          {m.edited_at && <span>edited</span>}
-                          {isMine && <span style={{ color: m.is_read ? 'var(--accent)' : 'var(--text-3)' }}>{m.is_read ? '✓✓' : '✓'}</span>}
-                        </div>
-                      )}
-
-                      {Object.keys(rxns).length > 0 && (
-                        <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                          {Object.entries(rxns).map(([emoji, users]) => (
-                            <button key={emoji} onClick={() => toggleReaction(m, emoji)} style={{
-                              background: users.includes(me.id) ? 'rgba(212,216,224,0.12)' : 'var(--bg-surface)',
-                              border: `1px solid ${users.includes(me.id) ? 'rgba(212,216,224,0.3)' : 'var(--border)'}`,
-                              borderRadius: 10, padding: '1px 6px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
-                            }}>{emoji} <span style={{ fontSize: 9, color: 'var(--text-3)' }}>{users.length}</span></button>
-                          ))}
-                        </div>
-                      )}
-
-                      {hoveredMsg === m.id && (
-                        <div style={{
-                          position: 'absolute', top: -6, [isMine ? 'left' : 'right']: 0,
-                          display: 'flex', gap: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 3px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)', zIndex: 5,
-                        }}>
-                          {[
-                            { icon: '↩', fn: () => startReply(m), title: 'Reply' },
-                            { icon: '😊', fn: () => setReactingTo(reactingTo === m.id ? null : m.id), title: 'React' },
-                            { icon: m.is_pinned ? '📌' : '📍', fn: () => togglePin(m), title: m.is_pinned ? 'Unpin' : 'Pin' },
-                            ...(isMine ? [
-                              { icon: '✏️', fn: () => startEdit(m), title: 'Edit' },
-                              { icon: '🗑', fn: () => deleteMsg(m.id), title: 'Delete' },
-                            ] : []),
-                          ].map((a, i) => (
-                            <button key={i} onClick={a.fn} title={a.title} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>{a.icon}</button>
-                          ))}
-                        </div>
-                      )}
-
-                      {reactingTo === m.id && (
-                        <div style={{
-                          position: 'absolute', bottom: '100%', marginBottom: 4, [isMine ? 'right' : 'left']: 0,
-                          display: 'flex', gap: 2, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', zIndex: 10,
-                        }}>
-                          {REACTIONS.map(emoji => (
-                            <button key={emoji} onClick={() => toggleReaction(m, emoji)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '2px 3px', borderRadius: 4, transition: 'transform .1s' }}
-                              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'} onMouseLeave={e => e.currentTarget.style.transform = ''}>{emoji}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                <div ref={endRef} />
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {(replyTo || editing) && (
-                <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-raised)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexShrink: 0 }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{editing ? '✏️ Editing' : '↩ Reply'}</span>
-                  <span style={{ color: 'var(--text-2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(editing || replyTo)?.content?.slice(0, 60)}</span>
-                  <button onClick={() => { setReplyTo(null); setEditing(null); setText('') }} style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              {!activeConv ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="empty-state">Select active uplink to begin transmission.</div>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${activeProfile?.avatar_color || '#d4d8e0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, color: activeProfile?.avatar_color || '#d4d8e0' }}>
+                        {activeProfile?.handle?.slice(0, 2).toUpperCase() || '??'}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{activeProfile?.handle || 'Unknown'}</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isOnline(activeProfile?.last_seen_at) ? '#5ab870' : 'var(--text-3)', letterSpacing: '.12em' }}>
+                          {isOnline(activeProfile?.last_seen_at) ? 'SIGNAL LIVE' : activeProfile?.last_seen_at ? `LAST LINK ${timeAgo(activeProfile.last_seen_at)}` : 'OFFLINE'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {pinnedMessages.length > 0 && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => setShowPinned(v => !v)}>
+                          📌 {pinnedMessages.length}
+                        </button>
+                      )}
+                      <input className="form-input" style={{ width: 170, fontSize: 11 }} value={chatSearch} onChange={e => setChatSearch(e.target.value)} placeholder="Search traffic..." />
+                    </div>
+                  </div>
 
-              <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, background: 'var(--bg-raised)', flexShrink: 0 }}>
-                <input ref={inputRef} className="form-input" value={text} onChange={e => setText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } if (e.key === 'Escape') { setReplyTo(null); setEditing(null); setText('') } }}
-                  placeholder={editing ? 'Edit message...' : replyTo ? 'Type reply...' : 'Type a message...'} style={{ flex: 1, fontSize: 13 }} />
-                <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !text.trim()} style={{ minWidth: 60 }}>{editing ? 'SAVE' : 'SEND'}</button>
-              </div>
-            </>
-          )}
-        </div>
+                  {showPinned && pinnedMessages.length > 0 && (
+                    <div style={{ borderBottom: '1px solid var(--border)', background: 'rgba(212,216,224,0.04)', padding: '8px 14px', maxHeight: 120, overflowY: 'auto' }}>
+                      <div style={{ fontSize: 9, letterSpacing: '.2em', color: UEE_AMBER, fontFamily: 'var(--font-mono)', marginBottom: 5 }}>PINNED TRANSMISSIONS</div>
+                      {pinnedMessages.map(m => {
+                        const decoded = decodePriority(m.content)
+                        return <div key={m.id} style={{ fontSize: 11, color: 'var(--text-2)', padding: '2px 0' }}>{decoded.body.slice(0, 90)}</div>
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {groupedMsgs.map((item, idx) => {
+                      if (item.type === 'date') {
+                        return (
+                          <div key={item.id} style={{ textAlign: 'center', padding: '12px 0 6px' }}>
+                            <span style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{item.label}</span>
+                          </div>
+                        )
+                      }
+                      const m = item
+                      const decoded = decodePriority(m.content)
+                      const isMine = m.sender_id === me.id
+                      const prev = groupedMsgs[idx - 1]
+                      const grouped = prev?.type === 'msg' && prev.sender_id === m.sender_id && (new Date(m.created_at) - new Date(prev.created_at)) < 120000
+                      const rxns = m.reactions || {}
+
+                      return (
+                        <div
+                          key={m.id}
+                          onMouseEnter={() => setHoveredMsg(m.id)}
+                          onMouseLeave={() => { setHoveredMsg(null); if (reactingTo === m.id) setReactingTo(null) }}
+                          style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '74%', marginTop: grouped ? 0 : 8, position: 'relative' }}
+                        >
+                          {m.reply?.content && (
+                            <div style={{ borderLeft: `2px solid ${UEE_AMBER}`, padding: '2px 10px', marginBottom: 3, fontSize: 10.5, color: 'var(--text-3)', maxWidth: '95%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {decodePriority(m.reply.content).body}
+                            </div>
+                          )}
+                          <div style={{
+                            background: isMine ? 'rgba(200,165,90,0.08)' : 'var(--bg-raised)',
+                            border: `1px solid ${isMine ? 'rgba(200,165,90,0.35)' : 'var(--border)'}`,
+                            borderLeft: `2px solid ${accentForPriority(decoded.priority)}`,
+                            borderRadius: grouped ? (isMine ? '8px 5px 5px 8px' : '5px 8px 8px 5px') : (isMine ? '10px 10px 4px 10px' : '10px 10px 10px 4px'),
+                            padding: '8px 11px',
+                            lineHeight: 1.55,
+                          }}>
+                            {decoded.priority !== 'ROUTINE' && (
+                              <div style={{ marginBottom: 5 }}>
+                                <StatusBadge label={decoded.priority} color={accentForPriority(decoded.priority)} />
+                              </div>
+                            )}
+                            <div style={{ fontSize: 13, color: 'var(--text-1)', wordBreak: 'break-word' }}>{decoded.body}</div>
+                          </div>
+                          {!grouped && (
+                            <div style={{ marginTop: 2, display: 'flex', gap: 6, justifyContent: isMine ? 'flex-end' : 'flex-start', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-3)' }}>
+                              <span>{fmtTime(m.created_at)}</span>
+                              {m.edited_at && <span>AMENDED</span>}
+                              {isMine && <span style={{ color: m.is_read ? UEE_AMBER : 'var(--text-3)' }}>{m.is_read ? '✓✓' : '✓'}</span>}
+                            </div>
+                          )}
+                          {Object.keys(rxns).length > 0 && (
+                            <div style={{ display: 'flex', gap: 3, marginTop: 2, justifyContent: isMine ? 'flex-end' : 'flex-start', flexWrap: 'wrap' }}>
+                              {Object.entries(rxns).map(([emoji, users]) => (
+                                <button key={emoji} onClick={() => toggleReaction(m, emoji)} style={{ border: '1px solid var(--border)', background: users.includes(me.id) ? `${UEE_AMBER}18` : 'var(--bg-surface)', borderRadius: 9, fontSize: 11, padding: '1px 6px', cursor: 'pointer' }}>
+                                  {emoji} <span style={{ fontSize: 9, color: 'var(--text-3)' }}>{users.length}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {hoveredMsg === m.id && (
+                            <div style={{ position: 'absolute', top: -7, [isMine ? 'left' : 'right']: 0, display: 'flex', gap: 2, border: '1px solid var(--border)', background: 'var(--bg-raised)', borderRadius: 6, padding: '2px 4px', zIndex: 5 }}>
+                              {[{ icon: '↩', title: 'Reply', fn: () => startReply(m) }, { icon: '😊', title: 'React', fn: () => setReactingTo(reactingTo === m.id ? null : m.id) }, { icon: m.is_pinned ? '📌' : '📍', title: 'Pin', fn: () => togglePin(m) }, ...(isMine ? [{ icon: '✏️', title: 'Edit', fn: () => startEdit(m) }, { icon: '🗑', title: 'Delete', fn: () => deleteMsg(m.id) }] : [])].map((a, i) => (
+                                <button key={i} title={a.title} onClick={a.fn} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}>{a.icon}</button>
+                              ))}
+                            </div>
+                          )}
+                          {reactingTo === m.id && (
+                            <div style={{ position: 'absolute', bottom: '100%', marginBottom: 4, [isMine ? 'right' : 'left']: 0, display: 'flex', gap: 2, border: '1px solid var(--border)', background: 'var(--bg-raised)', borderRadius: 8, padding: '4px 6px', zIndex: 8 }}>
+                              {REACTIONS.map(emoji => (
+                                <button key={emoji} onClick={() => toggleReaction(m, emoji)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18 }}>{emoji}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div ref={endRef} />
+                  </div>
+
+                  {(replyTo || editing) && (
+                    <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-raised)', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.15em', color: UEE_AMBER }}>
+                        {editing ? 'AMEND TRANSMISSION' : 'REPLY CHAIN'}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {decodePriority((editing || replyTo)?.content || '').body.slice(0, 70)}
+                      </span>
+                      <button onClick={() => { setReplyTo(null); setEditing(null); setText(''); setPriority('ROUTINE') }} style={{ border: 'none', background: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>✕</button>
+                    </div>
+                  )}
+
+                  <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-raised)', padding: '8px 14px' }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 7, flexWrap: 'wrap' }}>
+                      {QUICK_TEMPLATES.map(t => (
+                        <button key={t.label} className="btn btn-ghost btn-sm" onClick={() => setText(t.text)}>{t.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select className="form-select" value={priority} onChange={e => setPriority(e.target.value)} style={{ maxWidth: 145 }}>
+                        {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <input
+                        ref={inputRef}
+                        className="form-input"
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+                          if (e.key === 'Escape') { setReplyTo(null); setEditing(null); setText(''); setPriority('ROUTINE') }
+                        }}
+                        placeholder={editing ? 'Amend transmission...' : replyTo ? 'Transmit reply packet...' : 'Compose transmission...'}
+                        style={{ flex: 1, fontSize: 13 }}
+                      />
+                      <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !text.trim()} style={{ minWidth: 76 }}>
+                        {editing ? 'SAVE' : 'TRANSMIT'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </>
   )
