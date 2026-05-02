@@ -16,32 +16,39 @@ import {
 } from '../components/uee'
 
 const STATUS_META = {
-  ACTIVE:    { color: '#5ce0a1', glyph: '◉', label: 'ACTIVE' },
+  ACTIVE:    { color: '#6fc29b', glyph: '◉', label: 'ACTIVE' },
   INACTIVE:  { color: '#9099a8', glyph: '○', label: 'INACTIVE' },
-  SUSPENDED: { color: '#e05c5c', glyph: '⬢', label: 'SUSPENDED' },
+  SUSPENDED: { color: '#c36d6d', glyph: '⬢', label: 'SUSPENDED' },
 }
 const INACTIVE_THRESHOLD_DAYS = 14
 const SQUAD_LANES = [
-  { key: 'ALPHA', label: 'ALPHA WING', color: '#5a80d9' },
-  { key: 'BRAVO', label: 'BRAVO WING', color: '#5ce0a1' },
-  { key: 'CHARLIE', label: 'CHARLIE WING', color: UEE_AMBER },
-  { key: 'SUPPORT', label: 'SUPPORT CELL', color: '#b566d9' },
+  { key: 'ALPHA', label: 'ALPHA WING', color: '#6e86ae' },
+  { key: 'BRAVO', label: 'BRAVO WING', color: '#6ea88f' },
+  { key: 'CHARLIE', label: 'CHARLIE WING', color: '#b89d6d' },
+  { key: 'SUPPORT', label: 'SUPPORT CELL', color: '#8f7bad' },
 ]
+const READY_HIGH = '#6fc29b'
+const READY_MID = '#b89d6d'
+const READY_LOW = '#c36d6d'
 
 function lastSeenMeta(ts) {
   if (!ts) return { label: 'NEVER', color: 'var(--text-3)', online: false }
   const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
-  if (diff < 300)   return { label: 'ONLINE',          color: '#5ce0a1', online: true }
+  if (diff < 300)   return { label: 'ONLINE',          color: READY_HIGH, online: true }
   if (diff < 3600)  return { label: `${Math.floor(diff / 60)}M AGO`,    color: UEE_AMBER, online: false }
   if (diff < 86400) return { label: `${Math.floor(diff / 3600)}H AGO`,  color: 'var(--text-2)', online: false }
   return                  { label: `${Math.floor(diff / 86400)}D AGO`,  color: 'var(--text-3)', online: false }
 }
 
 function tierAccent(tier) {
-  if (tier <= 2) return UEE_AMBER       // Command
-  if (tier <= 4) return '#5a80d9'       // Officer
-  if (tier <= 6) return '#5ce0a1'       // Specialist
+  if (tier <= 2) return '#b89d6d'       // Command
+  if (tier <= 4) return '#6e86ae'       // Officer
+  if (tier <= 6) return '#6ea88f'       // Specialist
   return '#9099a8'                      // Recruit / Auxiliary
+}
+
+function readinessColor(score) {
+  return score >= 75 ? READY_HIGH : score >= 45 ? READY_MID : READY_LOW
 }
 
 function daysSince(ts) {
@@ -256,9 +263,9 @@ export default function Roster() {
 
   const chainSections = useMemo(() => {
     const buckets = [
-      { key: 'COMMAND', label: 'COMMAND CHAIN', color: UEE_AMBER, filter: m => m.tier <= 2 },
-      { key: 'OFFICERS', label: 'OFFICER CORPS', color: '#5a80d9', filter: m => m.tier > 2 && m.tier <= 4 },
-      { key: 'SPECIALISTS', label: 'SPECIALIST WINGS', color: '#5ce0a1', filter: m => m.tier > 4 && m.tier <= 6 },
+      { key: 'COMMAND', label: 'COMMAND CHAIN', color: '#b89d6d', filter: m => m.tier <= 2 },
+      { key: 'OFFICERS', label: 'OFFICER CORPS', color: '#6e86ae', filter: m => m.tier > 2 && m.tier <= 4 },
+      { key: 'SPECIALISTS', label: 'SPECIALIST WINGS', color: '#6ea88f', filter: m => m.tier > 4 && m.tier <= 6 },
       { key: 'AUXILIARY', label: 'AUXILIARY POOL', color: '#9099a8', filter: m => m.tier > 6 },
     ]
     return buckets.map(b => {
@@ -422,8 +429,8 @@ export default function Roster() {
         right={(
           <>
             <span>OPERATIVES · {members.length}</span>
-            <span style={{ color: '#5ce0a1' }}>ONLINE · {onlineCount}</span>
-            <span style={{ color: UEE_AMBER }}>COMMAND · {counts.COMMAND || 0}</span>
+            <span style={{ color: 'var(--text-2)' }}>ONLINE · {onlineCount}</span>
+            <span style={{ color: 'var(--text-2)' }}>COMMAND · {counts.COMMAND || 0}</span>
           </>
         )}
       />
@@ -448,11 +455,11 @@ export default function Roster() {
           active={tab} onChange={setTab}
           tabs={[
             { key: 'ALL',        label: 'ALL',        color: '#d4d8e0',     count: counts.ALL || 0 },
-            { key: 'COMMAND',    label: 'COMMAND',    color: UEE_AMBER, glyph: '◆', count: counts.COMMAND || 0 },
-            { key: 'OFFICER',    label: 'OFFICER',    color: '#5a80d9', glyph: '◉', count: counts.OFFICER || 0 },
-            { key: 'SPECIALIST', label: 'SPECIALIST', color: '#5ce0a1', glyph: '◎', count: counts.SPECIALIST || 0 },
+            { key: 'COMMAND',    label: 'COMMAND',    color: '#b89d6d', glyph: '◆', count: counts.COMMAND || 0 },
+            { key: 'OFFICER',    label: 'OFFICER',    color: '#6e86ae', glyph: '◉', count: counts.OFFICER || 0 },
+            { key: 'SPECIALIST', label: 'SPECIALIST', color: '#6ea88f', glyph: '◎', count: counts.SPECIALIST || 0 },
             { key: 'AUXILIARY',  label: 'AUXILIARY',  color: '#9099a8', glyph: '○', count: counts.AUXILIARY || 0 },
-            { key: 'SUSPENDED',  label: 'SUSPENDED',  color: '#e05c5c', glyph: '⬢', count: counts.SUSPENDED || 0 },
+            { key: 'SUSPENDED',  label: 'SUSPENDED',  color: READY_LOW, glyph: '⬢', count: counts.SUSPENDED || 0 },
           ]}
         />
       </div>
@@ -465,11 +472,11 @@ export default function Roster() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: 10, marginBottom: 16,
             }}>
-              <StatCell label="ACTIVE"     value={counts.ACTIVE || 0}    color="#5ce0a1" glyph="◉" desc="full standing" />
-              <StatCell label="ONLINE NOW" value={onlineCount}            color="#5ce0a1" glyph="●" desc="last seen <5m" />
-              <StatCell label="DEPLOYABLE" value={deployableCount}        color={UEE_AMBER} glyph="◆" desc="ready to assign" />
-              <StatCell label="AVG READY"  value={`${avgReadiness}%`}      color="#5a80d9" glyph="◉" desc="org readiness index" />
-              <StatCell label="SUSPENDED"  value={counts.SUSPENDED || 0} color="#e05c5c" glyph="⬢" desc="restricted access" />
+              <StatCell label="ACTIVE"     value={counts.ACTIVE || 0}    color={READY_HIGH} glyph="◉" desc="full standing" />
+              <StatCell label="ONLINE NOW" value={onlineCount}            color="#7f9585" glyph="●" desc="last seen <5m" />
+              <StatCell label="DEPLOYABLE" value={deployableCount}        color={READY_MID} glyph="◆" desc="ready to assign" />
+              <StatCell label="AVG READY"  value={`${avgReadiness}%`}      color="#6e86ae" glyph="◉" desc="org readiness index" />
+              <StatCell label="SUSPENDED"  value={counts.SUSPENDED || 0} color={READY_LOW} glyph="⬢" desc="restricted access" />
             </div>
 
             <FilterRow
@@ -477,10 +484,10 @@ export default function Roster() {
               placeholder="Search handle, rank, division, speciality, certification..."
               pills={[
                 { key: 'ALL', label: 'ALL', color: '#9099a8', count: filtered.length },
-                { key: 'DEPLOYABLE', label: 'DEPLOYABLE NOW', color: UEE_AMBER, glyph: '◆', count: members.filter(m => readinessMeta(m, certCounts[m.id] || 0, totalCerts).deployable).length },
-                { key: 'NEEDS_CERTS', label: 'NEEDS CERTS', color: '#e0a155', glyph: '⬢', count: members.filter(m => readinessMeta(m, certCounts[m.id] || 0, totalCerts).certPct < 50).length },
+                { key: 'DEPLOYABLE', label: 'DEPLOYABLE NOW', color: READY_MID, glyph: '◆', count: members.filter(m => readinessMeta(m, certCounts[m.id] || 0, totalCerts).deployable).length },
+                { key: 'NEEDS_CERTS', label: 'NEEDS CERTS', color: '#9f8661', glyph: '⬢', count: members.filter(m => readinessMeta(m, certCounts[m.id] || 0, totalCerts).certPct < 50).length },
                 { key: 'INACTIVE_14D', label: 'INACTIVE 14D+', color: '#9099a8', glyph: '○', count: members.filter(m => daysSince(m.last_seen_at) > INACTIVE_THRESHOLD_DAYS).length },
-                { key: 'COMMAND_CHAIN', label: 'COMMAND CHAIN', color: '#5a80d9', glyph: '◉', count: members.filter(m => m.tier <= 4).length },
+                { key: 'COMMAND_CHAIN', label: 'COMMAND CHAIN', color: '#6e86ae', glyph: '◉', count: members.filter(m => m.tier <= 4).length },
               ]}
               active={preset}
               setActive={setPreset}
@@ -515,7 +522,7 @@ export default function Roster() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {chainSections.map(section => (
-                        <div key={section.key} className="card" style={{ padding: 12, borderLeft: `3px solid ${section.color}` }}>
+                        <div key={section.key} className="card" style={{ padding: 12, borderLeft: `2px solid ${section.color}aa` }}>
                           <div style={{
                             fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em',
                             color: section.color, marginBottom: 10,
@@ -536,16 +543,16 @@ export default function Roster() {
                                         key={m.id}
                                         onClick={() => setSelectedId(m.id)}
                                         style={{
-                                          border: `1px solid ${m.id === selectedId ? UEE_AMBER : 'var(--border)'}`,
-                                          background: m.id === selectedId ? `${UEE_AMBER}18` : 'var(--bg-raised)',
-                                          color: m.id === selectedId ? UEE_AMBER : 'var(--text-2)',
+                                          border: `1px solid ${m.id === selectedId ? '#8fa2be' : 'var(--border)'}`,
+                                          background: m.id === selectedId ? 'rgba(143,162,190,0.13)' : 'var(--bg-raised)',
+                                          color: m.id === selectedId ? '#9bb0ce' : 'var(--text-2)',
                                           padding: '6px 8px', borderRadius: 4, cursor: 'pointer',
                                           fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 7,
                                         }}
                                       >
                                         <span style={{ fontWeight: 600 }}>{m.handle}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-3)' }}>T{m.tier}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: readiness.score >= 75 ? '#5ce0a1' : readiness.score >= 45 ? UEE_AMBER : '#e05c5c' }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: readinessColor(readiness.score) }}>
                                           {readiness.score}%
                                         </span>
                                       </button>
@@ -579,7 +586,7 @@ export default function Roster() {
                 <div className="card" style={{ padding: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em', color: UEE_AMBER }}>SQUAD ASSIGNMENT BOARD</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em', color: 'var(--text-2)' }}>SQUAD ASSIGNMENT BOARD</div>
                       <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Drag operatives into lanes, then draft an operation from the plan.</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -618,7 +625,7 @@ export default function Roster() {
                     {SQUAD_LANES.map(lane => (
                       <div
                         key={lane.key}
-                        style={{ border: `1px solid ${lane.color}55`, borderRadius: 6, padding: 8, background: 'var(--bg-surface)', minHeight: 110 }}
+                        style={{ border: `1px solid ${lane.color}33`, borderRadius: 6, padding: 8, background: 'var(--bg-surface)', minHeight: 110 }}
                         onDragOver={e => e.preventDefault()}
                         onDrop={e => {
                           e.preventDefault()
@@ -753,10 +760,10 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
   const seen = lastSeenMeta(m.last_seen_at)
   const initials = m.handle.slice(0, 2).toUpperCase()
   const readiness = readinessMeta(m, certCount, totalCerts)
-  const readinessColor = readiness.score >= 75 ? '#5ce0a1' : readiness.score >= 45 ? UEE_AMBER : '#e05c5c'
+  const readinessTone = readinessColor(readiness.score)
 
   return (
-    <Card accent={selected ? UEE_AMBER : accent} onClick={onSelect} minHeight={140}>
+    <Card accent={selected ? '#8ea4bf' : accent} onClick={onSelect} minHeight={140}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <div style={{
@@ -770,9 +777,9 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
             <span style={{
               position: 'absolute', bottom: -1, right: -1,
               width: 12, height: 12, borderRadius: '50%',
-              background: '#5ce0a1',
+              background: READY_HIGH,
               border: '2px solid var(--bg-raised)',
-              boxShadow: '0 0 6px #5ce0a1',
+              boxShadow: '0 0 3px rgba(111,194,155,0.6)',
             }} />
           )}
         </div>
@@ -784,8 +791,8 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {m.handle}
             </span>
-            {isMe && <StatusBadge color={UEE_AMBER} glyph="◆" label="YOU" />}
-            {m.is_founder && <StatusBadge color={UEE_AMBER} glyph="✦" label="FOUNDER" />}
+            {isMe && <StatusBadge color="#9bb0ce" glyph="◆" label="YOU" />}
+            {m.is_founder && <StatusBadge color="#b89d6d" glyph="✦" label="FOUNDER" />}
           </div>
           <div style={{ marginTop: 3 }}>
             <RankBadge tier={m.tier} />
@@ -820,10 +827,10 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
           color: 'var(--text-3)', marginBottom: 4,
         }}>
           <span>CERTS {certCount}/{totalCerts || 0}</span>
-          <span style={{ color: readinessColor }}>READINESS {readiness.score}%</span>
+          <span style={{ color: readinessTone }}>READINESS {readiness.score}%</span>
         </div>
         <div style={{ height: 6, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${readiness.score}%`, background: readinessColor }} />
+          <div style={{ height: '100%', width: `${readiness.score}%`, background: readinessTone }} />
         </div>
       </div>
 
@@ -835,13 +842,13 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
         fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em',
       }}>
         <span style={{ color: seen.color }}>● {seen.label}</span>
-        <span style={{ color: readiness.deployable ? '#5ce0a1' : UEE_AMBER, fontWeight: 600 }}>
+        <span style={{ color: readiness.deployable ? READY_HIGH : 'var(--text-2)', fontWeight: 600 }}>
           {readiness.deployable ? 'DEPLOYABLE' : `REP ${m.rep_score || 0}`}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           <button onClick={onView} style={{
-            background: 'transparent', border: `1px solid ${UEE_AMBER}44`,
-            color: UEE_AMBER, cursor: 'pointer',
+            background: 'transparent', border: '1px solid #7f8ea655',
+            color: '#a8b7cd', cursor: 'pointer',
             fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
             padding: '2px 7px', borderRadius: 3,
           }}>FILE</button>
@@ -881,13 +888,13 @@ function MemberIntelPanel({
   }
 
   const statusMeta = STATUS_META[member.status] || STATUS_META.ACTIVE
-  const readinessColor = readiness?.score >= 75 ? '#5ce0a1' : readiness?.score >= 45 ? UEE_AMBER : '#e05c5c'
+  const readinessTone = readinessColor(readiness?.score || 0)
 
   return (
     <div className="card" style={{ padding: 14, position: 'sticky', top: 12 }}>
       <div style={{
         fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em',
-        color: UEE_AMBER, marginBottom: 8,
+        color: 'var(--text-2)', marginBottom: 8,
       }}>
         OPERATIVE INTEL PANEL
       </div>
@@ -900,10 +907,10 @@ function MemberIntelPanel({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
-        <MiniStat label="READINESS" value={`${readiness?.score || 0}%`} color={readinessColor} />
-        <MiniStat label="CERTS" value={`${certCount}/${totalCerts || 0}`} color={UEE_AMBER} />
-        <MiniStat label="MEDALS" value={panelData.medals} color="#5a80d9" />
-        <MiniStat label="SHIPS" value={panelData.ships} color="#5ce0a1" />
+        <MiniStat label="READINESS" value={`${readiness?.score || 0}%`} color={readinessTone} />
+        <MiniStat label="CERTS" value={`${certCount}/${totalCerts || 0}`} color="#9bb0ce" />
+        <MiniStat label="MEDALS" value={panelData.medals} color="var(--text-2)" />
+        <MiniStat label="SHIPS" value={panelData.ships} color="var(--text-2)" />
       </div>
 
       <div style={{ marginTop: 10 }}>
@@ -914,7 +921,7 @@ function MemberIntelPanel({
           CERTIFICATION COVERAGE
         </div>
         <div style={{ height: 8, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${readiness?.certPct || 0}%`, background: readinessColor }} />
+          <div style={{ height: '100%', width: `${readiness?.certPct || 0}%`, background: readinessTone }} />
         </div>
       </div>
 
@@ -1008,7 +1015,7 @@ function MemberChip({ member, compact, onClick, onDragStart }) {
         height: 8,
         borderRadius: '50%',
         background: accent,
-        boxShadow: `0 0 5px ${accent}`,
+        boxShadow: `0 0 2px ${accent}`,
         flexShrink: 0,
       }} />
       <span>{member.handle}</span>
