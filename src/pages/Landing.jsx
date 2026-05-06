@@ -373,30 +373,59 @@ function Divisions() {
 
 function FleetShowcase({ ships }) {
   if (!ships.length) return null
+
+  // Aggregate by ship class — collapse duplicate hulls into a single
+  // typed entry with a count. Sort by quantity desc, ties broken by name.
+  const grouped = ships.reduce((acc, s) => {
+    const cls = s.ship_class || 'Unclassified Hull'
+    const key = `${s.manufacturer || ''}|${cls}`
+    if (!acc[key]) {
+      acc[key] = {
+        manufacturer: s.manufacturer || '—',
+        ship_class: cls,
+        role: s.role || '',
+        count: 0,
+      }
+    }
+    acc[key].count++
+    return acc
+  }, {})
+  const list = Object.values(grouped).sort(
+    (a, b) => b.count - a.count || a.ship_class.localeCompare(b.ship_class)
+  )
+
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-      gap: 12,
+      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+      gap: 0,
     }}>
-      {ships.map(s => (
-        <div key={s.id} style={{
-          background: 'rgba(15,16,21,0.75)',
-          border: '1px solid rgba(212,216,224,0.07)',
-          borderRadius: 10,
-          padding: '16px 18px',
+      {list.map((g, i) => (
+        <div key={i} style={{
+          padding: '20px 18px',
+          borderTop: '1px solid var(--border-md)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          gap: 12,
         }}>
-          <div style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 15, fontWeight: 600,
-            color: '#ededf2', letterSpacing: '.04em', marginBottom: 4,
-          }}>{s.vessel_name}</div>
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
-            letterSpacing: '.18em', color: '#6a7280',
-          }}>
-            {s.manufacturer || '—'} · {s.ship_class}
-            {s.role ? ` · ${s.role}` : ''}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{
+              fontFamily: 'Inter Tight, sans-serif', fontSize: 16, fontWeight: 700,
+              color: 'var(--text-1)', letterSpacing: '-0.01em', marginBottom: 6,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{g.ship_class}</div>
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+              letterSpacing: '.22em', color: 'var(--text-3)',
+              textTransform: 'uppercase',
+            }}>
+              {g.manufacturer}{g.role ? ` · ${g.role}` : ''}
+            </div>
           </div>
+          <div style={{
+            fontFamily: 'Inter Tight, sans-serif', fontSize: 18, fontWeight: 700,
+            color: 'var(--accent)', letterSpacing: '-0.01em', flexShrink: 0,
+            fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+          }}>×{g.count}</div>
         </div>
       ))}
     </div>
