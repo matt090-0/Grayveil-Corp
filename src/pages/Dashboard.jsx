@@ -148,6 +148,8 @@ export default function Dashboard() {
   const [activity, setActivity] = useState([])
   const [topRep, setTopRep]     = useState([])
   const [anniversaries, setAnniversaries] = useState([])
+  // Officers see a callout when recruits hit 4/4 — computed in load() below.
+  const [readyRecruits, setReadyRecruits] = useState([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
@@ -193,6 +195,36 @@ export default function Dashboard() {
         })
       })
       setAnniversaries(anniv.slice(0, 6))
+
+      // Officer callout: tier-9 recruits who've cleared all 4 promotion
+      // criteria. Two scoped queries (intel + claims filtered by recruit
+      // ids) so we don't pull the whole tables. Skipped for non-officers.
+      if (profile.tier <= 4) {
+        const { data: r9 } = await supabase.from('profiles')
+          .select('id, handle, division, speciality, bio, joined_at, avatar_color')
+          .eq('status', 'ACTIVE').eq('tier', 9)
+        const r9Ids = (r9 || []).map(r => r.id)
+        if (r9Ids.length === 0) {
+          setReadyRecruits([])
+        } else {
+          const [{ data: intelRows }, { data: claimRows }] = await Promise.all([
+            supabase.from('intelligence').select('posted_by').in('posted_by', r9Ids),
+            supabase.from('contract_claims').select('claimed_by').in('claimed_by', r9Ids),
+          ])
+          const intelByUser = (intelRows || []).reduce((acc, x) => { acc[x.posted_by] = (acc[x.posted_by] || 0) + 1; return acc }, {})
+          const claimsByUser = (claimRows || []).reduce((acc, x) => { acc[x.claimed_by] = (acc[x.claimed_by] || 0) + 1; return acc }, {})
+          const ready = (r9 || []).filter(r => {
+            if (!(r.division && r.speciality && r.bio)) return false
+            const tenure = Math.floor((Date.now() - new Date(r.joined_at).getTime()) / 86400000)
+            if (tenure < 7) return false
+            if ((intelByUser[r.id]  || 0) < 1) return false
+            if ((claimsByUser[r.id] || 0) < 1) return false
+            return true
+          })
+          setReadyRecruits(ready)
+        }
+      }
+
       setLoading(false)
     }
     load()
@@ -309,6 +341,53 @@ export default function Dashboard() {
                 )}
                 <RecruitHero profile={profile} navigate={navigate} />
               </>
+            )}
+
+            {/* OFFICER CALLOUT — recruits ready for promotion */}
+            {!previewRecruit && profile.tier <= 4 && readyRecruits.length > 0 && (
+              <div style={{
+                marginBottom: 20,
+                padding: '18px 22px',
+                border: '1px solid var(--accent)',
+                borderLeft: '3px solid var(--accent)',
+                background: 'var(--accent-dim)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 16, flexWrap: 'wrap',
+              }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+                    letterSpacing: '.28em', color: 'var(--accent)',
+                    textTransform: 'uppercase', marginBottom: 6,
+                  }}>● PROMOTION QUEUE</div>
+                  <div style={{
+                    fontFamily: 'Inter Tight, sans-serif',
+                    fontSize: 17, fontWeight: 700,
+                    color: 'var(--text-1)', letterSpacing: '-0.01em',
+                    marginBottom: 4,
+                  }}>
+                    {readyRecruits.length} recruit{readyRecruits.length === 1 ? ' is' : 's are'} ready for promotion to Ensign.
+                  </div>
+                  <div style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13,
+                    color: 'var(--text-2)', lineHeight: 1.5,
+                  }}>
+                    {readyRecruits.slice(0, 3).map(r => r.handle).join(' · ')}
+                    {readyRecruits.length > 3 && ` · +${readyRecruits.length - 3} more`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate('/recruitment?tab=recruits')}
+                  style={{
+                    background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+                    padding: '10px 18px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+                    fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase',
+                    cursor: 'pointer', transition: 'background .15s', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
+                >Review Roster →</button>
+              </div>
             )}
 
             {/* STAT GRID */}

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { confirmAction } from '../lib/dialogs'
 import { useToast } from '../components/Toast'
 import PromotionChecklist, { usePromotionStatus } from '../components/PromotionChecklist'
+import { greenBurst } from '../lib/confetti'
 
 // ─────────────────────────────────────────────────────────────
 // UEE STYLE CONSTANTS
@@ -52,7 +54,18 @@ export default function Recruitment() {
   const { profile: me } = useAuth()
   const toast = useToast()
 
-  const [tab, setTab]             = useState('prospects')
+  // Honor ?tab=<key> on mount so deep-links from the Dashboard
+  // promotion-queue callout (or anywhere) land on the right tab.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = TABS[searchParams.get('tab')] ? searchParams.get('tab') : 'prospects'
+  const [tab, setTabState] = useState(initialTab)
+  function setTab(next) {
+    setTabState(next)
+    const params = new URLSearchParams(searchParams)
+    if (next === 'prospects') params.delete('tab')
+    else params.set('tab', next)
+    setSearchParams(params, { replace: true })
+  }
   const [prospects, setProspects] = useState([])
   const [members, setMembers]     = useState([])
   const [applications, setApps]   = useState([])
@@ -140,15 +153,56 @@ export default function Recruitment() {
 
   // ── Recruit promotion ──────────────────────────────────────
   // Notify-only flow: officer sees the checklist, decides, clicks Promote.
-  // No auto-promotion — keeps the human in the loop.
+  // No auto-promotion — keeps the human in the loop. The promote action
+  // fires a small ceremony: announcement post, activity-log entry,
+  // direct notification to the promoted member, and a confetti burst
+  // for the officer who clicked it. If any side-effect fails, the core
+  // tier flip still succeeds — non-blocking.
   async function promoteRecruit(recruit) {
     if (!canManage) return
     if (!await confirmAction(`Promote ${recruit.handle} to Ensign?`,
-      `This sets tier=8 and rank='ENSIGN'. The operative will be notified.`)) return
+      `This sets tier=8 and rank='ENSIGN'. The operative will be notified, and a corp-wide announcement will be posted.`)) return
+
+    // 1. Core tier flip — must succeed
     const { error } = await supabase.from('profiles')
       .update({ tier: 8, rank: 'ENSIGN', updated_at: new Date().toISOString() })
       .eq('id', recruit.id)
     if (error) { toast(`Promotion failed: ${error.message}`, 'error'); return }
+
+    // 2. Side-effects — fire-and-forget, errors logged but don't fail the action
+    const ceremony = Promise.allSettled([
+      supabase.from('announcements').insert({
+        title:    `OPERATIVE ${recruit.handle.toUpperCase()} PROMOTED`,
+        content:  `${recruit.handle} has been promoted from Recruit to Ensign. Welcome to the standing roster.`,
+        priority: 'ROUTINE',
+        posted_by: me.id,
+      }),
+      supabase.from('activity_log').insert({
+        actor_id:    me.id,
+        action:      'member_promoted',
+        target_type: 'profile',
+        target_id:   recruit.id,
+        details: {
+          handle:    recruit.handle,
+          from_tier: 9, from_rank: 'RECRUIT',
+          to_tier:   8, to_rank:   'ENSIGN',
+        },
+      }),
+      supabase.from('notifications').insert({
+        recipient_id: recruit.id,
+        type:    'promotion',
+        title:   'Promotion — Recruit → Ensign',
+        message: `Congratulations, ${recruit.handle}. You've been promoted to Ensign by ${me.handle}.`,
+        link:    '/profile',
+      }),
+    ])
+    ceremony.then(results => {
+      const failures = results.filter(r => r.status === 'rejected' || r.value?.error)
+      if (failures.length) console.warn('[promote] some side-effects failed', failures)
+    })
+
+    // 3. Celebrate
+    greenBurst()
     toast(`${recruit.handle} promoted to Ensign`, 'success')
     load()
   }
