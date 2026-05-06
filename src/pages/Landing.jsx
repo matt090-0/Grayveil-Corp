@@ -1,9 +1,235 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, useReducedMotion } from 'framer-motion'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
 import { RANKS } from '../lib/ranks'
 import { useSeo, useJsonLd } from '../lib/useSeo'
+
+// ─────────────────────────────────────────────────────────────
+// Hero boot sequence — orchestrated reveal:
+//   t=0     scan-line sweeps top→bottom of the hero
+//   t=200ms top hairline draws in (centered, scaleX 0→1)
+//   t=400ms wordmark types in letter-by-letter (60ms stagger)
+//   t=900ms subtitle + body fade up
+//   t=1100ms bottom hairline draws in
+//   t=1200ms stat counters roll from 0 to value (1.2s ease-out)
+//   t=1500ms CTAs slide up
+// All gated by useReducedMotion — skip-to-final-state when set.
+// ─────────────────────────────────────────────────────────────
+
+// Counts up from 0 to `value` over 1200ms, ease-out cubic, after `delay` ms.
+// If `reduce` is true, snaps straight to value.
+function RollupNumber({ value, delay = 0, reduce = false }) {
+  const target = Number(value) || 0
+  const [n, setN] = useState(reduce ? target : 0)
+  useEffect(() => {
+    if (reduce) { setN(target); return }
+    const startAt = performance.now() + delay
+    const dur = 1200
+    let raf
+    const tick = (t) => {
+      const elapsed = t - startAt
+      if (elapsed < 0) { raf = requestAnimationFrame(tick); return }
+      if (elapsed >= dur) { setN(target); return }
+      const p = elapsed / dur
+      const eased = 1 - Math.pow(1 - p, 3) // ease-out cubic
+      setN(Math.round(eased * target))
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, delay, reduce])
+  return n
+}
+
+// Letter-by-letter cascade. Each char fades + lifts + unblurs in sequence.
+function AnimatedWordmark({ text = 'GRAYVEIL', baseDelay = 0.4, reduce = false }) {
+  if (reduce) return text
+  return text.split('').map((ch, i) => (
+    <motion.span
+      key={i}
+      initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ delay: baseDelay + i * 0.06, duration: 0.5, ease: [0.2, 0.7, 0.3, 1] }}
+      style={{ display: 'inline-block' }}
+    >{ch}</motion.span>
+  ))
+}
+
+// Animated hero block. Pulled out so the boot sequence is self-contained
+// and easy to reason about. `reduce` collapses everything to its final state.
+function Hero({ stats, navigate, reduce }) {
+  const fadeIn = (delay) => reduce ? { initial: false } : ({
+    initial: { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay, duration: 0.6, ease: [0.2, 0.7, 0.3, 1] },
+  })
+  const drawLine = (delay) => reduce ? { initial: false } : ({
+    initial: { scaleX: 0, opacity: 0 },
+    animate: { scaleX: 1, opacity: 1 },
+    transition: { delay, duration: 0.7, ease: [0.2, 0.7, 0.3, 1] },
+  })
+
+  return (
+    <div style={{
+      position: 'relative',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', textAlign: 'center',
+      padding: '80px 20px 40px',
+      minHeight: '85vh',
+      overflow: 'hidden',
+    }}>
+      {/* Radial glow */}
+      <div style={{
+        position: 'absolute', top: '35%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 600, height: 600, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(196,168,120,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Scan-line sweep — single pass top→bottom on mount */}
+      {!reduce && (
+        <motion.div
+          initial={{ top: '-2%', opacity: 0 }}
+          animate={{ top: '102%', opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 1.2, ease: 'easeInOut', times: [0, 0.1, 0.9, 1] }}
+          style={{
+            position: 'absolute', left: 0, right: 0,
+            height: 1,
+            background: 'linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)',
+            boxShadow: '0 0 14px var(--accent-glow)',
+            pointerEvents: 'none', zIndex: 1,
+          }}
+        />
+      )}
+
+      <div style={{ position: 'relative', maxWidth: 720, zIndex: 2 }}>
+        {/* Logo */}
+        <motion.div {...fadeIn(0.05)} style={{ marginBottom: 24, filter: 'drop-shadow(0 0 20px rgba(196,168,120,0.18))' }}>
+          <GrayveilLogo size={110} />
+        </motion.div>
+
+        {/* Top hairline bracket */}
+        <motion.div
+          {...drawLine(0.2)}
+          style={{
+            height: 1, background: 'var(--accent)',
+            width: 'min(60%, 320px)', margin: '0 auto 28px',
+            transformOrigin: 'center', opacity: 0.65,
+          }}
+        />
+
+        {/* Wordmark — letter cascade */}
+        <h1 style={{
+          fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(44px, 7vw, 72px)',
+          fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1,
+          color: 'var(--text-1)', margin: '0 0 12px',
+        }}>
+          <AnimatedWordmark text="GRAYVEIL" baseDelay={0.4} reduce={reduce} />
+        </h1>
+
+        {/* Subtitle */}
+        <motion.div
+          {...fadeIn(0.9)}
+          style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(10px, 2vw, 12px)',
+            letterSpacing: '.32em', color: 'var(--text-3)', marginBottom: 32,
+          }}
+        >CORPORATION · STANTON SYSTEM</motion.div>
+
+        {/* Quote */}
+        <motion.p
+          {...fadeIn(1.0)}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(16px, 2.5vw, 20px)',
+            color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10,
+            fontStyle: 'italic', fontWeight: 300, letterSpacing: '-0.005em',
+          }}
+        >"Profit is neutral. Everything else is negotiable."</motion.p>
+
+        {/* Body */}
+        <motion.p
+          {...fadeIn(1.05)}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(13px, 2vw, 15px)',
+            color: 'var(--text-2)', lineHeight: 1.7, marginBottom: 40,
+            maxWidth: 560, margin: '0 auto 40px',
+          }}
+        >
+          A private military and commercial enterprise operating across the Stanton system.
+          Contracts, intelligence, and discretion — backed by a shared fleet and a real internal economy.
+        </motion.p>
+
+        {/* Bottom hairline bracket */}
+        <motion.div
+          {...drawLine(1.1)}
+          style={{
+            height: 1, background: 'var(--accent)',
+            width: 'min(60%, 320px)', margin: '0 auto 28px',
+            transformOrigin: 'center', opacity: 0.65,
+          }}
+        />
+
+        {/* Stats — counters roll up from 0 */}
+        <motion.div
+          {...fadeIn(1.15)}
+          style={{
+            display: 'flex', justifyContent: 'center', gap: 'clamp(24px, 5vw, 60px)',
+            marginBottom: 48, flexWrap: 'wrap',
+          }}
+        >
+          {[
+            { label: 'OPERATIVES', value: stats.members },
+            { label: 'VESSELS', value: stats.ships },
+            { label: 'CONTRACTS', value: stats.contracts },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{
+                fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(28px, 4.5vw, 44px)',
+                fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-1)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                <RollupNumber value={s.value} delay={1200} reduce={reduce} />
+              </div>
+              <div style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(8px, 1.5vw, 10px)',
+                letterSpacing: '.24em', color: 'var(--text-3)', marginTop: 6,
+              }}>{s.label}</div>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* CTAs */}
+        <motion.div
+          {...fadeIn(1.5)}
+          style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}
+        >
+          <button onClick={() => navigate('/apply')} style={{
+            background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+            padding: '14px 32px', fontSize: 13, fontWeight: 600,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+            cursor: 'pointer', transition: 'background .15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
+          >Apply for membership →</button>
+          <button onClick={() => navigate('/auth')} style={{
+            background: 'transparent', color: 'var(--text-2)',
+            border: '1px solid var(--border-md)', borderRadius: 2,
+            padding: '14px 32px', fontSize: 13, fontWeight: 500,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+            cursor: 'pointer', transition: 'border-color .15s, color .15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-2)'; e.currentTarget.style.color = 'var(--text-1)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-2)' }}
+          >Member login</button>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
 
 const LADDER_COLORS = {
   1: '#e8c98a',
@@ -273,6 +499,7 @@ export default function Landing() {
   const [stats, setStats] = useState({ members: 0, ships: 0, contracts: 0 })
   const [ships, setShips] = useState([])
   const navigate = useNavigate()
+  const reduceMotion = !!useReducedMotion()
 
   useSeo({
     title: 'Grayveil Corporation — Private Military & Commercial Enterprise',
@@ -331,95 +558,7 @@ export default function Landing() {
       }} />
 
       {/* ── HERO ── */}
-      <div style={{
-        position: 'relative',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', textAlign: 'center',
-        padding: '80px 20px 40px',
-        minHeight: '85vh',
-      }}>
-        {/* Radial glow */}
-        <div style={{
-          position: 'absolute', top: '35%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 600, height: 600, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(212,216,224,0.05) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{ position: 'relative', maxWidth: 720 }}>
-          <div style={{ marginBottom: 24, filter: 'drop-shadow(0 0 20px rgba(212,216,224,0.2))' }}>
-            <GrayveilLogo size={110} />
-          </div>
-          <h1 style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(44px, 7vw, 72px)',
-            fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1,
-            color: 'var(--text-1)', margin: '0 0 12px',
-          }}>GRAYVEIL</h1>
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(10px, 2vw, 12px)',
-            letterSpacing: '.32em', color: 'var(--text-3)', marginBottom: 32,
-          }}>CORPORATION · STANTON SYSTEM</div>
-          <p style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(16px, 2.5vw, 20px)',
-            color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10,
-            fontStyle: 'italic', fontWeight: 300, letterSpacing: '-0.005em',
-          }}>"Profit is neutral. Everything else is negotiable."</p>
-          <p style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(13px, 2vw, 15px)',
-            color: 'var(--text-2)', lineHeight: 1.7, marginBottom: 40,
-            maxWidth: 560, margin: '0 auto 40px',
-          }}>
-            A private military and commercial enterprise operating across the Stanton system.
-            Contracts, intelligence, and discretion — backed by a shared fleet and a real internal economy.
-          </p>
-
-          {/* Stats */}
-          <div style={{
-            display: 'flex', justifyContent: 'center', gap: 'clamp(24px, 5vw, 60px)',
-            marginBottom: 48, flexWrap: 'wrap',
-          }}>
-            {[
-              { label: 'OPERATIVES', value: stats.members },
-              { label: 'VESSELS', value: stats.ships },
-              { label: 'CONTRACTS', value: stats.contracts },
-            ].map(s => (
-              <div key={s.label} style={{ textAlign: 'center' }}>
-                <div style={{
-                  fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(28px, 4.5vw, 44px)',
-                  fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-1)',
-                }}>{s.value}</div>
-                <div style={{
-                  fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(8px, 1.5vw, 10px)',
-                  letterSpacing: '.24em', color: 'var(--text-3)', marginTop: 6,
-                }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <button onClick={() => navigate('/apply')} style={{
-              background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
-              padding: '14px 32px', fontSize: 13, fontWeight: 600,
-              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
-              cursor: 'pointer', transition: 'background .15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
-            >Apply for membership →</button>
-            <button onClick={() => navigate('/auth')} style={{
-              background: 'transparent', color: 'var(--text-2)',
-              border: '1px solid var(--border-md)', borderRadius: 2,
-              padding: '14px 32px', fontSize: 13, fontWeight: 500,
-              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
-              cursor: 'pointer', transition: 'border-color .15s, color .15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-2)'; e.currentTarget.style.color = 'var(--text-1)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-2)' }}
-            >Member login</button>
-          </div>
-        </div>
-      </div>
+      <Hero stats={stats} navigate={navigate} reduce={reduceMotion} />
 
       {/* ── DIVISIONS ── */}
       <Section eyebrow="WHAT WE DO" title="Four Divisions, One Corporation">
