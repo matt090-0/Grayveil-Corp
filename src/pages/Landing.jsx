@@ -173,7 +173,9 @@ function Hero({ stats, navigate, reduce }) {
           }}
         />
 
-        {/* Stats — counters roll up from 0 */}
+        {/* Operational status panel — replaces raw counters with three
+            indicator cells. Reads as a defense-contractor readiness
+            board. Live-tunable: just edit STATUS_CELLS below. */}
         <motion.div
           {...fadeIn(1.15)}
           style={{
@@ -182,21 +184,31 @@ function Hero({ stats, navigate, reduce }) {
           }}
         >
           {[
-            { label: 'OPERATIVES', value: stats.members },
-            { label: 'VESSELS', value: stats.ships },
-            { label: 'CONTRACTS', value: stats.contracts },
+            { status: 'OPERATIONAL', label: 'COMMAND',     color: 'var(--green)'  },
+            { status: 'GREEN',       label: 'ALERT LEVEL', color: 'var(--green)'  },
+            { status: 'OPEN',        label: 'RECRUITMENT', color: 'var(--accent)' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{
-                fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(28px, 4.5vw, 44px)',
-                fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-1)',
-                fontVariantNumeric: 'tabular-nums',
+                fontFamily: 'Inter Tight, sans-serif',
+                fontSize: 'clamp(20px, 3vw, 28px)',
+                fontWeight: 700, letterSpacing: '-0.015em',
+                color: 'var(--text-1)',
+                display: 'inline-flex', alignItems: 'center', gap: 12,
+                lineHeight: 1,
               }}>
-                <RollupNumber value={s.value} delay={1200} reduce={reduce} />
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: s.color,
+                  boxShadow: `0 0 12px ${s.color}`,
+                  flexShrink: 0,
+                }} />
+                {s.status}
               </div>
               <div style={{
-                fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(8px, 1.5vw, 10px)',
-                letterSpacing: '.24em', color: 'var(--text-3)', marginTop: 6,
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 'clamp(8px, 1.5vw, 10px)',
+                letterSpacing: '.24em', color: 'var(--text-3)', marginTop: 8,
               }}>{s.label}</div>
             </div>
           ))}
