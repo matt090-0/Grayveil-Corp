@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
 import { RANKS } from '../lib/ranks'
+import { SC_SHIPS } from '../lib/ships'
 import { useSeo, useJsonLd } from '../lib/useSeo'
 
 // ─────────────────────────────────────────────────────────────
@@ -371,129 +372,142 @@ function Divisions() {
   )
 }
 
-// Capital / "flagship-class" hulls, ordered by approximate prestige.
-// Match is substring + case-insensitive on the ship_class field, so
-// "Idris-M" matches "Idris", "C2 Hercules" matches "Hercules", etc.
-// If the org owns nothing from this list, we fall back to top-by-count.
-const FLAGSHIP_PRIORITY = [
-  'Bengal',
-  'Javelin',
-  'Idris',
-  'Polaris',
-  'Kraken',
-  'Reclaimer',
-  'Orion',
-  '890 Jump',
-  'Carrack',
-  'Hammerhead',
-  'Perseus',
-  'Galaxy',
-  'Hercules',
-  'Endeavor',
-  'Liberator',
-  'Caterpillar',
-  'Hull E',
-  'Hull D',
-  'Constellation',
-  'Corsair',
-  'Starlancer',
+// Curated capital-class flagships shown as image cards. Drop matching
+// JPG/WebP into public/brand/ships/<slug>.jpg to populate; missing
+// images fall back to a tan/black gradient panel so cards stay clean.
+// Only 6 hero ships — more than that and the section becomes a museum.
+const HERO_SHIPS = [
+  { name: 'Javelin',     manufacturer: 'Aegis Dynamics', role: 'Destroyer',     image: '/brand/ships/javelin.jpg'    },
+  { name: 'Idris-M',     manufacturer: 'Aegis Dynamics', role: 'Frigate',       image: '/brand/ships/idris.jpg'      },
+  { name: 'Polaris',     manufacturer: 'RSI',            role: 'Corvette',      image: '/brand/ships/polaris.jpg'    },
+  { name: 'Kraken',      manufacturer: 'Drake Interplanetary', role: 'Carrier', image: '/brand/ships/kraken.jpg'     },
+  { name: 'Carrack',     manufacturer: 'Anvil Aerospace', role: 'Exploration',  image: '/brand/ships/carrack.jpg'    },
+  { name: 'Hammerhead',  manufacturer: 'Aegis Dynamics', role: 'Heavy Gunship', image: '/brand/ships/hammerhead.jpg' },
 ]
 
-function FleetShowcase({ ships }) {
-  if (!ships.length) return null
-
-  // Headline metrics — total hulls, distinct classes, distinct manufacturers
-  const total       = ships.length
-  const classCount  = new Set(ships.map(s => s.ship_class).filter(Boolean)).size
-  const mfgCount    = new Set(ships.map(s => s.manufacturer).filter(Boolean)).size
-
-  // Group by class so we can pick flagships with their counts
-  const groups = ships.reduce((acc, s) => {
-    const cls = s.ship_class || 'Unclassified'
-    if (!acc[cls]) {
-      acc[cls] = {
-        ship_class:   cls,
-        manufacturer: s.manufacturer || '—',
-        role:         s.role || '',
-        count:        0,
-      }
-    }
-    acc[cls].count++
-    return acc
-  }, {})
-  const groupList = Object.values(groups)
-
-  // Priority sort: lower index = higher prestige. Misses go to 999 so
-  // they land at the end. Ties broken by count desc, then alpha.
-  const priorityRank = name => {
-    const lower = (name || '').toLowerCase()
-    const idx = FLAGSHIP_PRIORITY.findIndex(p => lower.includes(p.toLowerCase()))
-    return idx === -1 ? 999 : idx
-  }
-  const flagships = [...groupList]
-    .sort((a, b) =>
-      priorityRank(a.ship_class) - priorityRank(b.ship_class)
-      || b.count - a.count
-      || a.ship_class.localeCompare(b.ship_class)
-    )
-    .slice(0, 4)
+function FleetShowcase() {
+  // Catalog-driven stats. Reads the static SC_SHIPS list, NOT the
+  // database — the marketing page should reflect the org's full
+  // Legatus collection, not just user-registered hulls.
+  const total       = SC_SHIPS.length
+  const mfgList     = [...new Set(SC_SHIPS.map(s => s.manufacturer).filter(Boolean))].sort()
+  const mfgCount    = mfgList.length
+  // Manufacturer short-codes (drop "Aerospace", "Dynamics", etc.) for the
+  // roll-call line — fits the editorial cap-spaced look.
+  const mfgShort = mfgList.map(m =>
+    m.replace(/\s+(Aerospace|Dynamics|Interplanetary|Industrial|Manufacturing|Mfg|Industries|Corp|Corporation)$/i, '')
+  )
 
   return (
     <div>
-      {/* Hero stat line */}
+      {/* Editorial intro */}
       <div style={{
         fontFamily: 'Inter, sans-serif',
         fontSize: 'clamp(17px, 2.2vw, 22px)',
         color: 'var(--text-2)', textAlign: 'center',
-        lineHeight: 1.6, maxWidth: 640, margin: '0 auto 56px',
+        lineHeight: 1.6, maxWidth: 640, margin: '0 auto 16px',
         letterSpacing: '-0.005em',
       }}>
-        <span style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{total}</span>
-        {' vessels across '}
-        <span style={{ color: 'var(--text-1)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{classCount}</span>
-        {' classes from '}
-        <span style={{ color: 'var(--text-1)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{mfgCount}</span>
-        {mfgCount === 1 ? ' manufacturer.' : ' manufacturers.'}
+        Every hull in active service across the Stanton system —
+        snub fighters to capital frigates, concept ships included.
       </div>
 
-      {/* Flagship hulls — top 4 by prestige */}
+      {/* Stat line */}
+      <div style={{
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 'clamp(11px, 1.8vw, 13px)',
+        color: 'var(--text-3)', textAlign: 'center',
+        letterSpacing: '.18em', marginBottom: 56, textTransform: 'uppercase',
+      }}>
+        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{total}+ HULLS</span>
+        <span style={{ margin: '0 12px', opacity: 0.5 }}>·</span>
+        <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{mfgCount} MANUFACTURERS</span>
+        <span style={{ margin: '0 12px', opacity: 0.5 }}>·</span>
+        <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>EVERY ROLE COVERED</span>
+      </div>
+
+      {/* Capital-class hero cards */}
       <div style={{
         fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
         letterSpacing: '.32em', color: 'var(--text-3)', textAlign: 'center',
-        marginBottom: 20, textTransform: 'uppercase',
-      }}>FLAGSHIP HULLS</div>
+        marginBottom: 24, textTransform: 'uppercase',
+      }}>CAPITAL CLASS</div>
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 0,
-        borderBottom: '1px solid var(--border-md)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: 16, marginBottom: 56,
       }}>
-        {flagships.map((g, i) => (
-          <div key={i} style={{
-            padding: '24px 20px',
-            borderTop: '1px solid var(--border-md)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-            gap: 12,
+        {HERO_SHIPS.map(s => (
+          <div key={s.name} style={{
+            border: '1px solid var(--border-md)',
+            borderRadius: 2,
+            overflow: 'hidden',
+            background: 'var(--bg-surface)',
           }}>
-            <div style={{ minWidth: 0, flex: 1 }}>
+            {/* Image area with gradient fallback. The gradient sits underneath
+                the <img>, so if the file is missing the gradient shows. */}
+            <div style={{
+              position: 'relative',
+              aspectRatio: '16 / 9',
+              background: 'linear-gradient(135deg, rgba(196,168,120,0.08) 0%, rgba(11,14,19,0.95) 70%)',
+              overflow: 'hidden',
+            }}>
+              <img
+                src={s.image}
+                alt={s.name}
+                loading="lazy"
+                onError={e => { e.currentTarget.style.opacity = '0' }}
+                style={{
+                  width: '100%', height: '100%', objectFit: 'cover',
+                  display: 'block', transition: 'opacity .3s',
+                }}
+              />
+              {/* Top-left tag — "CAPITAL ASSET" classification chip */}
               <div style={{
-                fontFamily: 'Inter Tight, sans-serif', fontSize: 17, fontWeight: 700,
-                color: 'var(--text-1)', letterSpacing: '-0.01em', marginBottom: 8,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{g.ship_class}</div>
+                position: 'absolute', top: 10, left: 12,
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
+                letterSpacing: '.28em', color: 'var(--accent)',
+                textTransform: 'uppercase',
+                background: 'rgba(6,8,11,0.7)', padding: '3px 8px',
+                border: '1px solid var(--border-md)',
+              }}>CAPITAL ASSET</div>
+            </div>
+            {/* Caption */}
+            <div style={{ padding: '16px 18px', borderTop: '1px solid var(--border)' }}>
+              <div style={{
+                fontFamily: 'Inter Tight, sans-serif', fontSize: 18, fontWeight: 700,
+                color: 'var(--text-1)', letterSpacing: '-0.01em', marginBottom: 6,
+              }}>{s.name}</div>
               <div style={{
                 fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
                 letterSpacing: '.22em', color: 'var(--text-3)',
                 textTransform: 'uppercase',
-              }}>
-                {g.manufacturer}{g.role ? ` · ${g.role}` : ''}
-              </div>
+              }}>{s.manufacturer} · {s.role}</div>
             </div>
-            <div style={{
-              fontFamily: 'Inter Tight, sans-serif', fontSize: 18, fontWeight: 700,
-              color: 'var(--accent)', letterSpacing: '-0.01em',
-              fontVariantNumeric: 'tabular-nums', flexShrink: 0, lineHeight: 1.2,
-            }}>×{g.count}</div>
           </div>
+        ))}
+      </div>
+
+      {/* Manufacturer roll-call */}
+      <div style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+        letterSpacing: '.32em', color: 'var(--text-3)', textAlign: 'center',
+        marginBottom: 16, textTransform: 'uppercase',
+      }}>CERTIFIED MANUFACTURERS</div>
+      <div style={{
+        textAlign: 'center', maxWidth: 720, margin: '0 auto',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 'clamp(10px, 1.6vw, 12px)',
+        letterSpacing: '.24em', color: 'var(--text-2)',
+        textTransform: 'uppercase', lineHeight: 2.2,
+      }}>
+        {mfgShort.map((m, i) => (
+          <span key={m}>
+            {m}
+            {i < mfgShort.length - 1 && (
+              <span style={{ color: 'var(--text-3)', margin: '0 10px', opacity: 0.5 }}>·</span>
+            )}
+          </span>
         ))}
       </div>
     </div>
@@ -594,7 +608,6 @@ function FaqList() {
 
 export default function Landing() {
   const [stats, setStats] = useState({ members: 0, ships: 0, contracts: 0 })
-  const [ships, setShips] = useState([])
   const navigate = useNavigate()
   const reduceMotion = !!useReducedMotion()
 
@@ -617,21 +630,19 @@ export default function Landing() {
 
   useEffect(() => {
     async function load() {
-      // Hit the SECURITY DEFINER RPCs instead of querying the
-      // tables directly. /welcome is unauthenticated, so the
-      // anon role hits RLS that blocks fleet/contracts SELECT.
-      // The RPCs bypass RLS and return only the public-safe
-      // fields the landing page actually needs.
-      const [{ data: stats }, { data: fleetRows }] = await Promise.all([
-        supabase.rpc('public_org_stats'),
-        supabase.rpc('public_fleet_showcase'),
-      ])
+      // Hit the SECURITY DEFINER RPC instead of querying tables directly.
+      // /welcome is unauthenticated, so the anon role hits RLS that
+      // blocks fleet/contracts SELECT. The RPC bypasses RLS and returns
+      // only the public-safe fields the landing page actually needs.
+      // Fleet showcase is now driven by the static SC_SHIPS catalog
+      // (see FleetShowcase) — the landing page advertises the org's
+      // full Legatus collection, not just user-registered hulls.
+      const { data: stats } = await supabase.rpc('public_org_stats')
       setStats({
         members:   stats?.members   || 0,
         ships:     stats?.ships     || 0,
         contracts: stats?.contracts || 0,
       })
-      setShips(fleetRows || [])
     }
     load()
   }, [])
@@ -663,11 +674,9 @@ export default function Landing() {
       </Section>
 
       {/* ── FLEET SHOWCASE ── */}
-      {ships.length > 0 && (
-        <Section eyebrow="OPERATIONAL FLEET" title="Vessels in Active Service">
-          <FleetShowcase ships={ships} />
-        </Section>
-      )}
+      <Section eyebrow="OPERATIONAL FLEET" title="The Legatus Catalog">
+        <FleetShowcase />
+      </Section>
 
       {/* ── TIER PATH ── */}
       <Section eyebrow="CHAIN OF COMMAND" title="The Nine-Tier Path">
