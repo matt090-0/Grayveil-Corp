@@ -340,13 +340,30 @@ const sectionHeading = {
   marginBottom: 48,
 }
 
+// Sections enter when ~20% in view: brief fade + 32px lift, 600ms
+// ease-out, plays once. Reads as each editorial block coming online
+// as you scroll. useReducedMotion collapses to instant.
+function sectionRevealProps(reduce) {
+  if (reduce) return {}
+  return {
+    initial:     { opacity: 0, y: 32 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport:    { once: true, amount: 0.2 },
+    transition:  { duration: 0.6, ease: [0.2, 0.7, 0.3, 1] },
+  }
+}
+
 function Section({ eyebrow, title, children }) {
+  const reduce = useReducedMotion()
   return (
-    <section style={{ padding: '80px 24px', maxWidth: 1100, margin: '0 auto', position: 'relative' }}>
+    <motion.section
+      {...sectionRevealProps(reduce)}
+      style={{ padding: '80px 24px', maxWidth: 1100, margin: '0 auto', position: 'relative' }}
+    >
       <div style={sectionLabel}>{eyebrow}</div>
       <h2 style={sectionHeading}>{title}</h2>
       {children}
-    </section>
+    </motion.section>
   )
 }
 
@@ -708,10 +725,13 @@ export default function Landing() {
       </Section>
 
       {/* ── BOTTOM CTA ── */}
-      <section style={{
-        padding: '60px 24px 40px',
-        maxWidth: 760, margin: '0 auto', position: 'relative', textAlign: 'center',
-      }}>
+      <motion.section
+        {...sectionRevealProps(reduceMotion)}
+        style={{
+          padding: '60px 24px 40px',
+          maxWidth: 760, margin: '0 auto', position: 'relative', textAlign: 'center',
+        }}
+      >
         <div style={{
           fontFamily: 'Inter Tight, sans-serif',
           fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 700,
@@ -731,13 +751,16 @@ export default function Landing() {
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
         >Apply for membership →</button>
-      </section>
+      </motion.section>
 
       {/* ── DISCORD ── */}
-      <section style={{
-        padding: '40px 24px 60px',
-        textAlign: 'center', position: 'relative',
-      }}>
+      <motion.section
+        {...sectionRevealProps(reduceMotion)}
+        style={{
+          padding: '40px 24px 60px',
+          textAlign: 'center', position: 'relative',
+        }}
+      >
         <div style={{
           fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
           letterSpacing: '.3em', color: '#44445a', marginBottom: 16,
@@ -756,7 +779,7 @@ export default function Landing() {
             style={{ display: 'block' }}
           />
         </div>
-      </section>
+      </motion.section>
 
       {/* ── FOOTER ── */}
       <div style={{
