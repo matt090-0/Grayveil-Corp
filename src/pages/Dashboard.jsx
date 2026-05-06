@@ -7,6 +7,77 @@ import RankBadge from '../components/RankBadge'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { confirmAction } from '../lib/dialogs'
 import AnnualReportButton from '../components/AnnualReportButton'
+import PromotionChecklist from '../components/PromotionChecklist'
+
+// ─────────────────────────────────────────────────────────────
+// RecruitHero — only renders for tier-9 members. Pairs a "welcome"
+// panel (intro + quick-action chips) with the promotion checklist
+// so a recruit hits a clear, single-screen onboarding view.
+// ─────────────────────────────────────────────────────────────
+function RecruitHero({ profile, navigate }) {
+  const Chip = ({ to, children }) => (
+    <button
+      onClick={() => navigate(to)}
+      style={{
+        background: 'transparent', color: 'var(--text-1)',
+        border: '1px solid var(--border-md)', borderRadius: 2,
+        padding: '8px 14px', fontSize: 12, fontWeight: 500,
+        fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+        cursor: 'pointer', transition: 'border-color .15s, color .15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-1)' }}
+    >{children}</button>
+  )
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gap: 14, marginBottom: 24,
+    }}>
+      {/* Welcome panel */}
+      <div style={{
+        padding: '22px 22px',
+        border: '1px solid var(--border-md)',
+        background: 'var(--bg-surface)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Tan accent stripe down the left edge — flags this as the recruit-only block */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+          background: 'var(--accent)',
+        }} />
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+          letterSpacing: '.28em', color: 'var(--accent)',
+          textTransform: 'uppercase', marginBottom: 10,
+        }}>WELCOME ABOARD</div>
+        <div style={{
+          fontFamily: 'Inter Tight, sans-serif', fontSize: 22,
+          fontWeight: 700, letterSpacing: '-0.02em',
+          color: 'var(--text-1)', marginBottom: 10,
+        }}>You're a Recruit.</div>
+        <p style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 13.5,
+          color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 18,
+        }}>
+          Standard access to ops, contracts, intel filing, and the wiki.
+          Clear the four checks on the right to become eligible for promotion
+          to Ensign — an officer will action it once you're ready.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Chip to="/profile">Set up profile →</Chip>
+          <Chip to="/wiki">Read the SOP →</Chip>
+          <Chip to="/intelligence">File intel →</Chip>
+          <Chip to="/contracts">Browse contracts →</Chip>
+        </div>
+      </div>
+
+      {/* Promotion checklist */}
+      <PromotionChecklist profile={profile} />
+    </div>
+  )
+}
 import {
   UEE_AMBER, ClassificationBar, StatCell, Card,
   StatusBadge, EmptyState, SectionHeader,
@@ -177,6 +248,9 @@ export default function Dashboard() {
       <div className="page-body">
         {loading ? <div className="loading">LOADING SITREP...</div> : (
           <>
+            {/* RECRUIT ONBOARDING — only for tier 9 */}
+            {profile.tier === 9 && <RecruitHero profile={profile} navigate={navigate} />}
+
             {/* STAT GRID */}
             <div style={{
               display: 'grid',

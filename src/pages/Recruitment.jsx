@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { confirmAction } from '../lib/dialogs'
 import { useToast } from '../components/Toast'
+import PromotionChecklist, { usePromotionStatus } from '../components/PromotionChecklist'
 
 // ─────────────────────────────────────────────────────────────
 // UEE STYLE CONSTANTS
@@ -32,6 +33,7 @@ const TABS = {
   prospects:    { key: 'prospects',    label: 'PROSPECTS',    short: 'PIPELINE',   color: UEE_AMBER, glyph: '◆', subtitle: 'Candidate pipeline · vetting status · referral tracking' },
   applications: { key: 'applications', label: 'APPLICATIONS', short: 'INTAKE',     color: '#5a80d9', glyph: '◈', subtitle: 'Submitted applications · review queue · approval decisions' },
   invites:      { key: 'invites',      label: 'INVITE LINKS', short: 'REFERRALS',  color: '#5ce0a1', glyph: '◊', subtitle: 'Single-use or multi-use referral codes · campaign attribution' },
+  recruits:     { key: 'recruits',     label: 'RECRUITS',     short: 'ONBOARDING', color: '#c4a878', glyph: '◇', subtitle: 'Tier-9 operatives · path-to-Ensign progress · promotion authority' },
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -55,6 +57,7 @@ export default function Recruitment() {
   const [members, setMembers]     = useState([])
   const [applications, setApps]   = useState([])
   const [invites, setInvites]     = useState([])
+  const [recruits, setRecruits]   = useState([])
   const [loading, setLoading]     = useState(true)
 
   const [stage, setStage]         = useState('ALL')
@@ -71,13 +74,20 @@ export default function Recruitment() {
   const canDelete = me.tier <= 3
 
   async function load() {
-    const [{ data: p }, { data: m }, { data: a }, { data: inv }] = await Promise.all([
+    const [{ data: p }, { data: m }, { data: a }, { data: inv }, { data: r }] = await Promise.all([
       supabase.from('recruitment').select('*, referred_by:profiles!recruitment_referred_by_fkey(handle), updated_by:profiles!recruitment_updated_by_fkey(handle)').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, handle').eq('status', 'ACTIVE').order('handle'),
       supabase.from('applications').select('*').order('created_at', { ascending: false }),
       supabase.from('invite_links').select('*, creator:profiles(handle)').order('created_at', { ascending: false }),
+      // tier-9 active operatives — full profile shape so PromotionChecklist
+      // can resolve all four criteria without re-querying per row.
+      supabase.from('profiles')
+        .select('id, handle, tier, division, speciality, bio, joined_at, avatar_color')
+        .eq('status', 'ACTIVE').eq('tier', 9)
+        .order('joined_at', { ascending: true }),
     ])
     setProspects(p || []); setMembers(m || []); setApps(a || []); setInvites(inv || [])
+    setRecruits(r || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -127,6 +137,21 @@ export default function Recruitment() {
       || (i.label || '').toLowerCase().includes(q)
       || (i.creator?.handle || '').toLowerCase().includes(q))
   }, [invites, search])
+
+  // ── Recruit promotion ──────────────────────────────────────
+  // Notify-only flow: officer sees the checklist, decides, clicks Promote.
+  // No auto-promotion — keeps the human in the loop.
+  async function promoteRecruit(recruit) {
+    if (!canManage) return
+    if (!await confirmAction(`Promote ${recruit.handle} to Ensign?`,
+      `This sets tier=8 and rank='ENSIGN'. The operative will be notified.`)) return
+    const { error } = await supabase.from('profiles')
+      .update({ tier: 8, rank: 'ENSIGN', updated_at: new Date().toISOString() })
+      .eq('id', recruit.id)
+    if (error) { toast(`Promotion failed: ${error.message}`, 'error'); return }
+    toast(`${recruit.handle} promoted to Ensign`, 'success')
+    load()
+  }
 
   // ── Prospect CRUD ──────────────────────────────────────────
   function openAdd() { setForm({ handle: '', discord: '', referred_by: '', notes: '' }); setError(''); setModal('add') }
@@ -206,6 +231,7 @@ export default function Recruitment() {
   const headerRightCount =
     tab === 'prospects' ? counts.ALL
     : tab === 'applications' ? appCounts.ALL
+    : tab === 'recruits' ? recruits.length
     : invites.length
 
   return (
@@ -261,6 +287,7 @@ export default function Recruitment() {
             const count =
               t.key === 'prospects' ? counts.ALL
               : t.key === 'applications' ? appCounts.ALL
+              : t.key === 'recruits' ? recruits.length
               : invites.length
             const pending =
               t.key === 'applications' ? appCounts.PENDING || 0 : 0
@@ -319,6 +346,11 @@ export default function Recruitment() {
               appFilter={appFilter} setAppFilter={setAppFilter}
               search={search} setSearch={setSearch}
               reviewApp={reviewApp}
+            />
+          ) : tab === 'recruits' ? (
+            <RecruitsView
+              recruits={recruits} canManage={canManage}
+              promoteRecruit={promoteRecruit}
             />
           ) : (
             <InvitesView
@@ -1134,5 +1166,140 @@ function InviteCreateModal({ form, setForm, saving, onClose, onSubmit }) {
         to attribute new applications to this invite.
       </div>
     </UeeModal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// RECRUITS VIEW — onboarding tracker.
+// One row per tier-9 operative, each with an embedded
+// PromotionChecklist (compact mode) and a Promote button that
+// flips tier 9 → 8 / rank RECRUIT → ENSIGN. Gated by canManage.
+// ─────────────────────────────────────────────────────────────
+function RecruitsView({ recruits, canManage, promoteRecruit }) {
+  if (!recruits.length) {
+    return (
+      <div style={{
+        padding: 60, textAlign: 'center',
+        color: 'var(--text-3)',
+        fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '.18em',
+        border: '1px solid var(--border)',
+      }}>NO ACTIVE RECRUITS · TIER-9 ROSTER EMPTY</div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+        letterSpacing: '.24em', color: 'var(--text-3)',
+        textTransform: 'uppercase',
+      }}>
+        {recruits.length} RECRUIT{recruits.length === 1 ? '' : 'S'} ON ROSTER ·
+        SORTED BY EARLIEST INTAKE
+      </div>
+      {recruits.map(r => (
+        <RecruitRow
+          key={r.id}
+          recruit={r}
+          canManage={canManage}
+          onPromote={() => promoteRecruit(r)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function RecruitRow({ recruit, canManage, onPromote }) {
+  const { ready } = usePromotionStatus(recruit)
+  const accent = recruit.avatar_color || 'var(--accent)'
+  const initials = (recruit.handle || '').slice(0, 2).toUpperCase()
+  return (
+    <div style={{
+      border: '1px solid var(--border-md)',
+      background: 'var(--bg-surface)',
+      display: 'grid',
+      gridTemplateColumns: 'minmax(220px, 280px) 1fr auto',
+      gap: 0,
+      alignItems: 'stretch',
+    }}>
+      {/* Identity column */}
+      <div style={{
+        padding: '20px 22px',
+        borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: '50%',
+              background: 'transparent', border: `1px solid ${accent}`,
+              color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'Inter Tight, sans-serif', fontWeight: 700, fontSize: 13,
+              letterSpacing: '0.05em',
+            }}>{initials}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'Inter Tight, sans-serif', fontSize: 16, fontWeight: 700,
+                color: 'var(--text-1)', letterSpacing: '-0.01em',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{recruit.handle}</div>
+              <div style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
+                letterSpacing: '.22em', color: 'var(--text-3)',
+                textTransform: 'uppercase',
+              }}>RECRUIT · TIER 9</div>
+            </div>
+          </div>
+          <div style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5,
+            letterSpacing: '.18em', color: 'var(--text-3)',
+            textTransform: 'uppercase', lineHeight: 1.7,
+          }}>
+            DIV {recruit.division || '—'}<br/>
+            SPEC {recruit.speciality || '—'}<br/>
+            INTAKE {recruit.joined_at ? new Date(recruit.joined_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).toUpperCase() : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Checklist column */}
+      <div style={{ padding: '20px 22px' }}>
+        <PromotionChecklist profile={recruit} compact />
+      </div>
+
+      {/* Action column */}
+      <div style={{
+        padding: '20px 22px',
+        borderLeft: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <button
+          onClick={onPromote}
+          disabled={!canManage || !ready}
+          title={
+            !canManage ? 'Tier ≤ 4 required'
+            : !ready   ? 'All four criteria must be met'
+            : 'Promote to Ensign'
+          }
+          style={{
+            background: ready ? 'var(--accent)' : 'transparent',
+            color: ready ? '#0a0a0c' : 'var(--text-3)',
+            border: ready ? 'none' : '1px solid var(--border-md)',
+            borderRadius: 2,
+            padding: '12px 20px',
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+            fontFamily: 'JetBrains Mono, monospace',
+            textTransform: 'uppercase',
+            cursor: canManage && ready ? 'pointer' : 'not-allowed',
+            opacity: canManage && ready ? 1 : 0.55,
+            transition: 'background .15s, opacity .15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => { if (canManage && ready) e.currentTarget.style.background = 'var(--accent-hi)' }}
+          onMouseLeave={e => { if (canManage && ready) e.currentTarget.style.background = 'var(--accent)' }}
+        >
+          {ready ? 'Promote → Ensign' : 'Not Ready'}
+        </button>
+      </div>
+    </div>
   )
 }
