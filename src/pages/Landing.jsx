@@ -188,23 +188,27 @@ function Hero({ stats, navigate, reduce }) {
             { status: 'GREEN',       label: 'ALERT LEVEL', color: 'var(--green)'  },
             { status: 'OPEN',        label: 'RECRUITMENT', color: 'var(--accent)' },
           ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center' }}>
+            <div key={s.label} style={{
+              textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              minWidth: 110,
+            }}>
+              {/* Indicator dot — stacked above so each cell self-centers */}
+              <span style={{
+                display: 'block',
+                width: 10, height: 10, borderRadius: '50%',
+                background: s.color,
+                boxShadow: `0 0 12px ${s.color}`,
+                marginBottom: 14,
+              }} />
+              {/* Status value */}
               <div style={{
                 fontFamily: 'Inter Tight, sans-serif',
                 fontSize: 'clamp(20px, 3vw, 28px)',
                 fontWeight: 700, letterSpacing: '-0.015em',
-                color: 'var(--text-1)',
-                display: 'inline-flex', alignItems: 'center', gap: 12,
-                lineHeight: 1,
-              }}>
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%',
-                  background: s.color,
-                  boxShadow: `0 0 12px ${s.color}`,
-                  flexShrink: 0,
-                }} />
-                {s.status}
-              </div>
+                color: 'var(--text-1)', lineHeight: 1,
+              }}>{s.status}</div>
+              {/* Category label */}
               <div style={{
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: 'clamp(8px, 1.5vw, 10px)',
