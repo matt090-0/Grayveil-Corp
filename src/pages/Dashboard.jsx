@@ -464,7 +464,7 @@ export default function Dashboard() {
                   }}>
                     <ResponsiveContainer width="100%" height={200}>
                       <BarChart data={chartData} margin={{ top: 20, right: 16, left: 0, bottom: 0 }} barCategoryGap="25%">
-                        <XAxis dataKey="name" tick={{ fill: '#8a8f9c', fontSize: 9, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.1em' }}
+                        <XAxis dataKey="name" tick={{ fill: '#8a8478', fontSize: 9, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.1em' }}
                           axisLine={{ stroke: '#333344' }} tickLine={false} tickMargin={8} />
                         <YAxis tick={{ fill: '#555566', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' }}
                           axisLine={false} tickLine={false} width={32} allowDecimals={false} />

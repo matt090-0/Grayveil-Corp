@@ -773,10 +773,9 @@ export default function Landing() {
             src="https://discord.com/widget?id=1493915754997878856&theme=dark"
             width="350"
             height="400"
-            allowTransparency="true"
-            frameBorder="0"
             sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-            style={{ display: 'block' }}
+            style={{ display: 'block', border: 'none', background: 'transparent' }}
+            title="Grayveil Corporation Discord"
           />
         </div>
       </motion.section>

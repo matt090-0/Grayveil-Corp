@@ -179,7 +179,7 @@ export default function Inbox() {
           active={tab} onChange={k => { setTab(k); setPage(1) }}
           tabs={[
             { key: 'UNREAD', label: 'UNREAD', color: UEE_AMBER, glyph: '◆', count: counts.UNREAD, attention: counts.UNREAD > 0 ? counts.UNREAD : 0 },
-            { key: 'ALL',    label: 'ALL',    color: '#d4d8e0',                count: counts.ALL },
+            { key: 'ALL',    label: 'ALL',    color: '#e8e3d8',                count: counts.ALL },
             { key: 'READ',   label: 'READ',   color: '#9099a8', glyph: '✓',    count: counts.READ },
             ...Object.keys(TYPE_META)
               .filter(t => counts[t] > 0)

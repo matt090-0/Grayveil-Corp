@@ -454,7 +454,7 @@ export default function Roster() {
         <TabStrip
           active={tab} onChange={setTab}
           tabs={[
-            { key: 'ALL',        label: 'ALL',        color: '#d4d8e0',     count: counts.ALL || 0 },
+            { key: 'ALL',        label: 'ALL',        color: '#e8e3d8',     count: counts.ALL || 0 },
             { key: 'COMMAND',    label: 'COMMAND',    color: '#b89d6d', glyph: '◆', count: counts.COMMAND || 0 },
             { key: 'OFFICER',    label: 'OFFICER',    color: '#6e86ae', glyph: '◉', count: counts.OFFICER || 0 },
             { key: 'SPECIALIST', label: 'SPECIALIST', color: '#6ea88f', glyph: '◎', count: counts.SPECIALIST || 0 },
