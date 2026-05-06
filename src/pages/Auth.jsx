@@ -48,21 +48,19 @@ export default function Auth() {
 
       <div style={{
         position: 'relative', width: '100%', maxWidth: 420,
-        background: 'rgba(15,16,21,0.85)', backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(212,216,224,0.15)', borderRadius: 14,
-        padding: '36px 32px', boxShadow: '0 16px 64px rgba(0,0,0,0.5)',
+        background: 'rgba(11,14,19,0.85)', backdropFilter: 'blur(10px)',
+        border: '1px solid var(--border-md)', borderRadius: 2,
+        padding: '40px 36px', boxShadow: '0 16px 64px rgba(0,0,0,0.5)',
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ filter: 'drop-shadow(0 0 16px rgba(212,216,224,0.2))' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ filter: 'drop-shadow(0 0 16px rgba(232,227,216,0.15))' }}>
             <GrayveilLogo size={64} />
           </div>
           <h1 style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 24, fontWeight: 700, letterSpacing: '.15em',
-            background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            margin: '16px 0 4px',
+            fontFamily: 'Inter Tight, sans-serif', fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em',
+            color: 'var(--text-1)', margin: '16px 0 6px',
           }}>GRAYVEIL</h1>
-          <div style={{ fontSize: 10, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={{ fontSize: 10, letterSpacing: '.3em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace' }}>
             {mode === 'signin' ? 'OPERATIVE ACCESS' : 'APPLICANT CREDENTIALS'}
           </div>
         </div>
@@ -84,18 +82,18 @@ export default function Auth() {
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError('') }}
-            style={{ background: 'none', border: 'none', color: '#8a8f9c', fontSize: 11, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }}>
+            style={{ background: 'none', border: 'none', color: 'var(--text-2)', fontSize: 11, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }}>
             {mode === 'signin' ? 'NO ACCESS? REQUEST CREDENTIALS' : 'ALREADY AN OPERATIVE? SIGN IN'}
           </button>
         </div>
 
-        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(212,216,224,0.08)', textAlign: 'center' }}>
-          <Link to="/apply" style={{ fontSize: 10, color: '#6a7280', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
+          <Link to="/apply" style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
             OR APPLY FOR MEMBERSHIP →
           </Link>
         </div>
 
-        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 9, color: '#4a4f5c', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.2em' }}>
+        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 9, color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.2em' }}>
           PROFIT IS NEUTRAL · EVERYTHING ELSE IS NEGOTIABLE
         </div>
       </div>

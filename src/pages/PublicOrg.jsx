@@ -39,49 +39,47 @@ export default function PublicOrg() {
             <GrayveilLogo size={96} />
           </div>
           <h1 style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(40px, 7vw, 72px)',
-            fontWeight: 700, letterSpacing: '.15em', margin: '0 0 12px',
-            background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 60%, #6a7280 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(48px, 7.5vw, 88px)',
+            fontWeight: 800, letterSpacing: '-0.025em', margin: '0 0 14px', lineHeight: 1,
+            color: 'var(--text-1)',
           }}>GRAYVEIL</h1>
           <div style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(11px, 2vw, 14px)',
-            letterSpacing: '.35em', color: '#6a7280', marginBottom: 32,
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(11px, 2vw, 13px)',
+            letterSpacing: '.32em', color: 'var(--text-3)', marginBottom: 32,
           }}>CORPORATION · STANTON SYSTEM</div>
           <p style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(15px, 2.5vw, 20px)',
-            color: '#b8bcc8', fontStyle: 'italic', fontWeight: 300, letterSpacing: '.02em',
+            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(16px, 2.5vw, 20px)',
+            color: 'var(--text-2)', fontStyle: 'italic', fontWeight: 300, letterSpacing: '-0.005em',
             marginBottom: 40, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto',
           }}>"Profit is neutral. Everything else is negotiable."</p>
 
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => navigate('/apply')} style={{
-              background: 'linear-gradient(180deg, #e8ecf2 0%, #b8bcc8 60%, #6a7280 100%)',
-              color: '#0a0b0f', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
-              padding: '14px 36px', fontSize: 13, fontWeight: 700,
-              fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.1em',
-              cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
+              background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+              padding: '14px 32px', fontSize: 13, fontWeight: 600,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+              cursor: 'pointer', transition: 'background .15s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(212,216,224,0.25)' }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
-              APPLY FOR MEMBERSHIP
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}>
+              Apply for membership →
             </button>
             <button onClick={() => navigate('/auth')} style={{
-              background: 'transparent', color: '#8a8f9c',
-              border: '1px solid #333344', borderRadius: 8,
-              padding: '14px 36px', fontSize: 13, fontWeight: 500,
-              fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em',
+              background: 'transparent', color: 'var(--text-2)',
+              border: '1px solid var(--border-md)', borderRadius: 2,
+              padding: '14px 32px', fontSize: 13, fontWeight: 500,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
               cursor: 'pointer',
-            }}>MEMBER PORTAL</button>
+            }}>Member portal</button>
           </div>
         </div>
 
-        {loading ? <div style={{ textAlign: 'center', color: '#6a7280', padding: 40 }}>Loading stats...</div> : stats && (
+        {loading ? <div style={{ textAlign: 'center', color: 'var(--text-3)', padding: 40 }}>Loading stats...</div> : stats && (
           <>
             {/* ═══ STATS GRID ═══ */}
             <div style={{ marginBottom: 80 }}>
               <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace' }}>ORGANIZATION METRICS</div>
+                <div style={{ fontSize: 11, letterSpacing: '.32em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace' }}>ORGANIZATION METRICS</div>
               </div>
               <div style={{
                 display: 'grid',
@@ -99,19 +97,18 @@ export default function PublicOrg() {
                   { label: 'DIVISIONS', value: (stats.divisions || []).length },
                 ].map(s => (
                   <div key={s.label} style={{
-                    background: 'rgba(15,16,21,0.7)', backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(212,216,224,0.1)', borderRadius: 10,
-                    padding: '20px 16px', textAlign: 'center',
+                    background: 'rgba(11,14,19,0.7)', backdropFilter: 'blur(10px)',
+                    border: '1px solid var(--border)', borderRadius: 2,
+                    padding: '24px 18px', textAlign: 'center',
                     transition: 'border-color .2s',
                   }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(212,216,224,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(212,216,224,0.1)'}>
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-md)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                     <div style={{
-                      fontFamily: 'Inter Tight, sans-serif', fontSize: 32, fontWeight: 700,
-                      background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
-                      WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                      fontFamily: 'Inter Tight, sans-serif', fontSize: 36, fontWeight: 800,
+                      letterSpacing: '-0.025em', color: 'var(--text-1)',
                     }}>{s.value || 0}</div>
-                    <div style={{ fontSize: 10, letterSpacing: '.15em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace', marginTop: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 10, letterSpacing: '.24em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace', marginTop: 6 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -121,25 +118,25 @@ export default function PublicOrg() {
             {stats.founders && stats.founders.length > 0 && (
               <div style={{ marginBottom: 80 }}>
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                  <div style={{ fontSize: 11, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace' }}>COMMAND AUTHORITY</div>
+                  <div style={{ fontSize: 11, letterSpacing: '.32em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace' }}>COMMAND AUTHORITY</div>
                 </div>
-                <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                   {stats.founders.map(f => (
                     <div key={f.handle} style={{
-                      background: 'linear-gradient(135deg, rgba(212,216,224,0.08), rgba(212,216,224,0.02))',
-                      border: '1px solid rgba(212,216,224,0.25)', borderRadius: 12,
-                      padding: '20px 28px', textAlign: 'center', minWidth: 180,
+                      background: 'rgba(11,14,19,0.7)',
+                      border: '1px solid var(--border-md)', borderRadius: 2,
+                      padding: '24px 28px', textAlign: 'center', minWidth: 180,
                     }}>
                       <div style={{
-                        width: 56, height: 56, borderRadius: '50%', margin: '0 auto 10px',
-                        background: `linear-gradient(135deg, ${f.avatar_color}20, ${f.avatar_color}40)`,
-                        border: `2px solid ${f.avatar_color}`,
+                        width: 56, height: 56, borderRadius: '50%', margin: '0 auto 12px',
+                        background: `${f.avatar_color}24`,
+                        border: `1px solid ${f.avatar_color}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 18, fontWeight: 700, color: f.avatar_color,
                         fontFamily: 'Inter Tight, sans-serif',
                       }}>{f.handle?.slice(0, 2).toUpperCase()}</div>
-                      <div style={{ fontFamily: 'Inter Tight, sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '.03em' }}>{f.handle}</div>
-                      <div style={{ fontSize: 10, letterSpacing: '.2em', color: '#d4d8e0', fontFamily: 'JetBrains Mono, monospace', marginTop: 4 }}>{f.rank || 'FOUNDER'}</div>
+                      <div style={{ fontFamily: 'Inter Tight, sans-serif', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>{f.handle}</div>
+                      <div style={{ fontSize: 10, letterSpacing: '.24em', color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace', marginTop: 6 }}>{f.rank || 'FOUNDER'}</div>
                     </div>
                   ))}
                 </div>
@@ -150,15 +147,15 @@ export default function PublicOrg() {
             {stats.divisions && stats.divisions.length > 0 && (
               <div style={{ marginBottom: 80 }}>
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                  <div style={{ fontSize: 11, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace' }}>OPERATIONAL DIVISIONS</div>
+                  <div style={{ fontSize: 11, letterSpacing: '.32em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace' }}>OPERATIONAL DIVISIONS</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', maxWidth: 800, margin: '0 auto' }}>
                   {stats.divisions.map(d => (
                     <div key={d} style={{
-                      background: 'rgba(15,16,21,0.7)', backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(212,216,224,0.15)', borderRadius: 6,
-                      padding: '8px 16px', fontSize: 11, letterSpacing: '.1em',
-                      fontFamily: 'JetBrains Mono, monospace', color: '#b8bcc8',
+                      background: 'rgba(11,14,19,0.7)',
+                      border: '1px solid var(--border-md)', borderRadius: 2,
+                      padding: '8px 16px', fontSize: 11, letterSpacing: '.14em',
+                      fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-2)',
                     }}>{d}</div>
                   ))}
                 </div>
@@ -169,10 +166,10 @@ export default function PublicOrg() {
 
         {/* ═══ DISCORD WIDGET ═══ */}
         <div style={{ textAlign: 'center', marginBottom: 80 }}>
-          <div style={{ fontSize: 11, letterSpacing: '.3em', color: '#6a7280', fontFamily: 'JetBrains Mono, monospace', marginBottom: 16 }}>JOIN OUR CHANNEL</div>
+          <div style={{ fontSize: 11, letterSpacing: '.32em', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 16 }}>JOIN OUR CHANNEL</div>
           <div style={{
-            display: 'inline-block', borderRadius: 12, overflow: 'hidden',
-            border: '1px solid rgba(212,216,224,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            display: 'inline-block', borderRadius: 2, overflow: 'hidden',
+            border: '1px solid var(--border-md)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
           }}>
             <iframe
               src="https://discord.com/widget?id=1493915754997878856&theme=dark"
@@ -186,24 +183,23 @@ export default function PublicOrg() {
         {/* ═══ CTA FOOTER ═══ */}
         <div style={{
           textAlign: 'center', padding: '40px 20px',
-          borderTop: '1px solid rgba(212,216,224,0.1)',
+          borderTop: '1px solid var(--border)',
         }}>
-          <div style={{ fontSize: 13, color: '#8a8f9c', marginBottom: 20, lineHeight: 1.8, maxWidth: 600, margin: '0 auto 20px' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 24, lineHeight: 1.7, maxWidth: 600, margin: '0 auto 24px' }}>
             A private military and commercial enterprise operating across the Stanton system.
             We deal in contracts, intelligence, and discretion.
           </div>
           <button onClick={() => navigate('/apply')} style={{
-            background: 'transparent', color: '#d4d8e0',
-            border: '1px solid rgba(212,216,224,0.3)', borderRadius: 8,
-            padding: '12px 32px', fontSize: 12, fontWeight: 600,
-            fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.1em',
-            cursor: 'pointer', transition: 'all .2s',
+            background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+            padding: '13px 30px', fontSize: 13, fontWeight: 600,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+            cursor: 'pointer', transition: 'background .15s',
           }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#d4d8e0'; e.currentTarget.style.background = 'rgba(212,216,224,0.05)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(212,216,224,0.3)'; e.currentTarget.style.background = 'transparent' }}>
-            REQUEST MEMBERSHIP →
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}>
+            Request membership →
           </button>
-          <div style={{ fontSize: 9, color: '#4a4f5c', marginTop: 40, letterSpacing: '.2em', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 40, letterSpacing: '.28em', fontFamily: 'JetBrains Mono, monospace' }}>
             GRAYVEIL CORPORATION · {stats?.founded_date ? `EST. ${new Date(stats.founded_date).getFullYear()}` : 'EST. 2026'}
           </div>
         </div>

@@ -82,19 +82,19 @@ const FAQ = [
 const sectionLabel = {
   fontFamily: 'JetBrains Mono, monospace',
   fontSize: 11,
-  letterSpacing: '.35em',
-  color: '#6a7280',
+  letterSpacing: '.32em',
+  color: 'var(--text-3)',
   marginBottom: 14,
   textAlign: 'center',
 }
 const sectionHeading = {
   fontFamily: 'Inter Tight, sans-serif',
-  fontSize: 'clamp(24px, 4vw, 36px)',
+  fontSize: 'clamp(28px, 4.5vw, 44px)',
   fontWeight: 700,
-  letterSpacing: '.08em',
-  color: '#ededf2',
+  letterSpacing: '-0.02em',
+  color: 'var(--text-1)',
   textAlign: 'center',
-  marginBottom: 40,
+  marginBottom: 48,
 }
 
 function Section({ eyebrow, title, children }) {
@@ -351,24 +351,22 @@ export default function Landing() {
             <GrayveilLogo size={110} />
           </div>
           <h1 style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(36px, 6vw, 56px)',
-            fontWeight: 700, letterSpacing: '.15em',
-            background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 60%, #6a7280 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text', margin: '0 0 8px',
+            fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(44px, 7vw, 72px)',
+            fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1,
+            color: 'var(--text-1)', margin: '0 0 12px',
           }}>GRAYVEIL</h1>
           <div style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(10px, 2vw, 13px)',
-            letterSpacing: '.3em', color: '#6a7280', marginBottom: 32,
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(10px, 2vw, 12px)',
+            letterSpacing: '.32em', color: 'var(--text-3)', marginBottom: 32,
           }}>CORPORATION · STANTON SYSTEM</div>
           <p style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(15px, 2.5vw, 19px)',
-            color: '#b8bcc8', lineHeight: 1.7, marginBottom: 10,
-            fontStyle: 'italic', fontWeight: 300, letterSpacing: '.02em',
+            fontFamily: 'Inter, sans-serif', fontSize: 'clamp(16px, 2.5vw, 20px)',
+            color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10,
+            fontStyle: 'italic', fontWeight: 300, letterSpacing: '-0.005em',
           }}>"Profit is neutral. Everything else is negotiable."</p>
           <p style={{
             fontFamily: 'Inter, sans-serif', fontSize: 'clamp(13px, 2vw, 15px)',
-            color: '#8a8f9c', lineHeight: 1.8, marginBottom: 40,
+            color: 'var(--text-2)', lineHeight: 1.7, marginBottom: 40,
             maxWidth: 560, margin: '0 auto 40px',
           }}>
             A private military and commercial enterprise operating across the Stanton system.
@@ -387,41 +385,38 @@ export default function Landing() {
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{
-                  fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(24px, 4vw, 36px)',
-                  fontWeight: 700,
-                  background: 'linear-gradient(180deg, #ffffff 0%, #b8bcc8 80%)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                  fontFamily: 'Inter Tight, sans-serif', fontSize: 'clamp(28px, 4.5vw, 44px)',
+                  fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-1)',
                 }}>{s.value}</div>
                 <div style={{
                   fontFamily: 'JetBrains Mono, monospace', fontSize: 'clamp(8px, 1.5vw, 10px)',
-                  letterSpacing: '.2em', color: '#4a4f5c', marginTop: 4,
+                  letterSpacing: '.24em', color: 'var(--text-3)', marginTop: 6,
                 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* CTA */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
             <button onClick={() => navigate('/apply')} style={{
-              background: 'linear-gradient(180deg, #e8ecf2 0%, #b8bcc8 60%, #6a7280 100%)',
-              color: '#0a0b0f', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
-              padding: '14px 36px', fontSize: 13, fontWeight: 700,
-              fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.1em',
-              cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
+              background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+              padding: '14px 32px', fontSize: 13, fontWeight: 600,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+              cursor: 'pointer', transition: 'background .15s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(212,216,224,0.25)' }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
-            >APPLY FOR MEMBERSHIP</button>
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
+            >Apply for membership →</button>
             <button onClick={() => navigate('/auth')} style={{
-              background: 'transparent', color: '#8a8f9c',
-              border: '1px solid #333344', borderRadius: 8,
-              padding: '14px 36px', fontSize: 13, fontWeight: 500,
-              fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em',
+              background: 'transparent', color: 'var(--text-2)',
+              border: '1px solid var(--border-md)', borderRadius: 2,
+              padding: '14px 32px', fontSize: 13, fontWeight: 500,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
               cursor: 'pointer', transition: 'border-color .15s, color .15s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#d4d8e0'; e.currentTarget.style.color = '#d4d8e0' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#333344'; e.currentTarget.style.color = '#8a8f9c' }}
-            >MEMBER LOGIN</button>
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-2)'; e.currentTarget.style.color = 'var(--text-1)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-2)' }}
+            >Member login</button>
           </div>
         </div>
       </div>
@@ -437,8 +432,8 @@ export default function Landing() {
           <FleetShowcase ships={ships} />
           <div style={{
             textAlign: 'center', marginTop: 24, fontSize: 12,
-            color: '#6a7280', fontFamily: 'JetBrains Mono, monospace',
-            letterSpacing: '.12em',
+            color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace',
+            letterSpacing: '.18em',
           }}>{stats.ships} TOTAL VESSELS REGISTERED</div>
         </Section>
       )}
@@ -460,21 +455,23 @@ export default function Landing() {
       }}>
         <div style={{
           fontFamily: 'Inter Tight, sans-serif',
-          fontSize: 'clamp(20px, 3.5vw, 28px)', fontWeight: 600,
-          color: '#ededf2', marginBottom: 12, letterSpacing: '.04em',
+          fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 700,
+          color: 'var(--text-1)', marginBottom: 14, letterSpacing: '-0.02em',
         }}>Ready to fly under the grey flag?</div>
         <p style={{
-          color: '#8a8f9c', fontSize: 14, lineHeight: 1.7, marginBottom: 28,
+          color: 'var(--text-2)', fontSize: 15, lineHeight: 1.7, marginBottom: 28,
         }}>
           Applications take two minutes. We review every one — no form letters, no silent rejections.
         </p>
         <button onClick={() => navigate('/apply')} style={{
-          background: 'linear-gradient(180deg, #e8ecf2 0%, #b8bcc8 60%, #6a7280 100%)',
-          color: '#0a0b0f', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
-          padding: '14px 36px', fontSize: 13, fontWeight: 700,
-          fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.1em',
-          cursor: 'pointer',
-        }}>APPLY FOR MEMBERSHIP</button>
+          background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+          padding: '14px 32px', fontSize: 13, fontWeight: 600,
+          fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+          cursor: 'pointer', transition: 'background .15s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
+        >Apply for membership →</button>
       </section>
 
       {/* ── DISCORD ── */}
