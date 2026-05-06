@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
@@ -124,6 +124,21 @@ const PRIORITY_META = {
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // ── RECRUIT-VIEW PREVIEW (founder-only) ──
+  // Lets the founder see what tier-9 members see without being demoted.
+  // URL flag + is_founder gate; `?preview=recruit` is honored only for
+  // the founder so a copy-pasted link can't trick a regular member.
+  const isFounder = !!profile.is_founder
+  const previewRecruit = isFounder && searchParams.get('preview') === 'recruit'
+  function togglePreviewRecruit() {
+    const next = new URLSearchParams(searchParams)
+    if (previewRecruit) next.delete('preview')
+    else next.set('preview', 'recruit')
+    setSearchParams(next, { replace: true })
+  }
+  const showRecruitHero = profile.tier === 9 || previewRecruit
+
   const canViewGlobalActivity = profile.tier <= 4
   const [stats, setStats]       = useState({ members: 0, contracts: 0, fleet: 0, intel: 0 })
   const [announcements, setAnn] = useState([])
@@ -229,17 +244,41 @@ export default function Dashboard() {
               Live snapshot of corporation tempo — open contracts, scheduled ops, command transmissions, recent activity.
             </div>
           </div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '8px 12px',
-            background: 'var(--bg-raised)', border: '1px solid var(--border)',
-            borderLeft: `3px solid ${UEE_AMBER}`,
-            borderRadius: 3,
-          }}>
-            <div className="avatar avatar-lg" style={{ width: 38, height: 38 }}>{initials}</div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}>{profile.handle}</div>
-              <RankBadge tier={profile.tier} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Founder-only: toggle the recruit-view preview. Hidden for everyone else. */}
+            {isFounder && (
+              <button
+                onClick={togglePreviewRecruit}
+                title={previewRecruit ? 'Return to your normal Dashboard view' : 'Render the tier-9 recruit Dashboard for testing'}
+                style={{
+                  background: previewRecruit ? 'var(--accent)' : 'transparent',
+                  color: previewRecruit ? '#0a0a0c' : 'var(--text-2)',
+                  border: previewRecruit ? 'none' : '1px dashed var(--border-md)',
+                  borderRadius: 2,
+                  padding: '7px 12px',
+                  fontSize: 10, fontWeight: 600, letterSpacing: '.18em',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'background .15s, color .15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {previewRecruit ? '✕ EXIT PREVIEW' : '◇ PREVIEW RECRUIT'}
+              </button>
+            )}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '8px 12px',
+              background: 'var(--bg-raised)', border: '1px solid var(--border)',
+              borderLeft: `3px solid ${UEE_AMBER}`,
+              borderRadius: 3,
+            }}>
+              <div className="avatar avatar-lg" style={{ width: 38, height: 38 }}>{initials}</div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}>{profile.handle}</div>
+                <RankBadge tier={profile.tier} />
+              </div>
             </div>
           </div>
         </div>
@@ -248,8 +287,29 @@ export default function Dashboard() {
       <div className="page-body">
         {loading ? <div className="loading">LOADING SITREP...</div> : (
           <>
-            {/* RECRUIT ONBOARDING — only for tier 9 */}
-            {profile.tier === 9 && <RecruitHero profile={profile} navigate={navigate} />}
+            {/* RECRUIT ONBOARDING — tier 9, or founder preview */}
+            {showRecruitHero && (
+              <>
+                {previewRecruit && (
+                  <div style={{
+                    marginBottom: 12, padding: '8px 14px',
+                    border: '1px dashed var(--accent)',
+                    background: 'var(--accent-dim)',
+                    color: 'var(--accent)',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 10, letterSpacing: '.24em',
+                    textTransform: 'uppercase',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                  }}>
+                    <span>● PREVIEW MODE — RENDERING TIER-9 RECRUIT VIEW</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 9, letterSpacing: '.2em' }}>
+                      Visible only to founder · click EXIT PREVIEW to return
+                    </span>
+                  </div>
+                )}
+                <RecruitHero profile={profile} navigate={navigate} />
+              </>
+            )}
 
             {/* STAT GRID */}
             <div style={{
