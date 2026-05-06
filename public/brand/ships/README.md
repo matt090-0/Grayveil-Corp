@@ -1,27 +1,30 @@
 # Hero ship images for the landing page
 
-Drop JPGs (or WebPs / PNGs — any browser format works) here using these
-exact filenames. The Landing page Capital Class card grid loads them by
-path; missing files render as a tan/black gradient panel so cards stay
-clean even if you haven't sourced an image yet.
+Files expected here (referenced by Landing.jsx → `HERO_SHIPS`):
 
-| Filename       | Ship       |
-| -------------- | ---------- |
-| javelin.jpg    | Javelin    |
-| idris.jpg      | Idris-M    |
-| polaris.jpg    | Polaris    |
-| kraken.jpg     | Kraken     |
-| carrack.jpg    | Carrack    |
-| hammerhead.jpg | Hammerhead |
+| Filename         | Ship       |
+| ---------------- | ---------- |
+| javelin.webp     | Javelin    |
+| idris.webp       | Idris-M    |
+| polaris.webp     | Polaris    |
+| kraken.webp      | Kraken     |
+| carrack.webp     | Carrack    |
+| hammerhead.webp  | Hammerhead |
 
-Recommended specs:
+If a file is missing, the corresponding card on /welcome falls back to a
+tan/black gradient panel — no broken-image icon. Drop a replacement and
+redeploy; cards pick up the new image immediately.
 
-- **Aspect ratio**: 16 : 9 (cards crop to that ratio with `object-fit: cover`)
-- **Resolution**: 1280 × 720 minimum, 1920 × 1080 ideal
-- **File size**: keep under ~200 KB each (use WebP at quality 80 or JPEG at 75)
+## Specs
 
-Sourcing tips:
+- **Aspect ratio**: 16 : 9 (cropped via `object-fit: cover`)
+- **Resolution**: ≥ 1200 px wide
+- **Format**: WebP (50–70 % smaller than JPG at equivalent quality)
+- **Target file size**: < 200 KB each
 
-- Roberts Space Industries store pages have official hero renders
-- The community wiki (starcitizen.tools) hosts higher-res versions
-- In-game screenshots work great if you're shooting your own
+## Attribution
+
+Images currently sourced from the [Star Citizen Wiki](https://starcitizen.tools)
+(community wiki, image content © Cloud Imperium Games / Roberts Space
+Industries — non-commercial fan use). Replace with original screenshots
+or in-game captures if you'd rather avoid the gray area.

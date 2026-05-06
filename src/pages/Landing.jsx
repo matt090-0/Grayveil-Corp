@@ -377,12 +377,12 @@ function Divisions() {
 // images fall back to a tan/black gradient panel so cards stay clean.
 // Only 6 hero ships — more than that and the section becomes a museum.
 const HERO_SHIPS = [
-  { name: 'Javelin',     manufacturer: 'Aegis Dynamics', role: 'Destroyer',     image: '/brand/ships/javelin.jpg'    },
-  { name: 'Idris-M',     manufacturer: 'Aegis Dynamics', role: 'Frigate',       image: '/brand/ships/idris.jpg'      },
-  { name: 'Polaris',     manufacturer: 'RSI',            role: 'Corvette',      image: '/brand/ships/polaris.jpg'    },
-  { name: 'Kraken',      manufacturer: 'Drake Interplanetary', role: 'Carrier', image: '/brand/ships/kraken.jpg'     },
-  { name: 'Carrack',     manufacturer: 'Anvil Aerospace', role: 'Exploration',  image: '/brand/ships/carrack.jpg'    },
-  { name: 'Hammerhead',  manufacturer: 'Aegis Dynamics', role: 'Heavy Gunship', image: '/brand/ships/hammerhead.jpg' },
+  { name: 'Javelin',     manufacturer: 'Aegis Dynamics', role: 'Destroyer',     image: '/brand/ships/javelin.webp'    },
+  { name: 'Idris-M',     manufacturer: 'Aegis Dynamics', role: 'Frigate',       image: '/brand/ships/idris.webp'      },
+  { name: 'Polaris',     manufacturer: 'RSI',            role: 'Corvette',      image: '/brand/ships/polaris.webp'    },
+  { name: 'Kraken',      manufacturer: 'Drake Interplanetary', role: 'Carrier', image: '/brand/ships/kraken.webp'     },
+  { name: 'Carrack',     manufacturer: 'Anvil Aerospace', role: 'Exploration',  image: '/brand/ships/carrack.webp'    },
+  { name: 'Hammerhead',  manufacturer: 'Aegis Dynamics', role: 'Heavy Gunship', image: '/brand/ships/hammerhead.webp' },
 ]
 
 function FleetShowcase() {
