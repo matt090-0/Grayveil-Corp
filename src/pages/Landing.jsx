@@ -371,63 +371,131 @@ function Divisions() {
   )
 }
 
+// Capital / "flagship-class" hulls, ordered by approximate prestige.
+// Match is substring + case-insensitive on the ship_class field, so
+// "Idris-M" matches "Idris", "C2 Hercules" matches "Hercules", etc.
+// If the org owns nothing from this list, we fall back to top-by-count.
+const FLAGSHIP_PRIORITY = [
+  'Bengal',
+  'Javelin',
+  'Idris',
+  'Polaris',
+  'Kraken',
+  'Reclaimer',
+  'Orion',
+  '890 Jump',
+  'Carrack',
+  'Hammerhead',
+  'Perseus',
+  'Galaxy',
+  'Hercules',
+  'Endeavor',
+  'Liberator',
+  'Caterpillar',
+  'Hull E',
+  'Hull D',
+  'Constellation',
+  'Corsair',
+  'Starlancer',
+]
+
 function FleetShowcase({ ships }) {
   if (!ships.length) return null
 
-  // Aggregate by ship class — collapse duplicate hulls into a single
-  // typed entry with a count. Sort by quantity desc, ties broken by name.
-  const grouped = ships.reduce((acc, s) => {
-    const cls = s.ship_class || 'Unclassified Hull'
-    const key = `${s.manufacturer || ''}|${cls}`
-    if (!acc[key]) {
-      acc[key] = {
+  // Headline metrics — total hulls, distinct classes, distinct manufacturers
+  const total       = ships.length
+  const classCount  = new Set(ships.map(s => s.ship_class).filter(Boolean)).size
+  const mfgCount    = new Set(ships.map(s => s.manufacturer).filter(Boolean)).size
+
+  // Group by class so we can pick flagships with their counts
+  const groups = ships.reduce((acc, s) => {
+    const cls = s.ship_class || 'Unclassified'
+    if (!acc[cls]) {
+      acc[cls] = {
+        ship_class:   cls,
         manufacturer: s.manufacturer || '—',
-        ship_class: cls,
-        role: s.role || '',
-        count: 0,
+        role:         s.role || '',
+        count:        0,
       }
     }
-    acc[key].count++
+    acc[cls].count++
     return acc
   }, {})
-  const list = Object.values(grouped).sort(
-    (a, b) => b.count - a.count || a.ship_class.localeCompare(b.ship_class)
-  )
+  const groupList = Object.values(groups)
+
+  // Priority sort: lower index = higher prestige. Misses go to 999 so
+  // they land at the end. Ties broken by count desc, then alpha.
+  const priorityRank = name => {
+    const lower = (name || '').toLowerCase()
+    const idx = FLAGSHIP_PRIORITY.findIndex(p => lower.includes(p.toLowerCase()))
+    return idx === -1 ? 999 : idx
+  }
+  const flagships = [...groupList]
+    .sort((a, b) =>
+      priorityRank(a.ship_class) - priorityRank(b.ship_class)
+      || b.count - a.count
+      || a.ship_class.localeCompare(b.ship_class)
+    )
+    .slice(0, 4)
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-      gap: 0,
-    }}>
-      {list.map((g, i) => (
-        <div key={i} style={{
-          padding: '20px 18px',
-          borderTop: '1px solid var(--border-md)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-          gap: 12,
-        }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{
-              fontFamily: 'Inter Tight, sans-serif', fontSize: 16, fontWeight: 700,
-              color: 'var(--text-1)', letterSpacing: '-0.01em', marginBottom: 6,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{g.ship_class}</div>
-            <div style={{
-              fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
-              letterSpacing: '.22em', color: 'var(--text-3)',
-              textTransform: 'uppercase',
-            }}>
-              {g.manufacturer}{g.role ? ` · ${g.role}` : ''}
+    <div>
+      {/* Hero stat line */}
+      <div style={{
+        fontFamily: 'Inter, sans-serif',
+        fontSize: 'clamp(17px, 2.2vw, 22px)',
+        color: 'var(--text-2)', textAlign: 'center',
+        lineHeight: 1.6, maxWidth: 640, margin: '0 auto 56px',
+        letterSpacing: '-0.005em',
+      }}>
+        <span style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{total}</span>
+        {' vessels across '}
+        <span style={{ color: 'var(--text-1)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{classCount}</span>
+        {' classes from '}
+        <span style={{ color: 'var(--text-1)', fontWeight: 700, fontFamily: 'Inter Tight, sans-serif' }}>{mfgCount}</span>
+        {mfgCount === 1 ? ' manufacturer.' : ' manufacturers.'}
+      </div>
+
+      {/* Flagship hulls — top 4 by prestige */}
+      <div style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+        letterSpacing: '.32em', color: 'var(--text-3)', textAlign: 'center',
+        marginBottom: 20, textTransform: 'uppercase',
+      }}>FLAGSHIP HULLS</div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 0,
+        borderBottom: '1px solid var(--border-md)',
+      }}>
+        {flagships.map((g, i) => (
+          <div key={i} style={{
+            padding: '24px 20px',
+            borderTop: '1px solid var(--border-md)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            gap: 12,
+          }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{
+                fontFamily: 'Inter Tight, sans-serif', fontSize: 17, fontWeight: 700,
+                color: 'var(--text-1)', letterSpacing: '-0.01em', marginBottom: 8,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{g.ship_class}</div>
+              <div style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+                letterSpacing: '.22em', color: 'var(--text-3)',
+                textTransform: 'uppercase',
+              }}>
+                {g.manufacturer}{g.role ? ` · ${g.role}` : ''}
+              </div>
             </div>
+            <div style={{
+              fontFamily: 'Inter Tight, sans-serif', fontSize: 18, fontWeight: 700,
+              color: 'var(--accent)', letterSpacing: '-0.01em',
+              fontVariantNumeric: 'tabular-nums', flexShrink: 0, lineHeight: 1.2,
+            }}>×{g.count}</div>
           </div>
-          <div style={{
-            fontFamily: 'Inter Tight, sans-serif', fontSize: 18, fontWeight: 700,
-            color: 'var(--accent)', letterSpacing: '-0.01em', flexShrink: 0,
-            fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
-          }}>×{g.count}</div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
@@ -598,11 +666,6 @@ export default function Landing() {
       {ships.length > 0 && (
         <Section eyebrow="OPERATIONAL FLEET" title="Vessels in Active Service">
           <FleetShowcase ships={ships} />
-          <div style={{
-            textAlign: 'center', marginTop: 24, fontSize: 12,
-            color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace',
-            letterSpacing: '.18em',
-          }}>{stats.ships} TOTAL VESSELS REGISTERED</div>
         </Section>
       )}
 
