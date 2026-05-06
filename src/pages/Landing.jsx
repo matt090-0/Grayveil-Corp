@@ -376,13 +376,16 @@ function Divisions() {
 // JPG/WebP into public/brand/ships/<slug>.jpg to populate; missing
 // images fall back to a tan/black gradient panel so cards stay clean.
 // Only 6 hero ships — more than that and the section becomes a museum.
+// `tag` drives the classification chip top-left on each card. Carrack
+// and Hammerhead are Large class per CIG's matrix, not Capital — the
+// chip respects that.
 const HERO_SHIPS = [
-  { name: 'Javelin',     manufacturer: 'Aegis Dynamics', role: 'Destroyer',     image: '/brand/ships/javelin.webp'    },
-  { name: 'Idris-M',     manufacturer: 'Aegis Dynamics', role: 'Frigate',       image: '/brand/ships/idris.webp'      },
-  { name: 'Polaris',     manufacturer: 'RSI',            role: 'Corvette',      image: '/brand/ships/polaris.webp'    },
-  { name: 'Kraken',      manufacturer: 'Drake Interplanetary', role: 'Carrier', image: '/brand/ships/kraken.webp'     },
-  { name: 'Carrack',     manufacturer: 'Anvil Aerospace', role: 'Exploration',  image: '/brand/ships/carrack.webp'    },
-  { name: 'Hammerhead',  manufacturer: 'Aegis Dynamics', role: 'Heavy Gunship', image: '/brand/ships/hammerhead.webp' },
+  { name: 'Javelin',     manufacturer: 'Aegis Dynamics',       role: 'Destroyer',     tag: 'CAPITAL ASSET', image: '/brand/ships/javelin.webp'    },
+  { name: 'Idris-M',     manufacturer: 'Aegis Dynamics',       role: 'Frigate',       tag: 'CAPITAL ASSET', image: '/brand/ships/idris.webp'      },
+  { name: 'Polaris',     manufacturer: 'RSI',                  role: 'Corvette',      tag: 'CAPITAL ASSET', image: '/brand/ships/polaris.webp'    },
+  { name: 'Kraken',      manufacturer: 'Drake Interplanetary', role: 'Carrier',       tag: 'CAPITAL ASSET', image: '/brand/ships/kraken.webp'     },
+  { name: 'Carrack',     manufacturer: 'Anvil Aerospace',      role: 'Exploration',   tag: 'LARGE HULL',    image: '/brand/ships/carrack.webp'    },
+  { name: 'Hammerhead',  manufacturer: 'Aegis Dynamics',       role: 'Heavy Gunship', tag: 'LARGE HULL',    image: '/brand/ships/hammerhead.webp' },
 ]
 
 function FleetShowcase() {
@@ -426,12 +429,12 @@ function FleetShowcase() {
         <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>EVERY ROLE COVERED</span>
       </div>
 
-      {/* Capital-class hero cards */}
+      {/* Featured hero cards — capital + large hulls */}
       <div style={{
         fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
         letterSpacing: '.32em', color: 'var(--text-3)', textAlign: 'center',
         marginBottom: 24, textTransform: 'uppercase',
-      }}>CAPITAL CLASS</div>
+      }}>FEATURED HULLS</div>
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -462,7 +465,7 @@ function FleetShowcase() {
                   display: 'block', transition: 'opacity .3s',
                 }}
               />
-              {/* Top-left tag — "CAPITAL ASSET" classification chip */}
+              {/* Top-left classification chip (CAPITAL ASSET / LARGE HULL) */}
               <div style={{
                 position: 'absolute', top: 10, left: 12,
                 fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
@@ -470,7 +473,7 @@ function FleetShowcase() {
                 textTransform: 'uppercase',
                 background: 'rgba(6,8,11,0.7)', padding: '3px 8px',
                 border: '1px solid var(--border-md)',
-              }}>CAPITAL ASSET</div>
+              }}>{s.tag}</div>
             </div>
             {/* Caption */}
             <div style={{ padding: '16px 18px', borderTop: '1px solid var(--border)' }}>
@@ -674,7 +677,7 @@ export default function Landing() {
       </Section>
 
       {/* ── FLEET SHOWCASE ── */}
-      <Section eyebrow="OPERATIONAL FLEET" title="The Legatus Catalog">
+      <Section eyebrow="OPERATIONAL FLEET" title="Built for Every Mission">
         <FleetShowcase />
       </Section>
 
