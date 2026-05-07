@@ -243,7 +243,7 @@ export default function Dashboard() {
   const mySignups = new Set(eventSignups.filter(s => s.member_id === profile.id).map(s => s.event_id))
   const opsIn72h = upcomingOps.filter(op => (new Date(op.starts_at) - Date.now()) <= 72 * 3600000).length
   const liveOps = upcomingOps.filter(op => op.status === 'LIVE').length
-  const initials = profile.handle.slice(0, 2).toUpperCase()
+  const initials = (profile?.handle || 'GV').slice(0, 2).toUpperCase()
 
   return (
     <>

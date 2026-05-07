@@ -200,7 +200,7 @@ export default function Analytics() {
   }
 
   const rank = getRankByTier(profile.tier)
-  const initials = profile.handle.slice(0, 2).toUpperCase()
+  const initials = (profile?.handle || 'GV').slice(0, 2).toUpperCase()
   const daysInOrg = profile.joined_at
     ? Math.floor((Date.now() - new Date(profile.joined_at)) / 86400000)
     : 0

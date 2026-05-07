@@ -29,7 +29,7 @@ export default function MemberDossier({ member, onClose }) {
 
   const canAward = me.tier <= 4
   const accentColor = member.avatar_color || '#d4d8e0'
-  const initials = member.handle.slice(0, 2).toUpperCase()
+  const initials = (member?.handle || '??').slice(0, 2).toUpperCase()
   const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
 
   useEffect(() => {

@@ -209,7 +209,7 @@ export default function Profile() {
   }, [profile.id])
 
   const accent   = profile.avatar_color || '#e8e3d8'
-  const initials = profile.handle.slice(0, 2).toUpperCase()
+  const initials = (profile?.handle || 'GV').slice(0, 2).toUpperCase()
   const kd       = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(1) : stats.kills > 0 ? '∞' : '—'
   const isFounder = !!profile.is_founder
   const rank     = getRankByTier(profile.tier)

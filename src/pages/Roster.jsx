@@ -758,7 +758,7 @@ function RosterCard({ member: m, isMe, selected, certCount, totalCerts, canEdit,
   const accent = tierAccent(m.tier)
   const sm = STATUS_META[m.status] || STATUS_META.ACTIVE
   const seen = lastSeenMeta(m.last_seen_at)
-  const initials = m.handle.slice(0, 2).toUpperCase()
+  const initials = (m?.handle || '??').slice(0, 2).toUpperCase()
   const readiness = readinessMeta(m, certCount, totalCerts)
   const readinessTone = readinessColor(readiness.score)
 
