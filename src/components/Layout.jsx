@@ -10,7 +10,7 @@ import OnboardingTour from './OnboardingTour'
 import PageTransition from './PageTransition'
 import { NAV, MAINT_BYPASS_TIER } from '../lib/nav'
 import { useMaintenanceMap } from '../hooks/useMaintenanceMap'
-import Modal from './Modal'
+import CipherTerminal from './CipherTerminal'
 import { is501stChosen, verify501stPasscode, unlock501st } from '../lib/fleet501st'
 
 export default function Layout({ children }) {
@@ -82,23 +82,30 @@ export default function Layout({ children }) {
     setSecretOpen(true)
   }
 
-  async function verifySecretCode() {
+  // Verifies the passcode. Reads `code` from arg (CipherTerminal owns
+  // its input state and submits the value). On success, resets busy
+  // and clears error — CipherTerminal detects "verifying & not busy &
+  // no error" as the success transition, plays its grant animation,
+  // then calls onSuccessAck which navigates to /501st.
+  async function verifySecretCode(codeArg) {
+    const code = (codeArg ?? secretCode ?? '').trim()
+    setSecretError('')
     setSecretBusy(true)
     const { chosen, error } = await is501stChosen()
     if (error) {
       setSecretBusy(false)
-      setSecretError('Secure channel unavailable. Try again.')
+      setSecretError('Secure channel unavailable.')
       return
     }
     if (!chosen) {
       setSecretBusy(false)
-      setSecretError('You are not cleared for 501st access.')
+      setSecretError('Operator not cleared.')
       return
     }
-    const { valid, error: verifyError } = await verify501stPasscode(secretCode)
+    const { valid, error: verifyError } = await verify501stPasscode(code)
     if (verifyError) {
       setSecretBusy(false)
-      setSecretError('Passcode verification failed. Try again.')
+      setSecretError('Verification failed.')
       return
     }
     if (!valid) {
@@ -107,10 +114,8 @@ export default function Layout({ children }) {
       return
     }
     unlock501st(profile)
+    // success — clear busy + error, CipherTerminal handles the rest
     setSecretBusy(false)
-    setSecretOpen(false)
-    setMobileOpen(false)
-    navigate('/501st')
   }
 
   return (
@@ -217,31 +222,18 @@ export default function Layout({ children }) {
 
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {tourOpen   && <OnboardingTour onClose={() => setTourOpen(false)} />}
-      {secretOpen && (
-        <Modal title="501ST // RESTRICTED ACCESS" onClose={() => setSecretOpen(false)} size="sm">
-          <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.7 }}>
-            This channel is compartmentalized. Enter your issued passcode to establish clearance.
-          </div>
-          <div className="form-group" style={{ marginBottom: 8 }}>
-            <label className="form-label">PASSCODE</label>
-            <input
-              className="form-input"
-              type="password"
-              value={secretCode}
-              onChange={e => setSecretCode(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') verifySecretCode() }}
-              autoFocus
-            />
-          </div>
-          {secretError && <div className="form-error" style={{ marginBottom: 8 }}>{secretError}</div>}
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setSecretOpen(false)}>CANCEL</button>
-            <button className="btn btn-primary" onClick={verifySecretCode} disabled={secretBusy || !secretCode.trim()}>
-              {secretBusy ? 'VERIFYING...' : 'VERIFY'}
-            </button>
-          </div>
-        </Modal>
-      )}
+      <CipherTerminal
+        open={secretOpen}
+        busy={secretBusy}
+        error={secretError}
+        onSubmit={(code) => { setSecretCode(code); verifySecretCode(code) }}
+        onCancel={() => setSecretOpen(false)}
+        onSuccessAck={() => {
+          setSecretOpen(false)
+          setMobileOpen(false)
+          navigate('/501st')
+        }}
+      />
     </div>
   )
 }
