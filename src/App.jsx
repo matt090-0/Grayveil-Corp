@@ -52,6 +52,7 @@ const Marketplace  = lazy(() => import('./pages/Marketplace'))
 const Inbox        = lazy(() => import('./pages/Inbox'))
 const Analytics    = lazy(() => import('./pages/Analytics'))
 const CommandHQ    = lazy(() => import('./pages/CommandHQ'))
+const StrategicMap = lazy(() => import('./pages/StrategicMap'))
 
 // Wraps the page tree in a Suspense boundary so each lazy-loaded
 // route gets a UEE-styled "incoming transmission" placeholder
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="/501st"        element={<Page gated><Fleet501st /></Page>} />
         <Route path="/contracts"    element={<Page gated><Contracts /></Page>} />
         <Route path="/intelligence" element={<Page gated><Intelligence /></Page>} />
+        <Route path="/map"          element={<Page gated minTier={7}><StrategicMap /></Page>} />
         <Route path="/ledger"       element={<Page gated><Ledger /></Page>} />
         <Route path="/recruitment"  element={<Page gated minTier={6}><Recruitment /></Page>} />
         <Route path="/polls"        element={<Page gated><Polls /></Page>} />

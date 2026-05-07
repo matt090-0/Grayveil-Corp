@@ -88,6 +88,15 @@ const icons = {
     <circle cx="7" cy="7" r="1.5" fill="currentColor" opacity="0.4" />
   </I>,
 
+  // Strategic Map — planet at center, dashed orbit, bracket reticle
+  map: () => <I>
+    <ellipse cx="8" cy="8" rx="6.5" ry="3" strokeDasharray="1.5 1.5" />
+    <circle cx="8" cy="8" r="2" fill="currentColor" opacity="0.3" />
+    <circle cx="8" cy="8" r="2" />
+    <path d="M2 4 L2 2 L4 2" />
+    <path d="M14 12 L14 14 L12 14" />
+  </I>,
+
   bank: () => <I>
     <path d="M2 6L8 2L14 6" />
     <rect x="2" y="6" width="12" height="1" fill="currentColor" opacity="0.3" />

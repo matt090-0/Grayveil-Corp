@@ -20,6 +20,7 @@ export const NAV = [
   { to: '/diplomacy',   icon: 'diplomacy',  label: 'DIPLOMACY', minTier: 6 },
 
   { section: 'OPERATIONS' },
+  { to: '/map',         icon: 'map',        label: 'STRATEGIC MAP', minTier: 7 },
   { to: '/intelligence',icon: 'intel',      label: 'INTELLIGENCE'  },
   { to: '/blacklist',   icon: 'bounties',   label: 'WANTED LIST'   },
   { to: '/bank',        icon: 'bank',       label: 'BANK'          },
