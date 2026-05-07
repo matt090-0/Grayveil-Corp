@@ -5,6 +5,7 @@ import { RANKS, formatCredits } from '../lib/ranks'
 import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
+import AccessDeniedScreen from '../components/AccessDeniedScreen'
 import { discordAnnouncement, discordModeration, testDiscordWebhook } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
@@ -751,12 +752,12 @@ export default function Admin() {
   if (loading) return <div className="page-body"><div className="loading">LOADING ADMIN...</div></div>
   if (!hasAdminAccess) {
     return (
-      <div className="page-body">
-        <div className="empty-state" style={{ padding: 60 }}>
-          <div style={{ fontSize: 20, marginBottom: 8 }}>ACCESS DENIED</div>
-          <div style={{ color: 'var(--text-3)' }}>You do not have `admin_console` permission.</div>
-        </div>
-      </div>
+      <AccessDeniedScreen
+        permission="admin_console"
+        reason="The Command Console is restricted to founders and authorized officers. Your current credentials don't include the admin console permission."
+        minTier={1}
+        currentTier={me.tier}
+      />
     )
   }
 
