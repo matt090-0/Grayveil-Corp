@@ -21,11 +21,15 @@ const PURPLE = '#9d83e8'   // 501st cell color
 const RED    = '#c45a4a'
 const GREEN  = '#7ba673'
 
+// UEE lore-flavored boot sequence. Spectrum is the in-universe comms
+// fabric; ICC operates the buoy network; the Advocacy is imperial
+// law enforcement. The 501st channel evades all of them.
 const INTRO_LINES = [
-  '> establishing secure channel...',
-  '> routing through null relay...',
-  '> wiping forward trace...',
-  '> ready.',
+  '> initializing spectrum link...',
+  '> bypassing UEE comm relay HUR-L1...',
+  '> rerouting through dark ICC buoy...',
+  '> cipher PARAGON-4 · advocacy trace negative...',
+  '> channel stable.',
 ]
 
 export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, onSuccessAck }) {
@@ -219,15 +223,15 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
             <div>{partialLine}<Caret color={PURPLE} /></div>
           )}
           {stage === 'verifying' && (
-            <div style={{ color: PURPLE }}>&gt; verifying passcode<Dots /></div>
+            <div style={{ color: PURPLE }}>&gt; running cipher against issued keyfile<Dots /></div>
           )}
           {stage === 'rejected' && (
             <div style={{ color: RED }}>
-              &gt; rejected. attempt logged. <span style={{ opacity: 0.6 }}>[{Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0')}]</span>
+              &gt; cipher mismatch. incident filed with cell ops. <span style={{ opacity: 0.6 }}>[INC-{Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0').toUpperCase()}]</span>
             </div>
           )}
           {stage === 'granted' && (
-            <div style={{ color: GREEN }}>&gt; access granted. routing to compartment...</div>
+            <div style={{ color: GREEN }}>&gt; clearance verified. routing to BLACK CHANNEL...</div>
           )}
         </div>
 
