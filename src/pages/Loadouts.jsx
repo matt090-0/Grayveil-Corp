@@ -260,8 +260,7 @@ function TabStrip({ tab, setTab, counts }) {
               display: 'flex', alignItems: 'center', gap: 10,
               fontWeight: active ? 600 : 400,
             }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-1)' }}
-            onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-2)' }}
+            className={!active ? 'h-text-1' : ''}
           >
             <span style={{ fontSize: 14, lineHeight: 1 }}>{kinfo.glyph}</span>
             {kinfo.label}
@@ -339,15 +338,9 @@ function LoadoutCard({ row, kind, onClick }) {
         cursor: 'pointer',
         transition: 'transform .15s, box-shadow .15s',
         overflow: 'hidden',
+        '--h-shadow': `${kind.color}33`,
       }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = `0 6px 20px ${kind.color}33`
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
+      className="h-card-lift-glow"
     >
       {/* Left accent stripe */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: kind.color }} />
@@ -655,9 +648,8 @@ function EditorModal({ row, kind, me, onClose, onSaved, busy, setBusy, toast }) 
                 <div
                   key={s.name}
                   onMouseDown={() => { setForm(f => ({ ...f, ship_class: s.name })); setShipSearch(s.name); setShipDrop(false) }}
-                  style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  className="h-bg-surface"
+                  style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', transition: 'background .12s' }}
                 >
                   <div style={{ color: 'var(--text-1)' }}>{s.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', marginTop: 2 }}>{s.manufacturer}</div>

@@ -86,9 +86,7 @@ export default function Wiki() {
         {loading ? <div className="loading">LOADING...</div> : filtered.length === 0 ? <div className="empty-state">NO ARTICLES</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filtered.map(a => (
-              <div key={a.id} className="card card-sm" style={{ cursor: 'pointer' }} onClick={() => setViewing(a)}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-md)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+              <div key={a.id} className="card card-sm h-border-md" style={{ cursor: 'pointer', transition: 'border-color .15s' }} onClick={() => setViewing(a)}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-10">
                     {a.pinned && <span style={{ color: 'var(--accent)' }}>📌</span>}

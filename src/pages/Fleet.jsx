@@ -365,13 +365,14 @@ export default function Fleet() {
               }}>
                 {filteredShipOptions.map(s => (
                   <div key={s.name} onClick={() => selectShip(s)}
+                    className="h-dynamic-tint"
                     style={{
                       padding: '8px 12px', cursor: 'pointer',
                       borderBottom: '1px solid var(--border)',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = `${FLEET_BLUE}11`}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      transition: 'background .12s',
+                      '--h-tint': `${FLEET_BLUE}11`,
+                    }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
                       <div style={{

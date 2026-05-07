@@ -87,7 +87,7 @@ export default function NotificationBell() {
 
   return (
     <div ref={panelRef} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} style={{
+      <button onClick={() => setOpen(!open)} className="h-dynamic-edge" style={{
         background: 'transparent',
         border: `1px solid ${unread > 0 ? UEE_AMBER + '88' : 'var(--border)'}`,
         borderRadius: 4,
@@ -97,15 +97,8 @@ export default function NotificationBell() {
         color: unread > 0 ? UEE_AMBER : 'var(--text-2)',
         position: 'relative',
         transition: 'all .15s',
-      }}
-        onMouseEnter={e => {
-          e.currentTarget.style.borderColor = UEE_AMBER
-          e.currentTarget.style.color = UEE_AMBER
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.borderColor = unread > 0 ? UEE_AMBER + '88' : 'var(--border)'
-          e.currentTarget.style.color = unread > 0 ? UEE_AMBER : 'var(--text-2)'
-        }}>
+        '--h-color': UEE_AMBER,
+      }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
           <path d="M3 6a5 5 0 0 1 10 0v3l1.5 2.5H1.5L3 9V6z" />
           <path d="M6 13a2 2 0 0 0 4 0" />
@@ -227,9 +220,9 @@ export default function NotificationBell() {
                     background: !n.is_read ? `${meta.color}0a` : 'transparent',
                     borderLeft: `3px solid ${!n.is_read ? meta.color : 'transparent'}`,
                     transition: 'background .1s',
+                    '--h-tint': `${meta.color}14`,
                   }}
-                  onMouseEnter={e => { if (n.link) e.currentTarget.style.background = `${meta.color}14` }}
-                  onMouseLeave={e => e.currentTarget.style.background = !n.is_read ? `${meta.color}0a` : 'transparent'}
+                  className={n.link ? 'h-dynamic-tint' : ''}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                     <span style={{
@@ -276,6 +269,7 @@ export default function NotificationBell() {
           {/* Footer — full inbox link */}
           <button
             onClick={openInbox}
+            className="h-dynamic-tint"
             style={{
               flexShrink: 0,
               borderTop: `1px solid ${UEE_AMBER}33`,
@@ -286,9 +280,8 @@ export default function NotificationBell() {
               color: UEE_AMBER,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               transition: 'background .12s',
+              '--h-tint': `${UEE_AMBER}14`,
             }}
-            onMouseEnter={e => e.currentTarget.style.background = `${UEE_AMBER}14`}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.25)'}
           >
             <span>◆ OPEN FULL INBOX</span>
             <span>→</span>

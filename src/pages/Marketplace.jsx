@@ -345,6 +345,7 @@ function ListingCard({ listing, onOpen }) {
   return (
     <div
       onClick={onOpen}
+      className="h-card-lift-glow"
       style={{
         position: 'relative',
         background: 'var(--bg-raised)',
@@ -355,18 +356,8 @@ function ListingCard({ listing, onOpen }) {
         cursor: 'pointer',
         transition: 'transform .15s ease, border-color .15s ease, box-shadow .15s ease',
         display: 'flex', flexDirection: 'column', gap: 10, minHeight: 170,
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = `${cat.color}aa`
-        e.currentTarget.style.borderLeftColor = cat.color
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px ${cat.color}22`
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.borderLeftColor = cat.color
-        e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = 'none'
+        '--h-color': `${cat.color}aa`,
+        '--h-shadow': `${cat.color}22`,
       }}
     >
       {/* Floating category glyph top-right */}

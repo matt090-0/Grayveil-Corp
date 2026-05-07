@@ -223,9 +223,7 @@ export default function ShipCalendar() {
                           <td key={d.toISOString()} style={{ padding: 4, verticalAlign: 'top', minHeight: 50 }}
                             onClick={e => { if (dayRes.length === 0) openReserve(ship, d) }}>
                             {dayRes.length === 0 ? (
-                              <div style={{ minHeight: 36, cursor: 'pointer', borderRadius: 4, transition: 'background .1s' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'} />
+                              <div className="h-bg-surface" style={{ minHeight: 36, cursor: 'pointer', borderRadius: 4, transition: 'background .1s' }} />
                             ) : dayRes.map(r => {
                               const isMine = r.member_id === me.id
                               return (

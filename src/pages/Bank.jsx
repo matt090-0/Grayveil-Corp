@@ -751,14 +751,14 @@ export default function Bank() {
                               <button
                                 key={m.id}
                                 onClick={() => setForm(f => ({ ...f, recipient: m.id, recipientHandle: m.handle }))}
+                                className="h-bg-surface"
                                 style={{
                                   display: 'flex', width: '100%', padding: '8px 12px',
                                   background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
                                   color: 'var(--text-1)', fontSize: 13, cursor: 'pointer', textAlign: 'left',
                                   alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                  transition: 'background .12s',
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                               >
                                 <span>{m.handle}</span>
                                 <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>

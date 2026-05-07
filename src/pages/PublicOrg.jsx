@@ -54,14 +54,12 @@ export default function PublicOrg() {
           }}>"Profit is neutral. Everything else is negotiable."</p>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => navigate('/apply')} style={{
+            <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
               background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
               padding: '14px 32px', fontSize: 13, fontWeight: 600,
               fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
               cursor: 'pointer', transition: 'background .15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}>
+            }}>
               Apply for membership →
             </button>
             <button onClick={() => navigate('/auth')} style={{
@@ -96,14 +94,12 @@ export default function PublicOrg() {
                   { label: 'MEDALS AWARDED', value: stats.medals_awarded },
                   { label: 'DIVISIONS', value: (stats.divisions || []).length },
                 ].map(s => (
-                  <div key={s.label} style={{
+                  <div key={s.label} className="h-border-md" style={{
                     background: 'rgba(11,14,19,0.7)', backdropFilter: 'blur(10px)',
                     border: '1px solid var(--border)', borderRadius: 2,
                     padding: '24px 18px', textAlign: 'center',
                     transition: 'border-color .2s',
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-md)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                  }}>
                     <div style={{
                       fontFamily: 'Inter Tight, sans-serif', fontSize: 36, fontWeight: 800,
                       letterSpacing: '-0.025em', color: 'var(--text-1)',
@@ -189,14 +185,12 @@ export default function PublicOrg() {
             A private military and commercial enterprise operating across the Stanton system.
             We deal in contracts, intelligence, and discretion.
           </div>
-          <button onClick={() => navigate('/apply')} style={{
+          <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
             background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
             padding: '13px 30px', fontSize: 13, fontWeight: 600,
             fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
             cursor: 'pointer', transition: 'background .15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}>
+          }}>
             Request membership →
           </button>
           <div style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 40, letterSpacing: '.28em', fontFamily: 'JetBrains Mono, monospace' }}>

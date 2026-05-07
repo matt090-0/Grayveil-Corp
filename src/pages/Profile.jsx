@@ -508,14 +508,12 @@ export default function Profile() {
                     gap: 10, marginBottom: 28,
                   }}>
                     {medals.map(mm => (
-                      <div key={mm.id} style={{
+                      <div key={mm.id} className="h-card-lift" style={{
                         background: 'var(--bg-raised)', border: '1px solid var(--border)',
                         borderRadius: 6, padding: '10px 6px', textAlign: 'center',
                         transition: 'border-color .15s ease, transform .15s ease',
-                      }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = `${accent}88`; e.currentTarget.style.transform = 'translateY(-2px)' }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.transform = 'none' }}
-                      >
+                        '--h-color': `${accent}88`,
+                      }}>
                         <MedalPatch name={mm.medal?.name} rarity={mm.medal?.rarity} size={56} />
                         <div style={{ fontSize: 10, fontWeight: 600, marginTop: 6, lineHeight: 1.3 }}>{mm.medal?.name}</div>
                         <div style={{ fontSize: 8, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em', marginTop: 2 }}>
@@ -552,15 +550,13 @@ export default function Profile() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 28 }}>
                     {ships.map(s => (
-                      <div key={s.id} style={{
+                      <div key={s.id} className="h-card-lift" style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         background: 'var(--bg-raised)', border: '1px solid var(--border)',
                         borderRadius: 4, padding: '10px 14px',
                         transition: 'border-color .15s ease',
-                      }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = `${accent}55` }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
-                      >
+                        '--h-color': `${accent}55`,
+                      }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 500, fontSize: 13 }}>{s.vessel_name}</div>
                           <div style={{

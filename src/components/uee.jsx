@@ -269,7 +269,7 @@ export function Card({ accent = UEE_AMBER, onClick, children, style, minHeight }
   const interactive = !!onClick
   return (
     <div
-      className="gv-card"
+      className={`gv-card${interactive ? ' h-card-lift-glow' : ''}`}
       onClick={onClick}
       style={{
         position: 'relative',
@@ -283,20 +283,10 @@ export function Card({ accent = UEE_AMBER, onClick, children, style, minHeight }
         minHeight: minHeight,
         clipPath: CLIP_CHAMFER_SM,
         transition: 'transform .15s ease, border-color .15s ease, box-shadow .15s ease',
+        '--h-color': interactive ? `${accent}aa` : undefined,
+        '--h-shadow': interactive ? `${accent}22` : undefined,
         ...(style || {}),
       }}
-      onMouseEnter={interactive ? e => {
-        e.currentTarget.style.borderColor = `${accent}aa`
-        e.currentTarget.style.borderLeftColor = accent
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px ${accent}22`
-      } : undefined}
-      onMouseLeave={interactive ? e => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.borderLeftColor = accent
-        e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = 'none'
-      } : undefined}
     >
       {children}
     </div>

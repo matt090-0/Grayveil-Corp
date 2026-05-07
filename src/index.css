@@ -897,6 +897,52 @@ table.data-table {
   .h-text-1:hover {
     color: var(--text-1) !important;
   }
+  /* Transparent rows (table rows, dropdown items) get a subtle surface tint */
+  .h-bg-surface:hover {
+    background: var(--bg-surface) !important;
+  }
+  /* Transparent rows get the slightly stronger card tint */
+  .h-bg-card:hover {
+    background: var(--bg-card) !important;
+  }
+  /* Border-only brighten (border goes from --border to --border-md) */
+  .h-border-md:hover {
+    border-color: var(--border-md) !important;
+  }
+  /* Dynamic-color edge: caller sets style="--h-color: <accent>" inline,
+     hover swaps border + text to that color. Used by BanScreen,
+     MaintenanceScreen, NotificationBell — anywhere the hover color
+     comes from runtime state instead of a fixed token. */
+  .h-dynamic-edge:hover {
+    border-color: var(--h-color, var(--accent)) !important;
+    color: var(--h-color, var(--accent)) !important;
+  }
+  /* Dynamic-color tint background (used by colored row hovers in
+     NotificationBell). Caller sets style="--h-tint: <rgba>". */
+  .h-dynamic-tint:hover {
+    background: var(--h-tint, var(--bg-surface)) !important;
+  }
+  /* Card hover: subtle border brighten + lift translate. Defaults to
+     --accent-dim border; override per-card with style="--h-color: ..." */
+  .h-card-lift {
+    transition: border-color .15s, transform .15s !important;
+  }
+  .h-card-lift:hover {
+    border-color: var(--h-color, var(--accent-dim)) !important;
+    transform: translateY(-2px);
+  }
+  /* Lift + dynamic-color glow shadow + optional border tint.
+     Caller sets style="--h-shadow: <rgba>" for the glow color, and
+     optionally "--h-color: <rgba>" for border. Used on tier/category
+     colored cards that should glow + light up their border on hover. */
+  .h-card-lift-glow {
+    transition: transform .15s, box-shadow .15s, border-color .15s !important;
+  }
+  .h-card-lift-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--h-shadow, rgba(196, 168, 120, 0.2)) !important;
+    border-color: var(--h-color, var(--border-md)) !important;
+  }
 }
 
 /* ════════════════════════════════════════

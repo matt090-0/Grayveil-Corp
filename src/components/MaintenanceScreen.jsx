@@ -70,6 +70,7 @@ export default function MaintenanceScreen({ label, note }) {
 
         <button
           onClick={() => navigate('/')}
+          className="h-dynamic-edge"
           style={{
             width: '100%', padding: '12px 16px',
             background: 'transparent',
@@ -80,9 +81,8 @@ export default function MaintenanceScreen({ label, note }) {
             fontSize: 11, letterSpacing: '.2em',
             cursor: 'pointer',
             transition: 'all .15s',
+            '--h-color': accent,
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#d4d8e0' }}
         >
           RETURN TO SITREP
         </button>
