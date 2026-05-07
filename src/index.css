@@ -759,35 +759,147 @@ table.data-table {
   z-index: 999;
 }
 
+/* ════════════════════════════════════════
+   MOBILE — < 768px
+   Phones use a hamburger sidebar, single-column layouts, full-width
+   modals, and tightened paddings. Targets touch usability: 44px min
+   tap targets, 16px form inputs (no iOS auto-zoom on focus), momentum
+   scrolling on horizontal scroll containers.
+   ════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .mobile-hamburger { display: block; }
-  .mobile-overlay { display: block; }
-
-  .sidebar {
-    position: fixed; left: -260px; top: 0; bottom: 0;
-    z-index: 1000; transition: left .25s ease;
+  /* Sidebar slides in from left over the page */
+  .mobile-hamburger {
+    display: block;
+    width: 44px; height: 44px;
+    padding: 0 !important;
+    display: flex; align-items: center; justify-content: center;
   }
-  .sidebar.sidebar-open { left: 0; }
+  .mobile-overlay { display: block; }
+  .sidebar {
+    position: fixed; left: -280px; top: 0; bottom: 0;
+    width: 260px;
+    z-index: 1000;
+    transition: left .25s cubic-bezier(.2,.7,.3,1);
+    box-shadow: 0 0 0 transparent;
+  }
+  .sidebar.sidebar-open {
+    left: 0;
+    box-shadow: 8px 0 32px rgba(0,0,0,.6);
+  }
+  .nav-item { padding: 12px 14px !important; }
+  .nav-item-icon { width: 22px !important; }
 
-  .main-content { margin-left: 0 !important; padding-top: 48px; }
+  .main-content { margin-left: 0 !important; padding-top: 52px; }
   .app-shell { flex-direction: column; }
 
-  .grid-2 { grid-template-columns: 1fr !important; }
-  .grid-auto { grid-template-columns: 1fr !important; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
-  .form-row { flex-direction: column; }
+  /* Layout collapse */
+  .grid-2 { grid-template-columns: 1fr !important; gap: 10px; }
+  .grid-3 { grid-template-columns: 1fr !important; gap: 10px; }
+  .grid-auto { grid-template-columns: 1fr !important; gap: 10px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+  .form-row { display: flex; flex-direction: column; }
 
-  .page-header { padding: 16px !important; }
-  .page-body { padding: 16px !important; }
-  .page-title { font-size: 18px !important; }
+  /* Page paddings tighten */
+  .page-header { padding: 16px 16px 0 !important; }
+  .page-body   { padding: 16px !important; }
+  .page-title  { font-size: 22px !important; line-height: 1.1; }
+  .page-subtitle { font-size: 12px !important; }
+  .page-eyebrow { font-size: 9px !important; letter-spacing: .26em !important; }
 
-  .table-wrap { font-size: 11px; }
-  .data-table th, .data-table td { padding: 8px 6px; }
+  /* Page-header action row stacks below the title on phones — keeps
+     "+ ADD PROSPECT" / avatar pill / tab strips from squeezing
+     against the title. */
+  .page-header > div:first-child {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .page-header > div:first-child > div:last-child {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  /* Buttons need tap-target love */
+  .btn { padding: 10px 16px; min-height: 40px; font-size: 13px; }
+  .btn-sm { padding: 7px 12px; min-height: 32px; }
+  .btn-icon { padding: 9px; min-height: 40px; min-width: 40px; }
+
+  /* Form inputs — 16px font prevents iOS auto-zoom on focus */
+  .form-input, .form-select, .form-textarea {
+    font-size: 16px !important;
+    padding: 11px 12px !important;
+    min-height: 44px;
+  }
+  .form-textarea { min-height: 100px; }
+
+  /* Tables get horizontal scroll with momentum */
+  .table-wrap {
+    font-size: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Faint right edge to hint "scroll for more" when content overflows */
+    background:
+      linear-gradient(90deg, var(--bg-base), transparent 12px),
+      linear-gradient(-90deg, var(--bg-base), transparent 12px) right,
+      linear-gradient(-90deg, var(--accent-dim), transparent 6px) right;
+    background-repeat: no-repeat;
+    background-size: 12px 100%, 12px 100%, 6px 100%;
+    background-attachment: local, local, scroll;
+  }
+  .data-table th, .data-table td { padding: 10px 8px; white-space: nowrap; }
+
+  /* Modals near full-screen on phones */
+  .modal-backdrop { padding: 8px !important; }
+  .modal {
+    width: calc(100vw - 16px) !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 16px) !important;
+    padding: 18px 18px !important;
+    border-radius: 2px !important;
+  }
+  .modal-lg { max-width: 100% !important; }
+  .modal-title { font-size: 17px !important; }
+
+  /* Cards get tighter padding so 16px page-body doesn't squeeze content */
+  .card { padding: 16px; }
+  .card-sm { padding: 12px 14px; }
+
+  /* Toast container safer position */
+  .toast-stack, [class*="toast"] { left: 8px !important; right: 8px !important; }
+
+  /* Avatar pills tighten in header chrome */
+  .avatar-lg { width: 32px !important; height: 32px !important; font-size: 13px !important; }
 }
 
+/* Tighter still on small phones */
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr 1fr !important; }
-  .auth-card { padding: 24px 18px; }
+  .auth-card { padding: 24px 18px; max-width: calc(100vw - 24px); }
+  .stat-value { font-size: 26px !important; }
+  .page-title { font-size: 20px !important; }
+}
+
+/* Horizontal-scroll cue for any tabstrip-style nav */
+.gv-tabstrip,
+.tab-strip,
+[role="tablist"] {
+  scrollbar-width: thin;
+}
+@media (max-width: 768px) {
+  .gv-tabstrip,
+  .tab-strip,
+  [role="tablist"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scroll-snap-type: x proximity;
+  }
+  .gv-tabstrip > *,
+  .tab-strip > *,
+  [role="tablist"] > * {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
 }
 
 /* ════════════════════════════════════════
