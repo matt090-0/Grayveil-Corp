@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 // ─────────────────────────────────────────────────────────────
 // CipherTerminal — full-screen authentication takeover for the
-// 501st black channel. Replaces the plain Modal with a cinematic
+// High Council chamber. Replaces the plain Modal with a cinematic
 // terminal: typed intro → passcode input → verifying scan →
 // granted/rejected flash. Pure presentational; the host owns the
 // verification logic and passes onSubmit + state in.
@@ -23,13 +23,13 @@ const GREEN  = '#7ba673'
 
 // UEE lore-flavored boot sequence. Spectrum is the in-universe comms
 // fabric; ICC operates the buoy network; the Advocacy is imperial
-// law enforcement. The 501st channel evades all of them.
+// law enforcement. The Council channel evades all of them.
 const INTRO_LINES = [
   '> initializing spectrum link...',
   '> bypassing UEE comm relay HUR-L1...',
-  '> rerouting through dark ICC buoy...',
+  '> rerouting through privy ICC buoy...',
   '> cipher PARAGON-4 · advocacy trace negative...',
-  '> channel stable.',
+  '> chamber sealed.',
 ]
 
 export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, onSuccessAck }) {
@@ -87,16 +87,23 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
     }
   }, [error, stage])
   // Caller signals success by setting busy=false, error=null, and we
-  // detect the transition from verifying -> none of those:
+  // detect the transition from verifying → none of those.
   useEffect(() => {
-    if (stage === 'verifying' && !busy && !error) {
-      setStage('granted')
-      successTimer.current = setTimeout(() => {
-        onSuccessAck?.()
-      }, 1100)
-      return () => clearTimeout(successTimer.current)
-    }
-  }, [stage, busy, error, onSuccessAck])
+    if (stage === 'verifying' && !busy && !error) setStage('granted')
+  }, [stage, busy, error])
+
+  // Schedule the success-ack timer ONCE when stage flips to 'granted'.
+  // Using a ref for the callback so a fresh onSuccessAck arrow function
+  // on every host render doesn't re-trigger this effect — that bug would
+  // clear the just-scheduled timer in cleanup before it ever fired and
+  // leave the user stranded on the green-flash screen.
+  const onSuccessAckRef = useRef(onSuccessAck)
+  useLayoutEffect(() => { onSuccessAckRef.current = onSuccessAck }, [onSuccessAck])
+  useEffect(() => {
+    if (stage !== 'granted') return
+    const t = setTimeout(() => { onSuccessAckRef.current?.() }, 1100)
+    return () => clearTimeout(t)
+  }, [stage])
 
   // Keyboard: Esc cancels, Enter submits when in input
   useEffect(() => {
@@ -120,7 +127,7 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="501st secure channel authentication"
+      aria-label="High Council chamber authentication"
       style={{
         position: 'fixed', inset: 0, zIndex: 99999,
         background: '#040608',
@@ -179,7 +186,7 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
           <span style={{
             fontSize: 9, letterSpacing: '.32em', color: PURPLE, fontWeight: 700,
             textTransform: 'uppercase',
-          }}>● BLACK CHANNEL · 501ST</span>
+          }}>● PRIVY CHAMBER · HIGH COUNCIL</span>
           <button
             onClick={onCancel}
             aria-label="Abort"
@@ -200,11 +207,11 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
           fontSize: 'clamp(22px, 4vw, 28px)',
           fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05,
           color: 'var(--text-1)', marginBottom: 4,
-        }}>SECURE TERMINAL</div>
+        }}>PRIVY TERMINAL</div>
         <div style={{
           fontSize: 10, letterSpacing: '.28em',
           color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 26,
-        }}>Cipher gate · 501ST authentication</div>
+        }}>Cipher gate · High Council authentication</div>
 
         {/* Terminal log */}
         <div style={{
@@ -227,11 +234,11 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
           )}
           {stage === 'rejected' && (
             <div style={{ color: RED }}>
-              &gt; cipher mismatch. incident filed with cell ops. <span style={{ opacity: 0.6 }}>[INC-{Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0').toUpperCase()}]</span>
+              &gt; cipher mismatch. incident filed with the privy. <span style={{ opacity: 0.6 }}>[INC-{Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0').toUpperCase()}]</span>
             </div>
           )}
           {stage === 'granted' && (
-            <div style={{ color: GREEN }}>&gt; clearance verified. routing to BLACK CHANNEL...</div>
+            <div style={{ color: GREEN }}>&gt; seat confirmed. routing to the chamber...</div>
           )}
         </div>
 
@@ -385,7 +392,7 @@ function ClassificationStripe({ pos }) {
       textTransform: 'uppercase',
     }}>
       <span>● COMPARTMENTALIZED</span>
-      <span>GRAYVEIL CORP · BLACK CHANNEL</span>
+      <span>GRAYVEIL CORP · HIGH COUNCIL</span>
       <span>NOFORN · NOFWD ●</span>
     </div>
   )
