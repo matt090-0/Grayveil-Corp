@@ -342,6 +342,14 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS strike_count INTEGER NOT NU
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS suspended_until TIMESTAMPTZ;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS wallet_balance BIGINT NOT NULL DEFAULT 0;
 
+-- Marks the timestamp the operative completed (or skipped) the
+-- first-login orientation tour. NULL = tour will show on next load.
+-- The Profile page exposes a "REPLAY TOUR" control that resets this
+-- to NULL so the tour mounts again. Layout component watches this
+-- field plus a localStorage fallback so the tour stops nagging even
+-- if a DB write fails (RLS drift, network, etc.).
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS onboarded_at TIMESTAMPTZ;
+
 -- BLACKLIST (KOS / threat registry)
 CREATE TABLE IF NOT EXISTS public.blacklist (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

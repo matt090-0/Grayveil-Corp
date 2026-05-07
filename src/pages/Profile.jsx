@@ -594,11 +594,12 @@ export default function Profile() {
                   <InstallAppButton />
                   <button
                     onClick={async () => {
-                      // Clear onboarded_at so the next render mounts the tour
-                      // (Layout watches this column on the auth profile).
+                      // Clear BOTH the server flag and the localStorage
+                      // fallback so the tour mounts again on this device.
+                      try { localStorage.removeItem(`gv:onboarded:${profile.id}`) } catch {}
                       const { error } = await supabase.from('profiles')
                         .update({ onboarded_at: null }).eq('id', profile.id)
-                      if (error) { toast(error.message, 'error'); return }
+                      if (error) console.warn('[onboarding] reset DB update failed:', error.message)
                       if (refreshProfile) await refreshProfile()
                       toast('Replaying orientation tour...', 'info')
                     }}

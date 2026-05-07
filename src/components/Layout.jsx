@@ -28,15 +28,21 @@ export default function Layout({ children }) {
   const [secretBusy, setSecretBusy] = useState(false)
   // Tour replays whenever profile.onboarded_at flips back to null
   // (Profile page exposes a "restart tour" button that clears it).
+  // We ALSO honor a localStorage flag so the tour stops nagging even
+  // if the DB write is rejected (column missing, RLS drift, network)
+  // — without the local fallback, a silent UPDATE failure would
+  // re-mount the tour on every F5.
   const [tourOpen, setTourOpen] = useState(false)
   useEffect(() => {
-    if (profile && !profile.onboarded_at) {
-      // Defer mount one tick so the sidebar elements are in the DOM
-      // before the tour tries to query them.
-      const t = setTimeout(() => setTourOpen(true), 200)
-      return () => clearTimeout(t)
-    }
-    setTourOpen(false)
+    if (!profile) { setTourOpen(false); return }
+    if (profile.onboarded_at) { setTourOpen(false); return }
+    let localDone = false
+    try { localDone = !!localStorage.getItem(`gv:onboarded:${profile.id}`) } catch {}
+    if (localDone) { setTourOpen(false); return }
+    // Defer mount one tick so the sidebar elements are in the DOM
+    // before the tour tries to query them.
+    const t = setTimeout(() => setTourOpen(true), 200)
+    return () => clearTimeout(t)
   }, [profile?.id, profile?.onboarded_at])
 
   const canSee = (item) => !item.minTier || (profile?.tier <= item.minTier)

@@ -168,9 +168,17 @@ export default function OnboardingTour({ onClose }) {
   })
 
   async function finish(skipped) {
-    await supabase.from('profiles')
+    // Persist to BOTH the server profile and a localStorage flag.
+    // The DB write is the canonical store (cross-device), but the
+    // localStorage flag is a belt-and-suspenders fallback so the tour
+    // stops nagging even if the column is missing or the UPDATE is
+    // rejected by RLS — which produces a silent failure mode where
+    // the tour replays on every F5.
+    try { localStorage.setItem(`gv:onboarded:${profile.id}`, String(Date.now())) } catch {}
+    const { error } = await supabase.from('profiles')
       .update({ onboarded_at: new Date().toISOString() })
       .eq('id', profile.id)
+    if (error) console.warn('[onboarding] DB update failed; localStorage fallback active:', error.message)
     if (refreshProfile) await refreshProfile()
     onClose?.(skipped)
   }
