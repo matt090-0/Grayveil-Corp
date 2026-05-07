@@ -867,3 +867,98 @@ table.data-table {
   .gv-classbar-right { display: none !important; }
   .gv-classbar { font-size: 8.5px !important; padding: 5px 12px !important; }
 }
+
+/* ════════════════════════════════════════
+   HOVER UTILITIES
+   On touch devices, :hover sticks after a tap and the user has to
+   tap a SECOND time to actually activate. (hover: hover) only
+   matches devices with a real pointer (mouse, trackpad, stylus),
+   so the styles never apply on phones — single-tap activation
+   works as expected.
+   Pair these classes with inline `transition` so the hover state
+   animates on hover-capable devices.
+   ════════════════════════════════════════ */
+@media (hover: hover) and (pointer: fine) {
+  /* Filled-tan buttons brighten on hover */
+  .h-accent-bg:hover {
+    background: var(--accent-hi) !important;
+  }
+  /* Ghost buttons (transparent + muted edge) gain accent edge + text */
+  .h-accent-edge:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+  }
+  /* Ghost buttons (transparent + muted edge) brighten without going accent */
+  .h-text-edge:hover {
+    border-color: var(--text-2) !important;
+    color: var(--text-1) !important;
+  }
+  /* Just brighten the text color */
+  .h-text-1:hover {
+    color: var(--text-1) !important;
+  }
+}
+
+/* ════════════════════════════════════════
+   STRATEGIC MAP MOBILE
+   ════════════════════════════════════════ */
+@media (max-width: 720px) {
+  /* Layer panel collapses to a small chip until tapped */
+  .gv-map-layers {
+    top: 12px !important;
+    right: 12px !important;
+    min-width: 0 !important;
+    padding: 10px 12px !important;
+  }
+  .gv-map-layers.gv-collapsed > .gv-map-layers-body {
+    display: none;
+  }
+  /* Coordinates readout shrinks */
+  .gv-map-coords {
+    font-size: 8px !important;
+    bottom: 8px !important; left: 8px !important;
+    padding: 3px 6px !important;
+  }
+  /* Detail drawer goes full-width on phones */
+  .gv-map-drawer {
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border-md) !important;
+  }
+  /* Search input shrinks so JUMP button still fits */
+  .gv-map-search input {
+    width: 180px !important;
+  }
+}
+
+/* ════════════════════════════════════════
+   RECRUITS ROW MOBILE
+   Three-column layout (identity · checklist · promote) doesn't fit
+   on a phone — stack vertically and drop the side borders.
+   ════════════════════════════════════════ */
+@media (max-width: 720px) {
+  .gv-recruit-row {
+    grid-template-columns: 1fr !important;
+  }
+  .gv-recruit-row > div {
+    border-right: none !important;
+    border-left: none !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .gv-recruit-row > div:last-child {
+    border-bottom: none !important;
+  }
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD HEADER MOBILE
+   Avatar pill + PREVIEW RECRUIT toggle wrap on narrow screens
+   instead of squeezing onto one row.
+   ════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .page-header > div:first-child > div:last-child {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}

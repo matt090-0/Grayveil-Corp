@@ -18,6 +18,7 @@ function RecruitHero({ profile, navigate }) {
   const Chip = ({ to, children }) => (
     <button
       onClick={() => navigate(to)}
+      className="h-accent-edge"
       style={{
         background: 'transparent', color: 'var(--text-1)',
         border: '1px solid var(--border-md)', borderRadius: 2,
@@ -25,8 +26,6 @@ function RecruitHero({ profile, navigate }) {
         fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
         cursor: 'pointer', transition: 'border-color .15s, color .15s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-1)' }}
     >{children}</button>
   )
   return (
@@ -378,14 +377,13 @@ export default function Dashboard() {
                 </div>
                 <button
                   onClick={() => navigate('/recruitment?tab=recruits')}
+                  className="h-accent-bg"
                   style={{
                     background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
                     padding: '10px 18px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
                     fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase',
                     cursor: 'pointer', transition: 'background .15s', whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
                 >Review Roster →</button>
               </div>
             )}

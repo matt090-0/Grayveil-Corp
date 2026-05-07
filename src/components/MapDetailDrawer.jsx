@@ -50,9 +50,9 @@ export default function MapDetailDrawer({ selected, onClose }) {
   if (!selected) return null
 
   return (
-    <aside style={{
+    <aside className="gv-map-drawer" style={{
       position: 'absolute', top: 0, right: 0, bottom: 0,
-      width: 'min(360px, 90vw)',
+      width: 'min(380px, 100vw)',
       background: 'var(--bg-surface)',
       borderLeft: '1px solid var(--border-md)',
       padding: '20px 22px',
@@ -270,6 +270,7 @@ function DrawerLink({ to, children }) {
   return (
     <Link
       to={to}
+      className="h-accent-edge"
       style={{
         display: 'block', marginTop: 22,
         padding: '10px 14px',
@@ -283,8 +284,6 @@ function DrawerLink({ to, children }) {
         textDecoration: 'none',
         transition: 'border-color .15s, color .15s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-1)' }}
     >{children}</Link>
   )
 }

@@ -223,25 +223,19 @@ function Hero({ stats, navigate, reduce }) {
           {...fadeIn(1.5)}
           style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}
         >
-          <button onClick={() => navigate('/apply')} style={{
+          <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
             background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
             padding: '14px 32px', fontSize: 13, fontWeight: 600,
             fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
             cursor: 'pointer', transition: 'background .15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
-          >Apply for membership →</button>
-          <button onClick={() => navigate('/auth')} style={{
+          }}>Apply for membership →</button>
+          <button onClick={() => navigate('/auth')} className="h-text-edge" style={{
             background: 'transparent', color: 'var(--text-2)',
             border: '1px solid var(--border-md)', borderRadius: 2,
             padding: '14px 32px', fontSize: 13, fontWeight: 500,
             fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
             cursor: 'pointer', transition: 'border-color .15s, color .15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-2)'; e.currentTarget.style.color = 'var(--text-1)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-2)' }}
-          >Member login</button>
+          }}>Member login</button>
         </motion.div>
       </div>
     </div>
@@ -742,15 +736,12 @@ export default function Landing() {
         }}>
           Applications take two minutes. We review every one — no form letters, no silent rejections.
         </p>
-        <button onClick={() => navigate('/apply')} style={{
+        <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
           background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
           padding: '14px 32px', fontSize: 13, fontWeight: 600,
           fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
           cursor: 'pointer', transition: 'background .15s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
-        >Apply for membership →</button>
+        }}>Apply for membership →</button>
       </motion.section>
 
       {/* ── DISCORD ── */}

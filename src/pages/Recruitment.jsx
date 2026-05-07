@@ -1267,7 +1267,7 @@ function RecruitRow({ recruit, canManage, onPromote }) {
   const accent = recruit.avatar_color || 'var(--accent)'
   const initials = (recruit.handle || '').slice(0, 2).toUpperCase()
   return (
-    <div style={{
+    <div className="gv-recruit-row" style={{
       border: '1px solid var(--border-md)',
       background: 'var(--bg-surface)',
       display: 'grid',
@@ -1334,6 +1334,7 @@ function RecruitRow({ recruit, canManage, onPromote }) {
             : !ready   ? 'All four criteria must be met'
             : 'Promote to Ensign'
           }
+          className={canManage && ready ? 'h-accent-bg' : ''}
           style={{
             background: ready ? 'var(--accent)' : 'transparent',
             color: ready ? '#0a0a0c' : 'var(--text-3)',
@@ -1348,8 +1349,6 @@ function RecruitRow({ recruit, canManage, onPromote }) {
             transition: 'background .15s, opacity .15s',
             whiteSpace: 'nowrap',
           }}
-          onMouseEnter={e => { if (canManage && ready) e.currentTarget.style.background = 'var(--accent-hi)' }}
-          onMouseLeave={e => { if (canManage && ready) e.currentTarget.style.background = 'var(--accent)' }}
         >
           {ready ? 'Promote → Ensign' : 'Not Ready'}
         </button>

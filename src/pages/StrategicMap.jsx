@@ -64,6 +64,10 @@ export default function StrategicMap() {
 
   // ── data + overlay state ──
   const [layers, setLayers] = useState({ contracts: true, intel: true, ops: true, hostile: false })
+  // Layer panel collapses to a chip on mobile (flipped open by default
+  // on tablet+; closed by default on phones via media query auto-detect).
+  const [layerPanelOpen, setLayerPanelOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth > 720 : true)
   const [contractsRows, setContractsRows] = useState([])
   const [intelRows,     setIntelRows]     = useState([])
   const [opsRows,       setOpsRows]       = useState([])
@@ -172,23 +176,39 @@ export default function StrategicMap() {
     })
   }
 
+  // Pan with a 6px drag threshold so a quick tap on a marker doesn't
+  // get swallowed as a "pan that moved 0.5px". Until the pointer
+  // crosses the threshold we don't capture the pointer or update the
+  // viewBox — leaves the click event alone for marker handlers.
+  const PAN_THRESHOLD = 6
+
   const onPointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return
-    svgRef.current?.setPointerCapture?.(e.pointerId)
-    panRef.current = { x: e.clientX, y: e.clientY, vbX: viewBox.x, vbY: viewBox.y }
+    panRef.current = {
+      x: e.clientX, y: e.clientY,
+      vbX: viewBox.x, vbY: viewBox.y,
+      panning: false,
+    }
   }
 
   const onPointerMove = (e) => {
     if (!panRef.current || !svgRef.current) return
+    const dx = e.clientX - panRef.current.x
+    const dy = e.clientY - panRef.current.y
+    if (!panRef.current.panning) {
+      if (Math.hypot(dx, dy) < PAN_THRESHOLD) return
+      panRef.current.panning = true
+      svgRef.current.setPointerCapture?.(e.pointerId)
+    }
     const r = svgRef.current.getBoundingClientRect()
-    const dx = (panRef.current.x - e.clientX) * (viewBox.w / r.width)
-    const dy = (panRef.current.y - e.clientY) * (viewBox.h / r.height)
-    setViewBox(vb => ({ ...vb, x: panRef.current.vbX + dx, y: panRef.current.vbY + dy }))
+    const vbDx = -dx * (viewBox.w / r.width)
+    const vbDy = -dy * (viewBox.h / r.height)
+    setViewBox(vb => ({ ...vb, x: panRef.current.vbX + vbDx, y: panRef.current.vbY + vbDy }))
   }
 
   const onPointerUp = (e) => {
+    if (panRef.current?.panning) svgRef.current?.releasePointerCapture?.(e.pointerId)
     panRef.current = null
-    svgRef.current?.releasePointerCapture?.(e.pointerId)
   }
 
   // Background-click clears selection. Markers stop propagation.
@@ -276,12 +296,12 @@ export default function StrategicMap() {
               Stanton system surveillance. Click any marker for details. Drag to pan, scroll to zoom, "0" to reset.
             </div>
           </div>
-          <form onSubmit={onSearchSubmit} style={{ display: 'flex', gap: 8 }}>
+          <form onSubmit={onSearchSubmit} className="gv-map-search" style={{ display: 'flex', gap: 8 }}>
             <input
               value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search location (e.g. Lorville, Daymar, Yela)"
+              placeholder="Search location (e.g. Lorville, Daymar)"
               className="form-input"
-              style={{ width: 280 }}
+              style={{ width: 260 }}
             />
             <button type="submit" className="btn btn-ghost btn-sm" style={{ borderRadius: 2 }}>JUMP →</button>
           </form>
@@ -323,44 +343,59 @@ export default function StrategicMap() {
           {layers.ops       && <MarkerLayer items={ops}       kind="op"       selected={selected} onSelect={setSelected} />}
         </svg>
 
-        {/* Floating layer toggle panel */}
-        <div style={{
+        {/* Floating layer toggle panel — collapsible on mobile */}
+        <div className={`gv-map-layers ${layerPanelOpen ? '' : 'gv-collapsed'}`} style={{
           position: 'absolute', top: 18, right: 18,
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-md)',
           padding: '14px 16px',
           minWidth: 200,
         }}>
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
-            letterSpacing: '.32em', color: 'var(--text-3)',
-            textTransform: 'uppercase', marginBottom: 12,
-          }}>OVERLAYS</div>
-          <LayerToggle label="Contracts"  count={overlayCounts.contract} color={COLORS.contract} active={layers.contracts} onClick={() => setLayers(l => ({ ...l, contracts: !l.contracts }))} />
-          <LayerToggle label="Intel"      count={overlayCounts.intel}    color={COLORS.intel}    active={layers.intel}     onClick={() => setLayers(l => ({ ...l, intel: !l.intel }))} />
-          <LayerToggle label="Operations" count={overlayCounts.op}       color={COLORS.op}       active={layers.ops}       onClick={() => setLayers(l => ({ ...l, ops: !l.ops }))} />
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <button onClick={resetView} style={{
-              width: '100%', background: 'transparent', color: 'var(--text-2)',
-              border: '1px solid var(--border-md)', borderRadius: 2,
-              padding: '6px 8px', fontSize: 9, letterSpacing: '.22em',
-              fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase',
-              cursor: 'pointer', transition: 'border-color .15s, color .15s',
+          <div
+            onClick={() => setLayerPanelOpen(o => !o)}
+            style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              gap: 10, marginBottom: layerPanelOpen ? 12 : 0,
+              cursor: 'pointer', userSelect: 'none',
             }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-2)' }}
-            >RESET VIEW · 0</button>
+          >
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
+              letterSpacing: '.32em', color: 'var(--text-3)',
+              textTransform: 'uppercase',
+            }}>
+              OVERLAYS{!layerPanelOpen && ` · ${overlayCounts.contract + overlayCounts.intel + overlayCounts.op}`}
+            </span>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+              color: 'var(--accent)', lineHeight: 1,
+            }}>{layerPanelOpen ? '−' : '+'}</span>
+          </div>
+          <div className="gv-map-layers-body">
+            <LayerToggle label="Contracts"  count={overlayCounts.contract} color={COLORS.contract} active={layers.contracts} onClick={() => setLayers(l => ({ ...l, contracts: !l.contracts }))} />
+            <LayerToggle label="Intel"      count={overlayCounts.intel}    color={COLORS.intel}    active={layers.intel}     onClick={() => setLayers(l => ({ ...l, intel: !l.intel }))} />
+            <LayerToggle label="Operations" count={overlayCounts.op}       color={COLORS.op}       active={layers.ops}       onClick={() => setLayers(l => ({ ...l, ops: !l.ops }))} />
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <button onClick={resetView} className="h-accent-edge" style={{
+                width: '100%', background: 'transparent', color: 'var(--text-2)',
+                border: '1px solid var(--border-md)', borderRadius: 2,
+                padding: '6px 8px', fontSize: 9, letterSpacing: '.22em',
+                fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase',
+                cursor: 'pointer', transition: 'border-color .15s, color .15s',
+              }}>RESET VIEW · 0</button>
+            </div>
           </div>
         </div>
 
         {/* Coordinates readout bottom-left */}
-        <div style={{
+        <div className="gv-map-coords" style={{
           position: 'absolute', bottom: 14, left: 14,
           fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
           letterSpacing: '.22em', color: 'var(--text-3)',
           textTransform: 'uppercase',
           background: 'rgba(6,8,11,0.5)', padding: '4px 8px',
           border: '1px solid var(--border)',
+          pointerEvents: 'none',
         }}>
           C: {viewBox.x.toFixed(0)}, {viewBox.y.toFixed(0)} · ZOOM {zoom.toFixed(2)}× · STANTON FRAME
         </div>

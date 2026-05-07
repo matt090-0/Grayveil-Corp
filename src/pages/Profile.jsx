@@ -34,6 +34,7 @@ function InstallAppButton() {
       <button
         onClick={() => isIOS ? setShowIOSHelp(true) : install()}
         title={isIOS ? 'Add Grayveil to your iOS home screen' : 'Install Grayveil as a standalone app'}
+        className="h-accent-bg"
         style={{
           background: 'var(--accent)',
           border: 'none',
@@ -44,8 +45,6 @@ function InstallAppButton() {
           whiteSpace: 'nowrap', textTransform: 'uppercase',
           transition: 'background .15s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
       >↓ {isIOS ? 'ADD TO HOME SCREEN' : 'INSTALL APP'}</button>
       {showIOSHelp && (
         <div
