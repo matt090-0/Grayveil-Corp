@@ -107,7 +107,10 @@ export default function Fleet501st() {
 
   return (
     <div style={{
-      position: 'relative', minHeight: '100%',
+      position: 'relative',
+      height: '100%',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
       background: '#040608',
     }}>
       {/* Hex backdrop */}
@@ -576,10 +579,12 @@ function DenialScreen({ reason }) {
   return (
     <div style={{
       position: 'relative',
-      minHeight: 'calc(100vh - 60px)',
+      height: '100%',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
       background: '#040608',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, overflow: 'hidden',
+      padding: 24,
     }}>
       <HexBackdrop />
       <div style={{
