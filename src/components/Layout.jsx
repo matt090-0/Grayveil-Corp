@@ -86,7 +86,7 @@ export default function Layout({ children }) {
   // its input state and submits the value). On success, resets busy
   // and clears error — CipherTerminal detects "verifying & not busy &
   // no error" as the success transition, plays its grant animation,
-  // then calls onSuccessAck which navigates to /501st.
+  // then calls onSuccessAck which navigates to /council.
   async function verifySecretCode(codeArg) {
     const code = (codeArg ?? secretCode ?? '').trim()
     setSecretError('')
@@ -231,7 +231,7 @@ export default function Layout({ children }) {
         onSuccessAck={() => {
           setSecretOpen(false)
           setMobileOpen(false)
-          navigate('/501st')
+          navigate('/council')
         }}
       />
     </div>

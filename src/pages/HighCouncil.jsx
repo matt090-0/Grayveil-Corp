@@ -52,7 +52,7 @@ const POWERS = [
 // Theaters of strategic interest — areas the council actively monitors.
 const THEATERS = ['STANTON · CRUSADER', 'PYRO RELAY', 'NYX REACH', 'TERRA EMBASSIES']
 
-export default function Fleet501st() {
+export default function HighCouncil() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)

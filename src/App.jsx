@@ -20,7 +20,7 @@ const SetupProfile = lazy(() => import('./pages/SetupProfile'))
 const Dashboard    = lazy(() => import('./pages/Dashboard'))
 const Roster       = lazy(() => import('./pages/Roster'))
 const Fleet        = lazy(() => import('./pages/Fleet'))
-const Fleet501st   = lazy(() => import('./pages/Fleet501st'))
+const HighCouncil  = lazy(() => import('./pages/HighCouncil'))
 const Contracts    = lazy(() => import('./pages/Contracts'))
 const Intelligence = lazy(() => import('./pages/Intelligence'))
 const Ledger       = lazy(() => import('./pages/Ledger'))
@@ -84,7 +84,9 @@ function AppRoutes() {
         <Route path="/"             element={<Page gated><Dashboard /></Page>} />
         <Route path="/roster"       element={<Page gated><Roster /></Page>} />
         <Route path="/fleet"        element={<Page gated><Fleet /></Page>} />
-        <Route path="/501st"        element={<Page gated><Fleet501st /></Page>} />
+        <Route path="/council"      element={<Page gated><HighCouncil /></Page>} />
+        {/* Old /501st route — redirect for any existing bookmarks */}
+        <Route path="/501st"        element={<Navigate to="/council" replace />} />
         <Route path="/contracts"    element={<Page gated><Contracts /></Page>} />
         <Route path="/intelligence" element={<Page gated><Intelligence /></Page>} />
         <Route path="/map"          element={<Page gated minTier={7}><StrategicMap /></Page>} />
