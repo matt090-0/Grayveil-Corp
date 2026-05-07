@@ -7,6 +7,107 @@ import RankBadge from '../components/RankBadge'
 import MedalPatch from '../components/MedalPatch'
 import { useToast } from '../components/Toast'
 import { buildCitizenDossier, openDossier, downloadDossier } from '../lib/dossier'
+import { usePwaInstall } from '../lib/usePwaInstall'
+
+// Small persistent install button shown on Profile so users who dismissed
+// the auto-banner (or never saw it) can still install on demand. Hidden
+// when already running standalone. iOS opens an instructions modal.
+function InstallAppButton() {
+  const { isInstalled, isIOS, canInstall, install } = usePwaInstall()
+  const [showIOSHelp, setShowIOSHelp] = useState(false)
+  if (isInstalled) {
+    return (
+      <span style={{
+        background: 'transparent',
+        border: '1px solid var(--green)',
+        color: 'var(--green)',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 10, letterSpacing: '.22em', fontWeight: 600,
+        padding: '9px 14px', borderRadius: 2,
+        whiteSpace: 'nowrap', textTransform: 'uppercase',
+      }}>● INSTALLED</span>
+    )
+  }
+  if (!canInstall) return null
+  return (
+    <>
+      <button
+        onClick={() => isIOS ? setShowIOSHelp(true) : install()}
+        title={isIOS ? 'Add Grayveil to your iOS home screen' : 'Install Grayveil as a standalone app'}
+        style={{
+          background: 'var(--accent)',
+          border: 'none',
+          color: '#0a0a0c',
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 10, letterSpacing: '.22em', fontWeight: 700,
+          padding: '9px 14px', borderRadius: 2, cursor: 'pointer',
+          whiteSpace: 'nowrap', textTransform: 'uppercase',
+          transition: 'background .15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-hi)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)' }}
+      >↓ {isIOS ? 'ADD TO HOME SCREEN' : 'INSTALL APP'}</button>
+      {showIOSHelp && (
+        <div
+          onClick={() => setShowIOSHelp(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(6,8,11,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-md)',
+              borderLeft: '3px solid var(--accent)',
+              padding: '24px 26px',
+              maxWidth: 420, width: '100%',
+              fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+              letterSpacing: '.28em', color: 'var(--accent)',
+              textTransform: 'uppercase', marginBottom: 10,
+            }}>● INSTALL ON IOS</div>
+            <div style={{
+              fontFamily: 'Inter Tight, sans-serif', fontSize: 20,
+              fontWeight: 700, color: 'var(--text-1)',
+              letterSpacing: '-0.02em', marginBottom: 14,
+            }}>Add Grayveil to your home screen</div>
+            <ol style={{
+              color: 'var(--text-2)', fontSize: 13,
+              lineHeight: 1.8, paddingLeft: 18, marginBottom: 18,
+            }}>
+              <li>Tap the <strong style={{ color: 'var(--text-1)' }}>Share</strong> button at the bottom of Safari (square with an arrow).</li>
+              <li>Scroll the action sheet and tap <strong style={{ color: 'var(--text-1)' }}>Add to Home Screen</strong>.</li>
+              <li>Confirm — Grayveil installs as a standalone app icon.</li>
+            </ol>
+            <div style={{
+              fontSize: 11, color: 'var(--text-3)', marginBottom: 18,
+            }}>
+              iOS doesn't expose a programmatic install button — Safari handles the install flow itself.
+            </div>
+            <button
+              onClick={() => setShowIOSHelp(false)}
+              style={{
+                background: 'var(--accent)', color: '#0a0a0c',
+                border: 'none', borderRadius: 2,
+                padding: '10px 18px', fontSize: 11, fontWeight: 700,
+                fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.18em',
+                cursor: 'pointer', textTransform: 'uppercase',
+                width: '100%',
+              }}
+            >Got it</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
 // Picker palette for member avatars. Cream + tan lead so the default
 // fallback harmonizes with Blacksteel; additional hues kept for variety.
@@ -495,6 +596,7 @@ export default function Profile() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                  <InstallAppButton />
                   <button
                     onClick={async () => {
                       // Clear onboarded_at so the next render mounts the tour

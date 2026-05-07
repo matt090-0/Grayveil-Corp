@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
+import { usePwaInstall } from '../lib/usePwaInstall'
 
 /**
  * Combined PWA surface:
  *   1. Register the service worker (replaces the inline <script> in index.html).
  *   2. Watch for an updated SW that is waiting — show a reload banner.
- *   3. Capture the beforeinstallprompt event — expose an install button.
+ *   3. Show install nudge — Android/desktop via beforeinstallprompt, iOS
+ *      via a manual "Tap Share → Add to Home Screen" instruction card.
  *
- * Both banners are fixed-position, auto-dismissible, and never block input.
+ * Install state is owned by usePwaInstall so the persistent Install
+ * button (Profile page / Layout chip) shares the same source of truth.
+ * Banners are fixed-position, dismissible, and never block input.
  */
 export default function PWAStatus() {
   const [waitingWorker, setWaitingWorker] = useState(null)
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [installDismissed, setInstallDismissed] = useState(false)
+  const { isIOS, canInstall, install, dismissed, dismiss } = usePwaInstall()
 
   // ── Register SW + listen for updates ──
   useEffect(() => {
@@ -30,10 +33,8 @@ export default function PWAStatus() {
         // cached the registration from a prior session and skipped refetch.
         registration.update().catch(() => {})
 
-        // If there's already a waiting worker at load time
         if (registration.waiting) setWaitingWorker(registration.waiting)
 
-        // Watch for new installations
         registration.addEventListener('updatefound', () => {
           const installing = registration.installing
           if (!installing) return
@@ -44,24 +45,15 @@ export default function PWAStatus() {
           })
         })
 
-        // Hourly background poll while the tab stays open
         pollId = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000)
       } catch {
         // SW registration failed — not fatal, app still works
       }
     }
 
-    // Start immediately if the document is already interactive (React may
-    // have mounted AFTER the `load` event already fired, in which case the
-    // listener-only approach would never run).
-    if (document.readyState === 'complete') {
-      register()
-    } else {
-      window.addEventListener('load', register, { once: true })
-    }
+    if (document.readyState === 'complete') register()
+    else window.addEventListener('load', register, { once: true })
 
-    // Also re-check whenever the PWA / tab is refocused. This catches the
-    // very common "installed PWA stayed open for days" scenario.
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && registration) {
         registration.update().catch(() => {})
@@ -69,7 +61,6 @@ export default function PWAStatus() {
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
 
-    // Reload once when the active SW changes (user accepted update)
     let refreshing = false
     const onControllerChange = () => {
       if (refreshing) return
@@ -87,71 +78,40 @@ export default function PWAStatus() {
     }
   }, [])
 
-  // ── Capture install prompt ──
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault()
-      setInstallPrompt(e)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-
-    // Clear after successful install
-    const installedHandler = () => {
-      setInstallPrompt(null)
-      try { localStorage.setItem('pwa_installed', '1') } catch {}
-    }
-    window.addEventListener('appinstalled', installedHandler)
-
-    // Respect previous dismissal for 7 days
-    try {
-      const dismissedAt = parseInt(localStorage.getItem('pwa_install_dismissed_at') || '0')
-      if (dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) {
-        setInstallDismissed(true)
-      }
-    } catch {}
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler)
-      window.removeEventListener('appinstalled', installedHandler)
-    }
-  }, [])
-
   function applyUpdate() {
     if (!waitingWorker) return
     waitingWorker.postMessage({ type: 'SKIP_WAITING' })
-    // controllerchange handler will reload
-  }
-
-  async function triggerInstall() {
-    if (!installPrompt) return
-    installPrompt.prompt()
-    try { await installPrompt.userChoice } catch {}
-    setInstallPrompt(null)
-  }
-
-  function dismissInstall() {
-    setInstallPrompt(null)
-    setInstallDismissed(true)
-    try { localStorage.setItem('pwa_install_dismissed_at', String(Date.now())) } catch {}
   }
 
   return (
     <>
       {waitingWorker && (
         <Banner
-          accent="#c8a55a"
+          accent="var(--amber)"
           label="UPDATE READY"
           message="A new version of Grayveil is available."
           primary={{ label: 'RELOAD', onClick: applyUpdate }}
         />
       )}
-      {installPrompt && !installDismissed && (
+      {canInstall && !dismissed && !isIOS && (
         <Banner
-          accent="#5a80d9"
+          accent="var(--accent)"
           label="INSTALL APP"
-          message="Add Grayveil to your home screen for a native app feel."
-          primary={{ label: 'INSTALL', onClick: triggerInstall }}
-          secondary={{ label: 'LATER', onClick: dismissInstall }}
+          message="Add Grayveil to your home screen for a native-app feel — works offline, opens from your launcher."
+          primary={{ label: 'INSTALL', onClick: install }}
+          secondary={{ label: 'LATER', onClick: dismiss }}
+        />
+      )}
+      {canInstall && !dismissed && isIOS && (
+        <Banner
+          accent="var(--accent)"
+          label="ADD TO HOME SCREEN"
+          message={
+            <>
+              Tap <strong style={{ color: 'var(--text-1)' }}>Share</strong> → <strong style={{ color: 'var(--text-1)' }}>Add to Home Screen</strong> to install Grayveil. Opens like a native app, works offline.
+            </>
+          }
+          secondary={{ label: 'DISMISS', onClick: dismiss }}
         />
       )}
     </>
@@ -168,25 +128,29 @@ function Banner({ accent, label, message, primary, secondary }) {
         maxWidth: 420,
         marginLeft: 'auto',
         zIndex: 99998,
-        background: 'rgba(15,16,21,0.96)',
-        border: `1px solid ${accent}55`,
-        borderRadius: 10,
+        background: 'rgba(11, 14, 19, 0.96)',
+        border: '1px solid var(--border-md)',
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: 2,
         padding: '14px 16px',
-        boxShadow: `0 12px 40px rgba(0,0,0,.5), 0 0 40px ${accent}22`,
+        boxShadow: '0 12px 40px rgba(0,0,0,.55)',
         backdropFilter: 'blur(12px)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        WebkitBackdropFilter: 'blur(12px)',
+        fontFamily: 'Inter, sans-serif',
       }}
     >
       <div
         style={{
           fontFamily: 'JetBrains Mono, ui-monospace, monospace',
-          fontSize: 10, letterSpacing: '.25em',
-          color: accent, marginBottom: 6,
+          fontSize: 10, letterSpacing: '.28em',
+          color: accent, marginBottom: 6, textTransform: 'uppercase',
         }}
       >
-        {label}
+        ● {label}
       </div>
-      <div style={{ color: '#d4d8e0', fontSize: 13, lineHeight: 1.45, marginBottom: 12 }}>
+      <div style={{
+        color: 'var(--text-2)', fontSize: 13, lineHeight: 1.5, marginBottom: 12,
+      }}>
         {message}
       </div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -195,31 +159,33 @@ function Banner({ accent, label, message, primary, secondary }) {
             onClick={secondary.onClick}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 6,
-              color: '#9aa0ac',
+              border: '1px solid var(--border-md)',
+              borderRadius: 2,
+              color: 'var(--text-2)',
               fontFamily: 'JetBrains Mono, ui-monospace, monospace',
-              fontSize: 10, letterSpacing: '.2em',
+              fontSize: 10, letterSpacing: '.22em',
               padding: '7px 14px', cursor: 'pointer',
             }}
           >
             {secondary.label}
           </button>
         )}
-        <button
-          onClick={primary.onClick}
-          style={{
-            background: 'transparent',
-            border: `1px solid ${accent}`,
-            borderRadius: 6,
-            color: accent,
-            fontFamily: 'JetBrains Mono, ui-monospace, monospace',
-            fontSize: 10, letterSpacing: '.2em', fontWeight: 600,
-            padding: '7px 14px', cursor: 'pointer',
-          }}
-        >
-          {primary.label}
-        </button>
+        {primary && (
+          <button
+            onClick={primary.onClick}
+            style={{
+              background: accent,
+              border: 'none',
+              borderRadius: 2,
+              color: '#0a0a0c',
+              fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+              fontSize: 10, letterSpacing: '.22em', fontWeight: 700,
+              padding: '7px 14px', cursor: 'pointer',
+            }}
+          >
+            {primary.label}
+          </button>
+        )}
       </div>
     </div>
   )
