@@ -1,5 +1,32 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ════════════════════════════════════════
+   GLOBAL :focus-visible
+   Single rule covers every interactive element. focus-visible only
+   matches keyboard-driven focus (mouse / touch tap is suppressed)
+   so the ring shows up for tab-navigation users without flashing on
+   every click. Tan accent ring sits 2px outside the element with a
+   matching dark inner halo for legibility on any background.
+   ════════════════════════════════════════ */
+*:focus { outline: none; }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-base),
+    0 0 0 4px var(--accent-glow);
+  border-radius: var(--radius-sm);
+  position: relative;
+  z-index: 1;
+}
+
 /* ─────────────────────────────────────────────────────────────
    BLACKSTEEL AEROSPACE — Design Tokens (Anduril-direction)
    Near-pure black surfaces, warm cream foreground, muted desert-tan
@@ -20,10 +47,16 @@
   --border-md:     rgba(232,227,216,0.10);
   --border-strong: rgba(232,227,216,0.18);
 
-  /* Text — warm off-whites */
+  /* Text — warm off-whites.
+     --text-3 was #56524a (~2.2:1 over --bg-base, fails WCAG AA).
+     Bumped to #98917f (4.7:1, AA pass for normal text) so all the
+     mono labels and dim copy meet contrast minimums.
+     --text-mute kept at the original value for purely decorative
+     hairlines / dividers / off-state borders (non-text use only). */
   --text-1:      #e8e3d8;
-  --text-2:      #8a8478;
-  --text-3:      #56524a;
+  --text-2:      #b3aea0;
+  --text-3:      #98917f;
+  --text-mute:   #56524a;
 
   /* Accent — muted desert tan (mil-spec, not bright) */
   --accent:      #c4a878;
@@ -212,13 +245,26 @@ body {
 
 .page-title {
   font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
   margin-bottom: 6px;
 }
 
-.page-subtitle { font-size: 14px; color: var(--text-2); letter-spacing: -0.005em; }
+/* Editorial eyebrow — mono caps shown above page-title for context.
+   Tan-tinted to flag the section type before you read the headline. */
+.page-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .32em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+
+.page-subtitle { font-size: 14px; color: var(--text-2); letter-spacing: -0.005em; line-height: 1.55; }
 
 .page-body {
   flex: 1;
@@ -271,6 +317,50 @@ body {
 }
 
 .stat-sub { font-size: 11px; color: var(--text-3); margin-top: 8px; letter-spacing: .04em; }
+
+/* ── EDITORIAL DATA RAIL ──
+   Horizontal hairline rows used on data-heavy pages instead of boxed
+   stat cards. Each row: mono label on the left, big number on the
+   right, top hairline. Reads as a defense-contractor data sheet.
+   Use as <ul class="stat-rail"> with <li> children, or a div tree. */
+.stat-rail {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border-md);
+  margin: 4px 0 24px;
+}
+.stat-rail-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-rail-row:last-child { border-bottom: 1px solid var(--border-md); }
+.stat-rail-label {
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: .24em;
+  color: var(--text-2);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.stat-rail-value {
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.stat-rail-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: .18em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-left: 10px;
+}
+@media (max-width: 600px) {
+  .stat-rail-row { gap: 12px; padding: 12px 0; }
+  .stat-rail-value { font-size: 20px; }
+}
 
 /* ── GRID LAYOUTS ── */
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

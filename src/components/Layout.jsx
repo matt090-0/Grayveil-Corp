@@ -110,12 +110,24 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       {/* Mobile hamburger */}
-      <button className="mobile-hamburger" onClick={() => setMobileOpen(!mobileOpen)}>
-        <span style={{ fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</span>
+      <button
+        className="mobile-hamburger"
+        onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={mobileOpen}
+        aria-controls="mobile-sidebar"
+      >
+        <span style={{ fontSize: 20 }} aria-hidden="true">{mobileOpen ? '✕' : '☰'}</span>
       </button>
 
       {/* Mobile overlay */}
-      {mobileOpen && <div className="mobile-overlay" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && (
+        <div
+          className="mobile-overlay"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
         <div

@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatCredits } from '../lib/ranks'
 import RankBadge from '../components/RankBadge'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { confirmAction } from '../lib/dialogs'
 import AnnualReportButton from '../components/AnnualReportButton'
 import PromotionChecklist from '../components/PromotionChecklist'
+
+// Recharts is heavy (~74KB gz). Defer it past first paint so the
+// SITREP chrome + stats render instantly; chart fades in once the
+// vendor-recharts chunk lands.
+const ActivityBarChart = lazy(() => import('../components/charts/ActivityBarChart'))
 
 // ─────────────────────────────────────────────────────────────
 // RecruitHero — only renders for tier-9 members. Pairs a "welcome"
@@ -83,19 +87,9 @@ import {
   timeAgo, fmtDateTime, timeUntil,
 } from '../components/uee'
 
-const ChartTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{
-      background: '#0e0f14', border: `1px solid ${UEE_AMBER}55`, borderRadius: 3,
-      padding: '6px 10px', fontSize: 11,
-      fontFamily: 'var(--font-mono)', letterSpacing: '.05em',
-    }}>
-      <div style={{ color: 'var(--text-3)', fontSize: 9, letterSpacing: '.18em' }}>{label}</div>
-      <div style={{ color: UEE_AMBER, fontWeight: 600 }}>{payload[0].value}</div>
-    </div>
-  )
-}
+// Chart tooltip + chart component now live in ../components/charts/ActivityBarChart.jsx
+// so the heavy recharts vendor chunk is only fetched when this lazy
+// component first renders (after SITREP chrome is already on screen).
 
 const ACTION_LABELS = {
   contract_claimed:    { glyph: '◆', verb: 'claimed contract',  color: '#5a80d9' },
@@ -673,16 +667,15 @@ export default function Dashboard() {
                     borderLeft: `3px solid ${UEE_AMBER}`,
                     borderRadius: 3, padding: '20px 16px 12px',
                   }}>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={chartData} margin={{ top: 20, right: 16, left: 0, bottom: 0 }} barCategoryGap="25%">
-                        <XAxis dataKey="name" tick={{ fill: '#8a8478', fontSize: 9, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.1em' }}
-                          axisLine={{ stroke: '#333344' }} tickLine={false} tickMargin={8} />
-                        <YAxis tick={{ fill: '#555566', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' }}
-                          axisLine={false} tickLine={false} width={32} allowDecimals={false} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(200,165,90,0.06)' }} />
-                        <Bar dataKey="count" fill={UEE_AMBER} radius={[2, 2, 0, 0]} maxBarSize={60} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <Suspense fallback={
+                      <div style={{
+                        height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: 'var(--font-mono)', fontSize: 10,
+                        letterSpacing: '.24em', color: 'var(--text-3)',
+                      }}>● LOADING TELEMETRY…</div>
+                    }>
+                      <ActivityBarChart data={chartData} />
+                    </Suspense>
                   </div>
                 </div>
               )

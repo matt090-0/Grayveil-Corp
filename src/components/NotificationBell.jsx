@@ -87,18 +87,24 @@ export default function NotificationBell() {
 
   return (
     <div ref={panelRef} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} className="h-dynamic-edge" style={{
-        background: 'transparent',
-        border: `1px solid ${unread > 0 ? UEE_AMBER + '88' : 'var(--border)'}`,
-        borderRadius: 4,
-        width: 36, height: 36,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer',
-        color: unread > 0 ? UEE_AMBER : 'var(--text-2)',
-        position: 'relative',
-        transition: 'all .15s',
-        '--h-color': UEE_AMBER,
-      }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="h-dynamic-edge"
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        style={{
+          background: 'transparent',
+          border: `1px solid ${unread > 0 ? UEE_AMBER + '88' : 'var(--border)'}`,
+          borderRadius: 4,
+          width: 36, height: 36,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+          color: unread > 0 ? UEE_AMBER : 'var(--text-2)',
+          position: 'relative',
+          transition: 'all .15s',
+          '--h-color': UEE_AMBER,
+        }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
           <path d="M3 6a5 5 0 0 1 10 0v3l1.5 2.5H1.5L3 9V6z" />
           <path d="M6 13a2 2 0 0 0 4 0" />

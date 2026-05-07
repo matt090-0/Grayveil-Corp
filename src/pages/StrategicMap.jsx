@@ -353,6 +353,11 @@ export default function StrategicMap() {
         }}>
           <div
             onClick={() => setLayerPanelOpen(o => !o)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={layerPanelOpen}
+            aria-label={layerPanelOpen ? 'Collapse overlay panel' : 'Expand overlay panel'}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLayerPanelOpen(o => !o) } }}
             style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               gap: 10, marginBottom: layerPanelOpen ? 12 : 0,
