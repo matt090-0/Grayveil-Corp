@@ -209,7 +209,7 @@ export default function Analytics() {
     <>
       <ClassificationBar
         section="GRAYVEIL OPERATIVE ANALYTICS"
-        label={profile.handle.toUpperCase()}
+        label={(profile?.handle || 'UNKNOWN').toUpperCase()}
         right={(
           <>
             <span style={{ color: rank.color }}>{rank.label.toUpperCase()}</span>

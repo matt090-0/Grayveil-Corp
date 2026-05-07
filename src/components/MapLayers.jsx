@@ -182,7 +182,7 @@ export function MoonLayer({ planets, zoom, selected, onSelect }) {
                 x={x + 5} y={y + 1.5}
                 fill="#8a8478" fontFamily="JetBrains Mono, monospace"
                 fontSize="6.5" letterSpacing="0.2em"
-              >{m.name.toUpperCase()}</text>
+              >{(m.name || '').toUpperCase()}</text>
             )}
           </g>
         )

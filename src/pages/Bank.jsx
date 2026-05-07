@@ -695,7 +695,7 @@ export default function Bank() {
                       {txns.length === 0 ? <tr><td colSpan={6} className="empty-state">NO TRANSACTIONS</td></tr> : txns.map(t => (
                         <tr key={t.id}>
                           <td className="mono text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t.created_at)}</td>
-                          <td><span style={{ fontSize: 11, color: TXN_COLORS[t.type], fontFamily: 'var(--font-mono)' }}>{t.type.toUpperCase()}</span></td>
+                          <td><span style={{ fontSize: 11, color: TXN_COLORS[t.type], fontFamily: 'var(--font-mono)' }}>{(t.type || '').toUpperCase()}</span></td>
                           <td className="text-muted">{t.from_type === 'treasury' ? 'TREASURY' : t.from_profile?.handle || t.from_type || '—'}</td>
                           <td className="text-muted">{t.to_type === 'treasury' ? 'TREASURY' : t.to_profile?.handle || t.to_type || '—'}</td>
                           <td style={{ fontSize: 12 }}>{t.description || '—'}</td>
@@ -728,7 +728,7 @@ export default function Bank() {
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--accent)' }}>{recipientMember.handle}</div>
                           <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>
-                            {getRankByTier(recipientMember.tier || 9).rank.toUpperCase()} · VERIFIED
+                            {(getRankByTier(recipientMember?.tier || 9)?.rank || 'RECRUIT').toUpperCase()} · VERIFIED
                           </div>
                         </div>
                         <button className="btn btn-ghost btn-sm" onClick={() => setForm(f => ({ ...f, recipient: '', recipientHandle: '' }))}>CLEAR</button>
@@ -762,7 +762,7 @@ export default function Bank() {
                               >
                                 <span>{m.handle}</span>
                                 <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em' }}>
-                                  {getRankByTier(m.tier || 9).rank.toUpperCase()}
+                                  {(getRankByTier(m?.tier || 9)?.rank || 'RECRUIT').toUpperCase()}
                                 </span>
                               </button>
                             ))}
@@ -957,7 +957,7 @@ export default function Bank() {
                       const pct = b.allocated > 0 ? Math.round((b.spent / b.allocated) * 100) : 0
                       return (
                         <div key={b.id} className="stat-card">
-                          <div className="stat-label">{b.division.toUpperCase()}</div>
+                          <div className="stat-label">{(b.division || '—').toUpperCase()}</div>
                           <div className="stat-value" style={{ fontSize: 20 }}>{formatCredits(remaining)}</div>
                           <div style={{ height: 4, background: 'var(--bg-surface)', borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${pct}%`, background: pct > 80 ? 'var(--red)' : 'var(--accent)', borderRadius: 2 }} />

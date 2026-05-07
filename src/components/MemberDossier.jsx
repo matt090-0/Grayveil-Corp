@@ -341,7 +341,7 @@ export default function MemberDossier({ member, onClose }) {
               borderRadius: 8, padding: 16,
             }}>
               <div style={{ fontSize: 9, letterSpacing: '.15em', color: accentColor, fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
-                {awarding === 'medal' ? 'AWARD COMMENDATION' : 'GRANT CERTIFICATION'} — {member.handle.toUpperCase()}
+                {awarding === 'medal' ? 'AWARD COMMENDATION' : 'GRANT CERTIFICATION'} — {(member?.handle || '??').toUpperCase()}
               </div>
 
               {awarding === 'medal' ? (

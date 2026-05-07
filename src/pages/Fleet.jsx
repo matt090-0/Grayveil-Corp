@@ -530,7 +530,7 @@ function RequestCard({ request: r, canReview, onApprove, onDeny }) {
         color: 'var(--text-3)', paddingTop: 6, borderTop: '1px dashed var(--border)',
       }}>
         <span>{(r.requester?.handle || '—').toUpperCase()}</span>
-        <span>{r.reviewer ? `BY ${r.reviewer.handle.toUpperCase()}` : timeAgo(r.created_at)}</span>
+        <span>{r.reviewer ? `BY ${(r.reviewer.handle || '?').toUpperCase()}` : timeAgo(r.created_at)}</span>
       </div>
 
       {canReview && (

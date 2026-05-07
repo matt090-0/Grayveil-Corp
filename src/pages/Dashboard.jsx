@@ -249,7 +249,7 @@ export default function Dashboard() {
     <>
       <ClassificationBar
         section="GRAYVEIL CORPORATION · SITREP"
-        label={`OPERATIVE ${profile.handle.toUpperCase()}`}
+        label={`OPERATIVE ${(profile?.handle || 'UNKNOWN').toUpperCase()}`}
         right={(
           <>
             <span>T-{profile.tier}</span>

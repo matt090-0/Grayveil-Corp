@@ -376,7 +376,7 @@ function ListingCard({ listing, onOpen }) {
         </div>
         {listing.manufacturer && (
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.15em', color: 'var(--text-3)', marginTop: 3 }}>
-            {listing.manufacturer.toUpperCase()}
+            {(listing.manufacturer || '').toUpperCase()}
           </div>
         )}
       </div>
@@ -418,7 +418,7 @@ function ListingCard({ listing, onOpen }) {
           </div>
           {listing.location && (
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.1em', color: 'var(--text-3)', marginTop: 2 }}>
-              {listing.location.toUpperCase()}
+              {(listing.location || '').toUpperCase()}
             </div>
           )}
         </div>
@@ -528,7 +528,7 @@ function DetailModal({ listing, me, busy, onClose, onPurchase, onCancel }) {
             <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
               {listing.manufacturer && (
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.15em', color: 'var(--text-3)' }}>
-                  {listing.manufacturer.toUpperCase()}
+                  {(listing.manufacturer || '').toUpperCase()}
                 </span>
               )}
               {gr && (

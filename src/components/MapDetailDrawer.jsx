@@ -189,7 +189,7 @@ function LandmarkBody({ data }) {
     <>
       <Title>{data.name}</Title>
       <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 18 }}>{data.desc}</div>
-      <Field label="Type" value={data.type.toUpperCase()} />
+      <Field label="Type" value={(data.type || '').toUpperCase()} />
       <Field label="Inner R" value={data.innerR} />
       <Field label="Outer R" value={data.outerR} />
     </>
