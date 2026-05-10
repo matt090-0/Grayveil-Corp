@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
-import { RANKS } from '../lib/ranks'
+import { RANKS, CIVILIAN_RANKS } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
 import { useSeo, useJsonLd } from '../lib/useSeo'
 
@@ -544,13 +544,99 @@ function FleetShowcase() {
   )
 }
 
+// Two stacked rank ladders (military + civilian) with a CSS 3D Y-flip
+// between them. Tier numbers map 1:1 across both tracks — switching
+// path is a wardrobe change, not a re-rank. The toggle uses a
+// segmented control above; the flipped face is rendered absolute
+// over the front so the layout doesn't reflow during animation.
 function TierLadder() {
+  const [path, setPath] = useState('military')
+  const flipped = path === 'civilian'
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 8,
-      maxWidth: 720, margin: '0 auto',
-    }}>
-      {RANKS.map(r => {
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {/* Segmented toggle */}
+      <div role="tablist" aria-label="Rank track" style={{
+        display: 'inline-flex', gap: 0,
+        margin: '0 auto 22px',
+        border: '1px solid var(--border-md)',
+        background: 'var(--bg-surface)',
+        position: 'relative', left: '50%', transform: 'translateX(-50%)',
+      }}>
+        {[
+          { key: 'military', label: 'MILITARY' },
+          { key: 'civilian', label: 'CIVILIAN' },
+        ].map((p, i) => {
+          const active = path === p.key
+          return (
+            <button
+              key={p.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setPath(p.key)}
+              className={active ? 'h-accent-bg' : 'h-accent-edge'}
+              style={{
+                background: active ? 'var(--accent)' : 'transparent',
+                color: active ? '#0a0a0c' : 'var(--text-2)',
+                border: 'none',
+                borderLeft: i === 0 ? 'none' : '1px solid var(--border-md)',
+                padding: '11px 22px',
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                letterSpacing: '.28em', fontWeight: 700,
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'background .15s, color .15s',
+              }}
+            >{p.label}</button>
+          )
+        })}
+      </div>
+
+      {/* 3D flip surface */}
+      <div style={{ perspective: '1800px' }}>
+        <div style={{
+          position: 'relative',
+          transformStyle: 'preserve-3d',
+          transition: 'transform .85s cubic-bezier(.2,.7,.3,1)',
+          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+        }}>
+          {/* Front face — military, in flow so it sets the parent height */}
+          <div
+            aria-hidden={flipped}
+            style={{
+              backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+            }}>
+            <RankRows ranks={RANKS} />
+          </div>
+          {/* Back face — civilian, absolute over the front, pre-rotated */}
+          <div
+            aria-hidden={!flipped}
+            style={{
+              position: 'absolute', top: 0, left: 0, right: 0,
+              transform: 'rotateY(180deg)',
+              backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+            }}>
+            <RankRows ranks={CIVILIAN_RANKS} />
+          </div>
+        </div>
+      </div>
+
+      {/* Footer line — switches with the path */}
+      <div style={{
+        textAlign: 'center', marginTop: 22,
+        fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic',
+      }}>
+        {path === 'military'
+          ? 'Every new operative enters at Recruit. Rank is earned, never granted.'
+          : 'Every new contractor enters as Prospect. Standing is earned, never granted.'}
+      </div>
+    </div>
+  )
+}
+
+function RankRows({ ranks }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {ranks.map(r => {
         const c = LADDER_COLORS[r.tier] || r.color
         return (
           <div key={r.tier} style={{
@@ -558,10 +644,10 @@ function TierLadder() {
             gridTemplateColumns: '48px 1fr auto',
             alignItems: 'center',
             gap: 16,
-            background: `linear-gradient(90deg, ${c}0f 0%, rgba(15,16,21,0.55) 40%)`,
-            border: '1px solid rgba(212,216,224,0.06)',
+            background: `linear-gradient(90deg, ${c}14 0%, rgba(11,14,19,0.55) 40%)`,
+            border: '1px solid var(--border)',
             borderLeft: `3px solid ${c}`,
-            borderRadius: 8,
+            borderRadius: 2,
             padding: '12px 18px',
           }}>
             <div style={{
@@ -570,8 +656,8 @@ function TierLadder() {
             }}>T-{r.tier}</div>
             <div style={{
               fontFamily: 'Inter Tight, sans-serif',
-              fontSize: 14, fontWeight: 600, letterSpacing: '.1em',
-              color: '#ededf2',
+              fontSize: 14, fontWeight: 700, letterSpacing: '.08em',
+              color: 'var(--text-1)',
             }}>{r.rank}</div>
             <div style={{
               width: 10, height: 10, borderRadius: '50%',
@@ -580,12 +666,6 @@ function TierLadder() {
           </div>
         )
       })}
-      <div style={{
-        textAlign: 'center', marginTop: 18,
-        fontSize: 12, color: '#6a7280', fontStyle: 'italic',
-      }}>
-        Every new operative enters at Recruit. Rank is earned, never granted.
-      </div>
     </div>
   )
 }

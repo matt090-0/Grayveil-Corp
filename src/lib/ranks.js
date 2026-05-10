@@ -10,6 +10,21 @@ export const RANKS = [
   { tier: 9, rank: 'RECRUIT',       label: 'Recruit',       color: '#44445a' },
 ]
 
+// Civilian Contractor track — same nine standings, corporate/contracting
+// vocabulary instead of naval. Tier numbers map 1:1 with RANKS so a member
+// who switches paths keeps their standing; only the displayed title changes.
+export const CIVILIAN_RANKS = [
+  { tier: 1, rank: 'PARTNER',           label: 'Partner',           color: '#d4af6e' },
+  { tier: 2, rank: 'PRINCIPAL',         label: 'Principal',         color: '#9090a8' },
+  { tier: 3, rank: 'DIRECTOR',          label: 'Director',          color: '#9090a8' },
+  { tier: 4, rank: 'FOREMAN',           label: 'Foreman',           color: '#4a90d9' },
+  { tier: 5, rank: 'SPECIALIST',        label: 'Specialist',        color: '#4a90d9' },
+  { tier: 6, rank: 'CONTRACTOR',        label: 'Contractor',        color: '#8888a0' },
+  { tier: 7, rank: 'HAND',              label: 'Hand',              color: '#8888a0' },
+  { tier: 8, rank: 'APPRENTICE',        label: 'Apprentice',        color: '#44445a' },
+  { tier: 9, rank: 'PROSPECT',          label: 'Prospect',          color: '#44445a' },
+]
+
 export const RANK_BADGES = {
   1: 'badge-accent',
   2: 'badge-muted',
