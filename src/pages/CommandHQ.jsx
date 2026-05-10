@@ -315,7 +315,7 @@ export default function CommandHQ() {
           ? (op ? `Next op: **${op.title}** · ${timeUntil(op.starts_at)} · ${op.location || 'TBD'}` : 'No upcoming ops.')
           : kind === 'roster'
             ? `Online now: **${overlay.online.length}** · Live ops: **${overlay.liveOps.length}**`
-            : 'High Council rotating code system is active. Use command deck to preview.',
+            : 'High Council rotating code system is active. Use command deck to preview.', // kind === 'council'
         color: 0x7289da,
         timestamp: new Date().toISOString(),
       }],
@@ -550,8 +550,8 @@ export default function CommandHQ() {
               </Card>
               <Card accent="#7289da">
                 <div><b>/council-status</b> rolling code enabled in admin control</div>
-                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-501st'} onClick={() => syncDiscord('501st')}>
-                  {busyAction === 'discord-501st' ? 'SYNCING...' : 'Sync /council-status now'}
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-council'} onClick={() => syncDiscord('council')}>
+                  {busyAction === 'discord-council' ? 'SYNCING...' : 'Sync /council-status now'}
                 </button>
               </Card>
             </div>
