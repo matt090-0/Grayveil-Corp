@@ -1435,15 +1435,20 @@ export default function Admin() {
               </span>
             </div>
 
-            {/* ── Three hero status cells ── */}
+            {/* ── Two editable hero cells (recruitment is derived) ── */}
             <div style={{ fontSize: 11, letterSpacing: '.18em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
               HERO READINESS CELLS
             </div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 10, lineHeight: 1.6 }}>
+              The third cell (RECRUITMENT) auto-derives from the toggle above —
+              <b style={{ color: 'var(--green)' }}> OPEN · green</b> when intake is live,
+              <b style={{ color: 'var(--amber)' }}> WAITLIST · amber</b> when paused.
+              Edit COMMAND and ALERT LEVEL below.
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
               {[
-                { key: 'command',     label: 'COMMAND'     },
-                { key: 'alert',       label: 'ALERT LEVEL' },
-                { key: 'recruitment', label: 'RECRUITMENT' },
+                { key: 'command', label: 'COMMAND'     },
+                { key: 'alert',   label: 'ALERT LEVEL' },
               ].map(cell => {
                 const cur = statusBoard[cell.key] || { status: '', color: 'accent' }
                 const setCell = (next) => setStatusBoard(b => ({ ...b, [cell.key]: { ...cur, ...next } }))

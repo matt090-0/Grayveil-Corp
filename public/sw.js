@@ -6,7 +6,7 @@
 //   - Supabase / API: pass-through (always network)
 // Updates: new SW installs but waits — client sends SKIP_WAITING when user accepts.
 
-const VERSION = 'v9'
+const VERSION = 'v10'
 const RUNTIME_CACHE = `grayveil-runtime-${VERSION}`
 const STATIC_CACHE  = `grayveil-static-${VERSION}`
 const CORE_ASSETS = [

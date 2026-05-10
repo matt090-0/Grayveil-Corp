@@ -196,10 +196,16 @@ function Hero({ stats, navigate, reduce }) {
             marginBottom: 48, flexWrap: 'wrap',
           }}
         >
+          {/* Recruitment cell auto-derives from the toggle so admins flip
+              one switch and every visible recruitment surface (this cell,
+              the eyebrow below, every CTA, /apply) changes together. The
+              admin can still customize COMMAND and ALERT LEVEL freely. */}
           {[
-            { status: board.command.status,     label: 'COMMAND',     color: statusColor(board.command.color)     },
-            { status: board.alert.status,       label: 'ALERT LEVEL', color: statusColor(board.alert.color)       },
-            { status: board.recruitment.status, label: 'RECRUITMENT', color: statusColor(board.recruitment.color) },
+            { status: board.command.status, label: 'COMMAND',     color: statusColor(board.command.color) },
+            { status: board.alert.status,   label: 'ALERT LEVEL', color: statusColor(board.alert.color)   },
+            board.recruitment_open
+              ? { status: 'OPEN',     label: 'RECRUITMENT', color: statusColor('green') }
+              : { status: 'WAITLIST', label: 'RECRUITMENT', color: statusColor('amber') },
           ].map(s => (
             <div key={s.label} style={{
               textAlign: 'center',
