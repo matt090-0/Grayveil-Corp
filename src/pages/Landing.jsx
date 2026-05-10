@@ -590,6 +590,172 @@ function TierLadder() {
   )
 }
 
+// ─────────────────────────────────────────────────────────────
+// PathChoice — two membership profiles a prospect can sign up under.
+// Independent axis from Divisions: divisions describe WHAT you do,
+// paths describe HOW INTENSE. Frames the org as accessible to casual
+// joiners while still serious about the milsim side.
+// ─────────────────────────────────────────────────────────────
+
+const PATHS = [
+  {
+    code: '01',
+    title: 'MILITARY OPERATIONS',
+    tagline: 'Combat-rated · structured chain of command',
+    icon: 'shield',
+    bullets: [
+      'Higher-intensity MilSim posture',
+      'Structured ops with formal chain of command',
+      'Disciplined tactical gameplay',
+      'Authentic coordination on strategic missions',
+    ],
+  },
+  {
+    code: '02',
+    title: 'CIVILIAN CONTRACTORS',
+    tagline: 'Casual · org-backed · no formal milsim requirement',
+    icon: 'people',
+    bullets: [
+      'More casual roleplay experience',
+      'Full benefits of the corporate structure',
+      'Fleet support network and coordination',
+      'No formal military requirement',
+    ],
+  },
+]
+
+function PathChoice() {
+  return (
+    <div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: 16,
+      }}>
+        {PATHS.map(p => (
+          <div key={p.code} style={{
+            position: 'relative',
+            background: 'rgba(11,14,19,0.6)',
+            border: '1px solid var(--border-md)',
+            borderLeft: '3px solid var(--accent)',
+            padding: '28px 28px 24px',
+          }}>
+            {/* Corner ticks for classification chrome */}
+            <CornerTick pos={{ top: 8, right: 8 }} flipX />
+            <CornerTick pos={{ bottom: 8, left: 8 }}  flipY />
+
+            {/* Icon + path number */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18,
+            }}>
+              <PathIcon name={p.icon} />
+              <div>
+                <div style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 9,
+                  letterSpacing: '.32em', color: 'var(--accent)',
+                  textTransform: 'uppercase', marginBottom: 4,
+                }}>PATH {p.code}</div>
+                <div style={{
+                  fontFamily: 'Inter Tight, sans-serif', fontSize: 20,
+                  fontWeight: 800, letterSpacing: '-0.02em',
+                  color: 'var(--text-1)', lineHeight: 1.05,
+                }}>{p.title}</div>
+              </div>
+            </div>
+
+            {/* Tagline */}
+            <div style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13,
+              color: 'var(--text-2)', lineHeight: 1.55,
+              marginBottom: 18, fontStyle: 'italic',
+            }}>{p.tagline}</div>
+
+            {/* Bullets */}
+            <ul style={{
+              listStyle: 'none', padding: 0, margin: 0,
+              display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              {p.bullets.map(b => (
+                <li key={b} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  fontFamily: 'Inter, sans-serif', fontSize: 13,
+                  color: 'var(--text-2)', lineHeight: 1.55,
+                }}>
+                  <CheckGlyph />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {/* Footer note — both paths welcome, transition supported */}
+      <div style={{
+        marginTop: 24, padding: '14px 18px',
+        textAlign: 'center',
+        border: '1px dashed var(--border-md)',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+        letterSpacing: '.22em', color: 'var(--text-3)',
+        textTransform: 'uppercase',
+      }}>
+        Members can transition between paths as preferences evolve.
+      </div>
+    </div>
+  )
+}
+
+function PathIcon({ name }) {
+  const common = {
+    width: 36, height: 36, viewBox: '0 0 24 24',
+    fill: 'none', stroke: 'var(--accent)',
+    strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round',
+    'aria-hidden': true,
+  }
+  if (name === 'shield') {
+    return (
+      <svg {...common}>
+        <path d="M12 2 L21 5 L21 11 C21 16.5 17 20.5 12 22 C7 20.5 3 16.5 3 11 L3 5 Z" />
+        <path d="M9 12 L11 14 L15 10" />
+      </svg>
+    )
+  }
+  // people glyph (two heads + shoulder bars)
+  return (
+    <svg {...common}>
+      <circle cx="9"  cy="8" r="3.2" />
+      <circle cx="17" cy="9.2" r="2.6" />
+      <path d="M3.5 19 C4 15.5 6.2 14 9 14 C11.8 14 14 15.5 14.5 19" />
+      <path d="M14.5 19 C15 16.8 16.6 15.6 17.5 15.6 C18.4 15.6 20 16.8 20.5 19" />
+    </svg>
+  )
+}
+
+function CheckGlyph() {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 14 14"
+      fill="none" aria-hidden="true"
+      style={{ flexShrink: 0, marginTop: 3 }}
+    >
+      <circle cx="7" cy="7" r="6" stroke="var(--accent)" strokeWidth="1" opacity="0.6" />
+      <path d="M4 7.4 L6 9.4 L10.2 5" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CornerTick({ pos, flipX, flipY }) {
+  const transform = `${flipX ? 'scaleX(-1)' : ''} ${flipY ? 'scaleY(-1)' : ''}`.trim()
+  return (
+    <svg
+      width={8} height={8} viewBox="0 0 8 8"
+      style={{ position: 'absolute', ...pos, transform, opacity: 0.5 }}
+      aria-hidden="true"
+    >
+      <path d="M 0 0 L 8 0 M 0 0 L 0 8" stroke="var(--accent)" strokeWidth="1.4" fill="none" />
+    </svg>
+  )
+}
+
 function FaqList() {
   const [openIdx, setOpenIdx] = useState(0)
   return (
@@ -711,6 +877,11 @@ export default function Landing() {
       {/* ── TIER PATH ── */}
       <Section eyebrow="CHAIN OF COMMAND" title="The Nine-Tier Path">
         <TierLadder />
+      </Section>
+
+      {/* ── PATH CHOICE ── */}
+      <Section eyebrow="MEMBERSHIP" title="Choose Your Path">
+        <PathChoice />
       </Section>
 
       {/* ── FAQ ── */}
