@@ -1,9 +1,13 @@
 import { discordApplication } from '../lib/discord'
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
 import { useSeo } from '../lib/useSeo'
+
+// Flip to true to re-open the application form. Closed during the
+// pre-1.0 era — prospects are routed to the Discord waitlist instead.
+const RECRUITMENT_OPEN = false
 
 const PLAYSTYLES = [
   { key: 'combat',      label: 'COMBAT' },
@@ -115,6 +119,8 @@ export default function Apply() {
       </div>
     </div>
   )
+
+  if (!RECRUITMENT_OPEN) return <RecruitmentClosed />
 
   return (
     <div className="auth-shell">
@@ -239,6 +245,82 @@ export default function Apply() {
         <p style={{ marginTop: 14, fontSize: 12, color: 'var(--text-3)', textAlign: 'center' }}>
           Already a member? <a href="/auth" style={{ color: 'var(--accent)' }}>Sign in</a>
         </p>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// RecruitmentClosed — shown when RECRUITMENT_OPEN is false.
+// Standing-down notice during the pre-1.0 era, with a route to
+// the Discord waitlist (the existing widget on /welcome).
+// ─────────────────────────────────────────────────────────────
+function RecruitmentClosed() {
+  const navigate = useNavigate()
+  return (
+    <div className="auth-shell">
+      <div className="auth-card" style={{ maxWidth: 520, position: 'relative' }}>
+        {/* Accent stripe */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: 3, background: 'var(--amber)',
+        }} />
+
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <GrayveilLogo size={56} />
+          <div style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+            letterSpacing: '.32em', color: 'var(--amber)',
+            textTransform: 'uppercase', marginTop: 14,
+          }}>● RECRUITMENT CLOSED · STANDING DOWN</div>
+        </div>
+
+        <h1 style={{
+          fontFamily: 'Inter Tight, sans-serif',
+          fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em',
+          color: 'var(--text-1)', textAlign: 'center', marginBottom: 14,
+        }}>Intake is paused.</h1>
+
+        <p style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 14,
+          color: 'var(--text-2)', lineHeight: 1.65,
+          textAlign: 'center', marginBottom: 22,
+        }}>
+          Grayveil isn't taking new applications until closer to the
+          Star Citizen 1.0 release. We'd rather build slow and right than
+          flood the org with intake we can't onboard properly.
+        </p>
+
+        <p style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 13,
+          color: 'var(--text-3)', lineHeight: 1.65,
+          textAlign: 'center', marginBottom: 26,
+        }}>
+          Want first call when intake reopens? Drop into the Discord
+          waitlist. We'll ping the channel as soon as the doors are open.
+        </p>
+
+        <button
+          onClick={() => navigate('/welcome#discord-waitlist')}
+          className="h-accent-bg"
+          style={{
+            display: 'block', width: '100%',
+            background: 'var(--accent)', color: '#0a0a0c', border: 'none',
+            borderRadius: 2, padding: '14px 22px',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+            letterSpacing: '.28em', fontWeight: 700,
+            textTransform: 'uppercase', cursor: 'pointer',
+            transition: 'background .15s',
+          }}
+        >Join the Discord waitlist →</button>
+
+        <div style={{
+          marginTop: 22, paddingTop: 18,
+          borderTop: '1px solid var(--border)',
+          textAlign: 'center', fontSize: 12, color: 'var(--text-3)',
+        }}>
+          Already a member? <a href="/auth" style={{ color: 'var(--accent)' }}>Sign in</a>
+        </div>
       </div>
     </div>
   )

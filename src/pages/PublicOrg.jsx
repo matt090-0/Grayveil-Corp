@@ -54,13 +54,13 @@ export default function PublicOrg() {
           }}>"Profit is neutral. Everything else is negotiable."</p>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
+            <button onClick={() => navigate('/welcome#discord-waitlist')} className="h-accent-bg" style={{
               background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
               padding: '14px 32px', fontSize: 13, fontWeight: 600,
               fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
               cursor: 'pointer', transition: 'background .15s',
             }}>
-              Apply for membership →
+              Join the waitlist →
             </button>
             <button onClick={() => navigate('/auth')} style={{
               background: 'transparent', color: 'var(--text-2)',
@@ -185,13 +185,17 @@ export default function PublicOrg() {
             A private military and commercial enterprise operating across the Stanton system.
             We deal in contracts, intelligence, and discretion.
           </div>
-          <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
+          <div style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+            letterSpacing: '.3em', color: 'var(--amber)', marginBottom: 14,
+          }}>● RECRUITMENT CLOSED · WAITLIST OPEN</div>
+          <button onClick={() => navigate('/welcome#discord-waitlist')} className="h-accent-bg" style={{
             background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
             padding: '13px 30px', fontSize: 13, fontWeight: 600,
             fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
             cursor: 'pointer', transition: 'background .15s',
           }}>
-            Request membership →
+            Join the waitlist →
           </button>
           <div style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 40, letterSpacing: '.28em', fontFamily: 'JetBrains Mono, monospace' }}>
             GRAYVEIL CORPORATION · {stats?.founded_date ? `EST. ${new Date(stats.founded_date).getFullYear()}` : 'EST. 2026'}

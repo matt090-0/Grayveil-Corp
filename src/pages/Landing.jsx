@@ -58,6 +58,14 @@ function AnimatedWordmark({ text = 'GRAYVEIL', baseDelay = 0.4, reduce = false }
   ))
 }
 
+// Smooth-scroll to the Discord waitlist section. Used by every
+// "Apply / Join the waitlist" CTA on the page since intake is closed
+// pre-1.0 and we route prospects to Discord instead of /apply.
+function scrollToWaitlist() {
+  const el = typeof document !== 'undefined' && document.getElementById('discord-waitlist')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 // Animated hero block. Pulled out so the boot sequence is self-contained
 // and easy to reason about. `reduce` collapses everything to its final state.
 function Hero({ stats, navigate, reduce }) {
@@ -223,12 +231,12 @@ function Hero({ stats, navigate, reduce }) {
           {...fadeIn(1.5)}
           style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}
         >
-          <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
+          <button onClick={scrollToWaitlist} className="h-accent-bg" style={{
             background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
             padding: '14px 32px', fontSize: 13, fontWeight: 600,
             fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
             cursor: 'pointer', transition: 'background .15s',
-          }}>Apply for membership →</button>
+          }}>Join the waitlist →</button>
           <button onClick={() => navigate('/auth')} className="h-text-edge" style={{
             background: 'transparent', color: 'var(--text-2)',
             border: '1px solid var(--border-md)', borderRadius: 2,
@@ -985,28 +993,43 @@ export default function Landing() {
         <p style={{
           color: 'var(--text-2)', fontSize: 15, lineHeight: 1.7, marginBottom: 28,
         }}>
-          Applications take two minutes. We review every one — no form letters, no silent rejections.
+          Intake is paused until closer to Star Citizen 1.0. Drop into the
+          Discord waitlist — we'll ping the channel the moment doors reopen.
         </p>
-        <button onClick={() => navigate('/apply')} className="h-accent-bg" style={{
+        <button onClick={scrollToWaitlist} className="h-accent-bg" style={{
           background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
           padding: '14px 32px', fontSize: 13, fontWeight: 600,
           fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
           cursor: 'pointer', transition: 'background .15s',
-        }}>Apply for membership →</button>
+        }}>Join the waitlist →</button>
       </motion.section>
 
-      {/* ── DISCORD ── */}
+      {/* ── DISCORD WAITLIST ── */}
       <motion.section
+        id="discord-waitlist"
         {...sectionRevealProps(reduceMotion)}
         style={{
           padding: '40px 24px 60px',
           textAlign: 'center', position: 'relative',
+          scrollMarginTop: 24,
         }}
       >
         <div style={{
           fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
-          letterSpacing: '.3em', color: '#44445a', marginBottom: 16,
-        }}>JOIN OUR DISCORD</div>
+          letterSpacing: '.3em', color: 'var(--amber)', marginBottom: 12,
+        }}>● RECRUITMENT CLOSED · WAITLIST OPEN</div>
+        <div style={{
+          fontFamily: 'Inter Tight, sans-serif',
+          fontSize: 'clamp(20px, 2.6vw, 26px)', fontWeight: 700,
+          color: 'var(--text-1)', marginBottom: 8, letterSpacing: '-0.02em',
+        }}>Get on the list.</div>
+        <p style={{
+          color: 'var(--text-2)', fontSize: 13, lineHeight: 1.65,
+          maxWidth: 460, margin: '0 auto 22px',
+        }}>
+          Hop into the Discord and you'll be first in line when intake reopens
+          for Star Citizen 1.0. No form, no waiting on a reply — just join.
+        </p>
         <div style={{
           display: 'inline-block', borderRadius: 12, overflow: 'hidden',
           border: '1px solid #222233', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',

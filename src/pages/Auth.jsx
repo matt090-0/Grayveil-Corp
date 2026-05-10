@@ -88,8 +88,8 @@ export default function Auth() {
         </div>
 
         <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-          <Link to="/apply" style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
-            OR APPLY FOR MEMBERSHIP →
+          <Link to="/welcome#discord-waitlist" style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
+            OR JOIN THE WAITLIST →
           </Link>
         </div>
 
