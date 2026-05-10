@@ -920,11 +920,21 @@ export default function Landing() {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Grayveil Corporation',
+    alternateName: ['Grayveil', 'Grayveil Corp'],
     url: 'https://grayveil.net',
     logo: 'https://grayveil.net/brand/icon.png',
     image: 'https://grayveil.net/brand/banner.png',
     slogan: 'Profit is neutral. Everything else is negotiable.',
-    description: 'Private military and commercial Star Citizen organization operating in the Stanton system.',
+    description: 'Private military and commercial Star Citizen organization operating in the Stanton system. Shared fleet, internal economy, auto-tracked medals, and real ops.',
+    foundingDate: '2026',
+    knowsAbout: [
+      'Star Citizen', 'Stanton system', 'Private military contractor',
+      'Salvage operations', 'Bounty hunting', 'Ship combat', 'Trading', 'Mining',
+    ],
+    sameAs: [
+      'https://discord.gg/grayveil',
+      'https://robertsspaceindustries.com/orgs/GRAYVEIL',
+    ],
   })
 
   useEffect(() => {

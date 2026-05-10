@@ -48,8 +48,12 @@ export default function Apply() {
   const recruitmentOpen = board.recruitment_open
 
   useSeo({
-    title: 'Apply to Grayveil Corporation',
-    description: 'Apply for membership in Grayveil Corporation. Star Citizen PMC & commercial enterprise in Stanton. Two-minute application, every one reviewed.',
+    title: recruitmentOpen
+      ? 'Apply to Grayveil Corporation'
+      : 'Grayveil Waitlist · Recruitment Reopens at Star Citizen 1.0',
+    description: recruitmentOpen
+      ? 'Apply for membership in Grayveil Corporation. Star Citizen PMC & commercial enterprise in Stanton. Two-minute application, every one reviewed.'
+      : 'Grayveil intake is paused until closer to Star Citizen 1.0. Drop your email to be pinged the moment doors reopen — no spam, no follow-ups.',
     path: '/apply',
   })
 
