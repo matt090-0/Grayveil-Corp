@@ -36,6 +36,7 @@ const TABS = {
   applications: { key: 'applications', label: 'APPLICATIONS', short: 'INTAKE',     color: '#5a80d9', glyph: '◈', subtitle: 'Submitted applications · review queue · approval decisions' },
   invites:      { key: 'invites',      label: 'INVITE LINKS', short: 'REFERRALS',  color: '#5ce0a1', glyph: '◊', subtitle: 'Single-use or multi-use referral codes · campaign attribution' },
   recruits:     { key: 'recruits',     label: 'RECRUITS',     short: 'ONBOARDING', color: '#c4a878', glyph: '◇', subtitle: 'Tier-9 operatives · path-to-Ensign progress · promotion authority' },
+  waitlist:     { key: 'waitlist',     label: 'WAITLIST',     short: 'STANDBY',    color: '#d4af6e', glyph: '⌖', subtitle: 'Pre-1.0 email waitlist · sources · notify queue · ping-on-reopen' },
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export default function Recruitment() {
   const [applications, setApps]   = useState([])
   const [invites, setInvites]     = useState([])
   const [recruits, setRecruits]   = useState([])
+  const [waitlist, setWaitlist]   = useState([])
   const [loading, setLoading]     = useState(true)
 
   const [stage, setStage]         = useState('ALL')
@@ -87,7 +89,7 @@ export default function Recruitment() {
   const canDelete = me.tier <= 3
 
   async function load() {
-    const [{ data: p }, { data: m }, { data: a }, { data: inv }, { data: r }] = await Promise.all([
+    const [{ data: p }, { data: m }, { data: a }, { data: inv }, { data: r }, { data: w }] = await Promise.all([
       supabase.from('recruitment').select('*, referred_by:profiles!recruitment_referred_by_fkey(handle), updated_by:profiles!recruitment_updated_by_fkey(handle)').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, handle').eq('status', 'ACTIVE').order('handle'),
       supabase.from('applications').select('*').order('created_at', { ascending: false }),
@@ -98,9 +100,12 @@ export default function Recruitment() {
         .select('id, handle, tier, division, speciality, bio, joined_at, avatar_color')
         .eq('status', 'ACTIVE').eq('tier', 9)
         .order('joined_at', { ascending: true }),
+      // Pre-1.0 email waitlist — visible to officers tier <= 7 via RLS.
+      supabase.from('waitlist').select('*').order('created_at', { ascending: false }),
     ])
     setProspects(p || []); setMembers(m || []); setApps(a || []); setInvites(inv || [])
     setRecruits(r || [])
+    setWaitlist(w || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -342,6 +347,7 @@ export default function Recruitment() {
               t.key === 'prospects' ? counts.ALL
               : t.key === 'applications' ? appCounts.ALL
               : t.key === 'recruits' ? recruits.length
+              : t.key === 'waitlist' ? waitlist.length
               : invites.length
             const pending =
               t.key === 'applications' ? appCounts.PENDING || 0 : 0
@@ -405,6 +411,12 @@ export default function Recruitment() {
             <RecruitsView
               recruits={recruits} canManage={canManage}
               promoteRecruit={promoteRecruit}
+            />
+          ) : tab === 'waitlist' ? (
+            <WaitlistView
+              items={waitlist} canManage={canManage} canDelete={canDelete}
+              search={search} setSearch={setSearch}
+              reload={load} toast={toast}
             />
           ) : (
             <InvitesView
@@ -1259,6 +1271,210 @@ function RecruitsView({ recruits, canManage, promoteRecruit }) {
         />
       ))}
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// WAITLIST VIEW — pre-1.0 email signups.
+// Officers see total + traction + source mix and can mark
+// signups as notified once intake reopens. CSV export so the
+// list can drop into MailChimp/Buttondown/whatever.
+// ─────────────────────────────────────────────────────────────
+function WaitlistView({ items, canManage, canDelete, search, setSearch, reload, toast }) {
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return items
+    return items.filter(w =>
+      (w.email || '').toLowerCase().includes(q)
+      || (w.handle || '').toLowerCase().includes(q)
+      || (w.source || '').toLowerCase().includes(q)
+      || (w.referral_code || '').toLowerCase().includes(q),
+    )
+  }, [items, search])
+
+  const sourceBreakdown = useMemo(() => {
+    const m = {}
+    items.forEach(w => { m[w.source || 'unknown'] = (m[w.source || 'unknown'] || 0) + 1 })
+    return Object.entries(m).sort((a, b) => b[1] - a[1])
+  }, [items])
+
+  const last7 = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return items.filter(w => new Date(w.created_at).getTime() >= cutoff).length
+  }, [items])
+
+  const unnotified = items.filter(w => !w.notified_at).length
+
+  async function exportCsv() {
+    const rows = [
+      ['email', 'handle', 'source', 'referral_code', 'created_at', 'notified_at'],
+      ...items.map(w => [
+        w.email || '',
+        w.handle || '',
+        w.source || '',
+        w.referral_code || '',
+        w.created_at || '',
+        w.notified_at || '',
+      ]),
+    ]
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `grayveil-waitlist-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast?.('Waitlist exported.')
+  }
+
+  async function markNotified(id) {
+    if (!canManage) return
+    const { error } = await supabase
+      .from('waitlist')
+      .update({ notified_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) { toast?.(`Mark failed: ${error.message}`); return }
+    reload()
+  }
+
+  async function markAllNotified() {
+    if (!canManage) return
+    if (!unnotified) { toast?.('Nothing to mark — every signup is already notified.'); return }
+    if (!(await confirmAction(`Mark all ${unnotified} unnotified signups as notified? This is for record-keeping only — sending the actual email is manual (export CSV → blast tool).`))) return
+    const ids = items.filter(w => !w.notified_at).map(w => w.id)
+    const { error } = await supabase
+      .from('waitlist')
+      .update({ notified_at: new Date().toISOString() })
+      .in('id', ids)
+    if (error) { toast?.(`Bulk mark failed: ${error.message}`); return }
+    toast?.(`Marked ${ids.length} signups as notified.`)
+    reload()
+  }
+
+  async function removeOne(w) {
+    if (!canDelete) return
+    if (!(await confirmAction(`Remove ${w.email} from the waitlist? This cannot be undone.`))) return
+    const { error } = await supabase.from('waitlist').delete().eq('id', w.id)
+    if (error) { toast?.(`Delete failed: ${error.message}`); return }
+    reload()
+  }
+
+  return (
+    <>
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <StatCell label="TOTAL ON LIST"  value={items.length}        color="#d4af6e" glyph="⌖" />
+        <StatCell label="LAST 7 DAYS"    value={last7}               color="#5ce0a1" glyph="↗" />
+        <StatCell label="AWAITING NOTIFY" value={unnotified}         color={UEE_AMBER} glyph="●" />
+        <StatCell label="TOP SOURCE"     value={(sourceBreakdown[0]?.[0] || '—').toUpperCase()} color="#5a80d9" glyph="◈" />
+      </div>
+
+      {/* Source breakdown */}
+      {sourceBreakdown.length > 0 && (
+        <div style={{
+          marginBottom: 18, padding: '12px 14px',
+          border: '1px solid var(--border)', background: 'var(--bg-raised)',
+          borderRadius: 4, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 9, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>SOURCES</div>
+          {sourceBreakdown.map(([src, n]) => (
+            <div key={src} style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11,
+              padding: '4px 10px', border: '1px solid var(--border)',
+              borderRadius: 12, color: 'var(--text-2)',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ color: 'var(--text-3)' }}>{src}</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{n}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action bar */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Search email, handle, source, ref code..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 240, fontSize: 13 }}
+        />
+        <button className="btn btn-ghost" onClick={exportCsv} disabled={!items.length}>
+          ⤓ EXPORT CSV
+        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={markAllNotified} disabled={!unnotified}>
+            ✓ MARK ALL NOTIFIED ({unnotified})
+          </button>
+        )}
+      </div>
+
+      {/* Empty state */}
+      {!items.length ? (
+        <div style={{
+          padding: 60, textAlign: 'center',
+          color: 'var(--text-3)',
+          fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '.18em',
+          border: '1px solid var(--border)',
+        }}>WAITLIST EMPTY · NO PRE-1.0 SIGNUPS YET</div>
+      ) : !filtered.length ? (
+        <div style={{
+          padding: 40, textAlign: 'center',
+          color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11,
+        }}>NO MATCHES FOR "{search}"</div>
+      ) : (
+        <div style={{
+          border: '1px solid var(--border)',
+          background: 'var(--bg-surface)',
+          overflowX: 'auto',
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{
+                background: 'var(--bg-raised)',
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em',
+                color: 'var(--text-3)', textAlign: 'left',
+              }}>
+                <th style={{ padding: '10px 14px' }}>EMAIL</th>
+                <th style={{ padding: '10px 14px' }}>HANDLE</th>
+                <th style={{ padding: '10px 14px' }}>SOURCE</th>
+                <th style={{ padding: '10px 14px' }}>REF</th>
+                <th style={{ padding: '10px 14px' }}>JOINED</th>
+                <th style={{ padding: '10px 14px' }}>NOTIFIED</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(w => (
+                <tr key={w.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>{w.email}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-2)' }}>{w.handle || '—'}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{w.source || '—'}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{w.referral_code || '—'}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{fmt(w.created_at)}</td>
+                  <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                    {w.notified_at
+                      ? <span style={{ color: 'var(--green)' }}>● {fmt(w.notified_at)}</span>
+                      : <span style={{ color: UEE_AMBER }}>○ pending</span>}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {canManage && !w.notified_at && (
+                      <button onClick={() => markNotified(w.id)} style={btnMicro('#5ce0a1')}>NOTIFIED</button>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => removeOne(w)} style={btnMicro('#e05c5c', false)}>×</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   )
 }
 
