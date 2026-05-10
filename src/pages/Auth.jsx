@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
+import { useStatusBoard } from '../hooks/useStatusBoard'
 
 export default function Auth() {
   const navigate = useNavigate()
+  const board = useStatusBoard()
+  const recruitmentOpen = board.recruitment_open
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -88,8 +91,8 @@ export default function Auth() {
         </div>
 
         <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-          <Link to="/welcome#discord-waitlist" style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
-            OR JOIN THE WAITLIST →
+          <Link to={recruitmentOpen ? '/apply' : '/welcome#discord-waitlist'} style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none', letterSpacing: '.1em', fontFamily: 'JetBrains Mono, monospace' }}>
+            {recruitmentOpen ? 'OR APPLY FOR MEMBERSHIP →' : 'OR JOIN THE WAITLIST →'}
           </Link>
         </div>
 

@@ -6,6 +6,7 @@ import GrayveilLogo from '../components/GrayveilLogo'
 import { RANKS, CIVILIAN_RANKS } from '../lib/ranks'
 import { SC_SHIPS } from '../lib/ships'
 import { useSeo, useJsonLd } from '../lib/useSeo'
+import { useStatusBoard, statusColor } from '../hooks/useStatusBoard'
 
 // ─────────────────────────────────────────────────────────────
 // Hero boot sequence — orchestrated reveal:
@@ -69,6 +70,10 @@ function scrollToWaitlist() {
 // Animated hero block. Pulled out so the boot sequence is self-contained
 // and easy to reason about. `reduce` collapses everything to its final state.
 function Hero({ stats, navigate, reduce }) {
+  // Pull live status cells from org_settings — admins can flip these in
+  // real time without redeploying. Defaults handle the loading + cold-start
+  // case so the panel never flashes empty.
+  const board = useStatusBoard()
   const fadeIn = (delay) => reduce ? { initial: false } : ({
     initial: { opacity: 0, y: 8 },
     animate: { opacity: 1, y: 0 },
@@ -192,9 +197,9 @@ function Hero({ stats, navigate, reduce }) {
           }}
         >
           {[
-            { status: 'OPERATIONAL', label: 'COMMAND',     color: 'var(--green)'  },
-            { status: 'GREEN',       label: 'ALERT LEVEL', color: 'var(--green)'  },
-            { status: 'WAITLIST',    label: 'RECRUITMENT', color: 'var(--amber)'  },
+            { status: board.command.status,     label: 'COMMAND',     color: statusColor(board.command.color)     },
+            { status: board.alert.status,       label: 'ALERT LEVEL', color: statusColor(board.alert.color)       },
+            { status: board.recruitment.status, label: 'RECRUITMENT', color: statusColor(board.recruitment.color) },
           ].map(s => (
             <div key={s.label} style={{
               textAlign: 'center',
@@ -894,6 +899,10 @@ export default function Landing() {
   const [stats, setStats] = useState({ members: 0, ships: 0, contracts: 0 })
   const navigate = useNavigate()
   const reduceMotion = !!useReducedMotion()
+  // Read the same singleton the Hero uses so the bottom CTA copy + the
+  // Discord section eyebrow auto-flip the moment an admin toggles intake.
+  const board = useStatusBoard()
+  const recruitmentOpen = board.recruitment_open
 
   useSeo({
     title: 'Grayveil Corporation — Private Military & Commercial Enterprise',
@@ -993,15 +1002,20 @@ export default function Landing() {
         <p style={{
           color: 'var(--text-2)', fontSize: 15, lineHeight: 1.7, marginBottom: 28,
         }}>
-          Intake is paused until closer to Star Citizen 1.0. Drop into the
-          Discord waitlist — we'll ping the channel the moment doors reopen.
+          {recruitmentOpen
+            ? 'Applications take two minutes. We review every one — no form letters, no silent rejections.'
+            : "Intake is paused until closer to Star Citizen 1.0. Drop into the Discord waitlist — we'll ping the channel the moment doors reopen."}
         </p>
-        <button onClick={scrollToWaitlist} className="h-accent-bg" style={{
-          background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
-          padding: '14px 32px', fontSize: 13, fontWeight: 600,
-          fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
-          cursor: 'pointer', transition: 'background .15s',
-        }}>Join the waitlist →</button>
+        <button
+          onClick={recruitmentOpen ? () => navigate('/apply') : scrollToWaitlist}
+          className="h-accent-bg"
+          style={{
+            background: 'var(--accent)', color: '#0a0a0c', border: 'none', borderRadius: 2,
+            padding: '14px 32px', fontSize: 13, fontWeight: 600,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '-0.005em',
+            cursor: 'pointer', transition: 'background .15s',
+          }}
+        >{recruitmentOpen ? 'Apply for membership →' : 'Join the waitlist →'}</button>
       </motion.section>
 
       {/* ── DISCORD WAITLIST ── */}
@@ -1016,19 +1030,22 @@ export default function Landing() {
       >
         <div style={{
           fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
-          letterSpacing: '.3em', color: 'var(--amber)', marginBottom: 12,
-        }}>● RECRUITMENT CLOSED · WAITLIST OPEN</div>
+          letterSpacing: '.3em',
+          color: recruitmentOpen ? 'var(--green)' : 'var(--amber)',
+          marginBottom: 12,
+        }}>{recruitmentOpen ? '● RECRUITMENT OPEN · DISCORD ACTIVE' : '● RECRUITMENT CLOSED · WAITLIST OPEN'}</div>
         <div style={{
           fontFamily: 'Inter Tight, sans-serif',
           fontSize: 'clamp(20px, 2.6vw, 26px)', fontWeight: 700,
           color: 'var(--text-1)', marginBottom: 8, letterSpacing: '-0.02em',
-        }}>Get on the list.</div>
+        }}>{recruitmentOpen ? 'Join the comms.' : 'Get on the list.'}</div>
         <p style={{
           color: 'var(--text-2)', fontSize: 13, lineHeight: 1.65,
           maxWidth: 460, margin: '0 auto 22px',
         }}>
-          Hop into the Discord and you'll be first in line when intake reopens
-          for Star Citizen 1.0. No form, no waiting on a reply — just join.
+          {recruitmentOpen
+            ? "Drop into the Discord to see ops in flight, ask questions, and meet the org before you apply."
+            : "Hop into the Discord and you'll be first in line when intake reopens for Star Citizen 1.0. No form, no waiting on a reply — just join."}
         </p>
         <div style={{
           display: 'inline-block', borderRadius: 12, overflow: 'hidden',

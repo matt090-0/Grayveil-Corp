@@ -4,10 +4,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import GrayveilLogo from '../components/GrayveilLogo'
 import { useSeo } from '../lib/useSeo'
+import { useStatusBoard } from '../hooks/useStatusBoard'
 
-// Flip to true to re-open the application form. Closed during the
-// pre-1.0 era — prospects are routed to the Discord waitlist instead.
-const RECRUITMENT_OPEN = false
+// The form is gated by org_settings.landing_status_board.recruitment_open —
+// admins flip it from the admin Status Board panel. When closed, prospects
+// see the standing-down notice and a route to the Discord waitlist.
 
 const PLAYSTYLES = [
   { key: 'combat',      label: 'COMBAT' },
@@ -43,6 +44,8 @@ const SOURCES = [
 export default function Apply() {
   const [searchParams] = useSearchParams()
   const refCode = searchParams.get('ref') || ''
+  const board = useStatusBoard()
+  const recruitmentOpen = board.recruitment_open
 
   useSeo({
     title: 'Apply to Grayveil Corporation',
@@ -120,7 +123,7 @@ export default function Apply() {
     </div>
   )
 
-  if (!RECRUITMENT_OPEN) return <RecruitmentClosed />
+  if (!recruitmentOpen) return <RecruitmentClosed />
 
   return (
     <div className="auth-shell">
@@ -251,9 +254,10 @@ export default function Apply() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// RecruitmentClosed — shown when RECRUITMENT_OPEN is false.
-// Standing-down notice during the pre-1.0 era, with a route to
-// the Discord waitlist (the existing widget on /welcome).
+// RecruitmentClosed — shown when recruitment_open is false in
+// org_settings.landing_status_board. Standing-down notice during
+// the pre-1.0 era, with a route to the Discord waitlist (the
+// existing widget on /welcome). Live-toggleable from admin.
 // ─────────────────────────────────────────────────────────────
 function RecruitmentClosed() {
   const navigate = useNavigate()

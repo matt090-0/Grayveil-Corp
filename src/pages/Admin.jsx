@@ -10,6 +10,7 @@ import { discordAnnouncement, discordModeration, testDiscordWebhook } from '../l
 import { exportCSV } from '../lib/csv'
 import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
 import { notifyMaintenanceChange } from '../hooks/useMaintenanceMap'
+import { notifyStatusBoardChange, DEFAULT_STATUS_BOARD, STATUS_COLORS, STATUS_BOARD_KEY } from '../hooks/useStatusBoard'
 import { confirmAction, promptAction } from '../lib/dialogs'
 
 const STRIKE_SUSPEND_THRESHOLD = 3
@@ -137,6 +138,8 @@ export default function Admin() {
   const [webhookSaving, setWebhookSaving] = useState(false)
   const [maintMap, setMaintMap] = useState({})
   const [maintSaving, setMaintSaving] = useState(false)
+  const [statusBoard, setStatusBoard] = useState(DEFAULT_STATUS_BOARD)
+  const [statusBoardSaving, setStatusBoardSaving] = useState(false)
   const [adminControl, setAdminControl] = useState(DEFAULT_ADMIN_CONTROL)
   const [controlSaving, setControlSaving] = useState(false)
   const [adminUnlockedUntil, setAdminUnlockedUntil] = useState(0)
@@ -222,6 +225,9 @@ export default function Admin() {
     // Load page maintenance map
     const { data: maintRow } = await supabase.from('org_settings').select('value').eq('key', 'page_maintenance').maybeSingle()
     setMaintMap(maintRow?.value || {})
+    // Load landing status board (hero cells + recruitment-open flag)
+    const { data: boardRow } = await supabase.from('org_settings').select('value').eq('key', STATUS_BOARD_KEY).maybeSingle()
+    setStatusBoard({ ...DEFAULT_STATUS_BOARD, ...(boardRow?.value || {}) })
     if (me.is_founder) {
       const { data: fleetRows } = await supabase
         .from('org_settings')
@@ -601,6 +607,7 @@ export default function Admin() {
     contracts: 'manage_contracts',
     discord: 'manage_discord',
     maintenance: 'manage_maintenance',
+    status: 'manage_maintenance',
     log: 'view_audit',
     danger: 'manage_danger',
     control: 'manage_control',
@@ -610,7 +617,7 @@ export default function Admin() {
     { key: 'queue', label: 'APPROVALS', tabs: ['approvals'] },
     { key: 'ops', label: 'OPERATIONS', tabs: ['members', 'discipline', 'comms', 'contracts'] },
     { key: 'economy', label: 'ECONOMY', tabs: ['bank', 'loans', 'funds'] },
-    { key: 'system', label: 'SYSTEM', tabs: ['discord', 'maintenance', 'control'] },
+    { key: 'system', label: 'SYSTEM', tabs: ['discord', 'maintenance', 'status', 'control'] },
     { key: 'security', label: 'SECURITY', tabs: ['log', 'danger'] },
   ]
   const tabLabel = {
@@ -625,6 +632,7 @@ export default function Admin() {
     contracts: 'CONTRACTS',
     discord: 'DISCORD',
     maintenance: 'MAINTENANCE',
+    status: 'STATUS BOARD',
     log: 'AUDIT LOG',
     danger: 'DANGER',
     control: 'CONTROL',
@@ -1378,6 +1386,156 @@ export default function Admin() {
                 }}>
                 CLEAR ALL
               </button>
+            </div>
+          </Section>
+        )}
+
+        {/* ── STATUS BOARD ── */}
+        {tab === 'status' && (
+          <Section title="LANDING PAGE STATUS BOARD">
+            <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16, lineHeight: 1.7 }}>
+              Live-edit the three readiness cells under the hero on the public landing page
+              (<code style={{ color: 'var(--accent)' }}>grayveil.net</code>) and the recruitment
+              gate that controls <code style={{ color: 'var(--accent)' }}>/apply</code>. Changes
+              push out via Realtime — every visitor with the page open sees the new state within
+              a second, no refresh.
+            </div>
+
+            {/* ── Recruitment toggle (drives /apply gate + waitlist eyebrows) ── */}
+            <div style={{
+              background: 'var(--bg-surface)',
+              border: `1px solid ${statusBoard.recruitment_open ? 'var(--green)' : 'var(--amber)'}`,
+              borderRadius: 8, padding: '14px 18px', marginBottom: 24,
+              display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 280 }}>
+                <input
+                  type="checkbox"
+                  checked={!!statusBoard.recruitment_open}
+                  onChange={e => setStatusBoard(b => ({ ...b, recruitment_open: e.target.checked }))}
+                  style={{ width: 18, height: 18, accentColor: 'var(--green)' }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', letterSpacing: '.06em' }}>
+                    RECRUITMENT OPEN
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                    When ON, /apply shows the form. When OFF, prospects see the standing-down
+                    notice and CTAs across the site route to the Discord waitlist.
+                  </div>
+                </div>
+              </label>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.18em',
+                padding: '6px 10px', borderRadius: 4,
+                background: statusBoard.recruitment_open ? 'rgba(70,180,90,0.15)' : 'rgba(212,175,110,0.15)',
+                color: statusBoard.recruitment_open ? 'var(--green)' : 'var(--amber)',
+              }}>
+                {statusBoard.recruitment_open ? '● INTAKE LIVE' : '● WAITLIST MODE'}
+              </span>
+            </div>
+
+            {/* ── Three hero status cells ── */}
+            <div style={{ fontSize: 11, letterSpacing: '.18em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+              HERO READINESS CELLS
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {[
+                { key: 'command',     label: 'COMMAND'     },
+                { key: 'alert',       label: 'ALERT LEVEL' },
+                { key: 'recruitment', label: 'RECRUITMENT' },
+              ].map(cell => {
+                const cur = statusBoard[cell.key] || { status: '', color: 'accent' }
+                const setCell = (next) => setStatusBoard(b => ({ ...b, [cell.key]: { ...cur, ...next } }))
+                return (
+                  <div key={cell.key} style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8, padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  }}>
+                    <div style={{ minWidth: 130 }}>
+                      <div style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
+                        LABEL
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', marginTop: 2 }}>
+                        {cell.label}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <div style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>
+                        STATUS TEXT
+                      </div>
+                      <input
+                        className="form-input"
+                        style={{ fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '-0.01em' }}
+                        value={cur.status || ''}
+                        maxLength={20}
+                        onChange={e => setCell({ status: e.target.value.toUpperCase() })}
+                        placeholder="e.g. OPERATIONAL"
+                      />
+                    </div>
+                    <div style={{ minWidth: 150 }}>
+                      <div style={{ fontSize: 10, letterSpacing: '.2em', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>
+                        DOT COLOR
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 14, height: 14, borderRadius: '50%',
+                          background: STATUS_COLORS[cur.color] || STATUS_COLORS.accent,
+                          boxShadow: `0 0 10px ${STATUS_COLORS[cur.color] || STATUS_COLORS.accent}`,
+                          flexShrink: 0,
+                        }} />
+                        <select
+                          className="form-select"
+                          style={{ fontSize: 12, flex: 1 }}
+                          value={cur.color || 'accent'}
+                          onChange={e => setCell({ color: e.target.value })}
+                        >
+                          {Object.keys(STATUS_COLORS).map(c => (
+                            <option key={c} value={c}>{c.toUpperCase()}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" disabled={statusBoardSaving}
+                onClick={async () => {
+                  if (!hasPermission('manage_maintenance')) { flash('Missing permission: manage_maintenance'); return }
+                  setStatusBoardSaving(true)
+                  // Sanitize before sending so a bad client can't write garbage
+                  // colors or oversized status strings.
+                  const clean = {
+                    command:     { status: String(statusBoard.command?.status     || '').slice(0, 20).toUpperCase(), color: STATUS_COLORS[statusBoard.command?.color]     ? statusBoard.command.color     : 'accent' },
+                    alert:       { status: String(statusBoard.alert?.status       || '').slice(0, 20).toUpperCase(), color: STATUS_COLORS[statusBoard.alert?.color]       ? statusBoard.alert.color       : 'accent' },
+                    recruitment: { status: String(statusBoard.recruitment?.status || '').slice(0, 20).toUpperCase(), color: STATUS_COLORS[statusBoard.recruitment?.color] ? statusBoard.recruitment.color : 'accent' },
+                    recruitment_open: !!statusBoard.recruitment_open,
+                  }
+                  const { error } = await supabase
+                    .from('org_settings')
+                    .upsert({ key: STATUS_BOARD_KEY, value: clean, updated_by: me.id }, { onConflict: 'key' })
+                  setStatusBoardSaving(false)
+                  if (error) { flash(`Status board save failed: ${error.message}`); return }
+                  // Optimistic local push so the admin sees their own change
+                  // immediately, even before the realtime round-trip lands.
+                  setStatusBoard(clean)
+                  notifyStatusBoardChange(clean)
+                  flash('Status board updated — live on landing page.')
+                }}>
+                {statusBoardSaving ? 'SAVING...' : 'SAVE & PUSH LIVE'}
+              </button>
+              <button className="btn btn-ghost" disabled={statusBoardSaving}
+                onClick={() => setStatusBoard(DEFAULT_STATUS_BOARD)}>
+                RESET TO DEFAULTS
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', letterSpacing: '.06em' }}>
+                Changes propagate via Supabase Realtime — no refresh needed.
+              </span>
             </div>
           </Section>
         )}
