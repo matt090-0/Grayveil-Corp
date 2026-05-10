@@ -875,7 +875,7 @@ export default function Landing() {
       </Section>
 
       {/* ── TIER PATH ── */}
-      <Section eyebrow="CHAIN OF COMMAND" title="The Nine-Tier Path">
+      <Section eyebrow="ORDER OF PRECEDENCE" title="Cursus Honorum">
         <TierLadder />
       </Section>
 
