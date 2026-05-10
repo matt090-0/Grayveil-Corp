@@ -158,6 +158,25 @@ export async function discordBountyClaimed(targetName, reward, claimedBy) {
   })
 }
 
+// Recruitment status flip — fires when an admin toggles the
+// landing_status_board.recruitment_open flag. Posts to the
+// announcements channel so members see intake change in real time.
+export async function discordRecruitmentStatus(open, actor) {
+  await send('announcements', open ? {
+    title: '🚨 Recruitment OPEN',
+    description: 'Grayveil intake is live. New applicants can submit at **grayveil.net/apply**.',
+    color: 0x5ab870,
+    footer: { text: `Opened by ${actor || 'leadership'} · grayveil.net/apply` },
+    timestamp: new Date().toISOString(),
+  } : {
+    title: '🛑 Recruitment CLOSED',
+    description: 'Intake is paused. Prospects can join the waitlist at **grayveil.net/welcome#discord-waitlist** to be pinged when doors reopen.',
+    color: 0xc8a55a,
+    footer: { text: `Closed by ${actor || 'leadership'} · grayveil.net/welcome` },
+    timestamp: new Date().toISOString(),
+  })
+}
+
 export async function discordModeration(action, memberHandle, reason, actor, extra = {}) {
   const lines = [`Member: **${memberHandle}**`, `Reason: ${reason}`]
   if (extra.days) lines.push(`Duration: ${extra.days}d`)

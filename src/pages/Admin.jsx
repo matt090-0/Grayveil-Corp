@@ -6,7 +6,7 @@ import { SC_DIVISIONS } from '../lib/scdata'
 import Modal from '../components/Modal'
 import RankBadge from '../components/RankBadge'
 import AccessDeniedScreen from '../components/AccessDeniedScreen'
-import { discordAnnouncement, discordModeration, testDiscordWebhook } from '../lib/discord'
+import { discordAnnouncement, discordModeration, discordRecruitmentStatus, testDiscordWebhook } from '../lib/discord'
 import { exportCSV } from '../lib/csv'
 import { NAV, NAV_ITEMS, MAINT_BYPASS_TIER } from '../lib/nav'
 import { notifyMaintenanceChange } from '../hooks/useMaintenanceMap'
@@ -1521,6 +1521,15 @@ export default function Admin() {
                     recruitment: { status: String(statusBoard.recruitment?.status || '').slice(0, 20).toUpperCase(), color: STATUS_COLORS[statusBoard.recruitment?.color] ? statusBoard.recruitment.color : 'accent' },
                     recruitment_open: !!statusBoard.recruitment_open,
                   }
+                  // Snapshot the previous flag BEFORE we save so we can detect
+                  // a flip and announce only on actual transitions (not every
+                  // re-save of the same state).
+                  const { data: prev } = await supabase
+                    .from('org_settings')
+                    .select('value')
+                    .eq('key', STATUS_BOARD_KEY)
+                    .maybeSingle()
+                  const prevOpen = !!prev?.value?.recruitment_open
                   const { error } = await supabase
                     .from('org_settings')
                     .upsert({ key: STATUS_BOARD_KEY, value: clean, updated_by: me.id }, { onConflict: 'key' })
@@ -1530,7 +1539,14 @@ export default function Admin() {
                   // immediately, even before the realtime round-trip lands.
                   setStatusBoard(clean)
                   notifyStatusBoardChange(clean)
-                  flash('Status board updated — live on landing page.')
+                  // Fire a Discord announcement only when the flag actually
+                  // flipped. Best-effort — failure shouldn't block the save.
+                  if (prevOpen !== clean.recruitment_open) {
+                    discordRecruitmentStatus(clean.recruitment_open, me.handle).catch(() => {})
+                    flash(`Status board updated · Discord announcement ${clean.recruitment_open ? 'OPEN' : 'CLOSED'} sent.`)
+                  } else {
+                    flash('Status board updated — live on landing page.')
+                  }
                 }}>
                 {statusBoardSaving ? 'SAVING...' : 'SAVE & PUSH LIVE'}
               </button>
