@@ -310,12 +310,12 @@ export default function CommandHQ() {
     const payload = {
       username: 'Grayveil Command HQ',
       embeds: [{
-        title: kind === 'op' ? '/op sync' : kind === 'roster' ? '/roster sync' : '/501st-status sync',
+        title: kind === 'op' ? '/op sync' : kind === 'roster' ? '/roster sync' : '/council-status sync',
         description: kind === 'op'
           ? (op ? `Next op: **${op.title}** · ${timeUntil(op.starts_at)} · ${op.location || 'TBD'}` : 'No upcoming ops.')
           : kind === 'roster'
             ? `Online now: **${overlay.online.length}** · Live ops: **${overlay.liveOps.length}**`
-            : '501st rotating code system is active. Use command deck to preview.',
+            : 'High Council rotating code system is active. Use command deck to preview.',
         color: 0x7289da,
         timestamp: new Date().toISOString(),
       }],
@@ -549,9 +549,9 @@ export default function CommandHQ() {
                 </button>
               </Card>
               <Card accent="#7289da">
-                <div><b>/501st-status</b> rolling code enabled in admin control</div>
+                <div><b>/council-status</b> rolling code enabled in admin control</div>
                 <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} disabled={busyAction === 'discord-501st'} onClick={() => syncDiscord('501st')}>
-                  {busyAction === 'discord-501st' ? 'SYNCING...' : 'Sync /501st-status now'}
+                  {busyAction === 'discord-501st' ? 'SYNCING...' : 'Sync /council-status now'}
                 </button>
               </Card>
             </div>
@@ -559,7 +559,7 @@ export default function CommandHQ() {
             <SectionHeader label="INCIDENT PLAYBOOKS" color="#e05c5c" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
               {[
-                { key: 'account_compromise', k: 'Account Compromise', s: 'Lock account, rotate 501st, invalidate webhooks, audit log review' },
+                { key: 'account_compromise', k: 'Account Compromise', s: 'Lock account, rotate council codes, invalidate webhooks, audit log review' },
                 { key: 'sabotage', k: 'Sabotage Event', s: 'Freeze payouts, isolate actor, pull AAR timeline, command notice' },
                 { key: 'mass_ban', k: 'Mass-ban Mistake', s: 'Pause discipline actions, restore from queue, announce rollback' },
                 { key: 'comms_outage', k: 'Comms Outage', s: 'Switch to fallback channels, pin live op summaries, status beacons' },

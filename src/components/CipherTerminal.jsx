@@ -17,7 +17,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 //                           so the host can navigate
 // ─────────────────────────────────────────────────────────────
 
-const PURPLE = '#9d83e8'   // 501st cell color
+const PURPLE = '#9d83e8'   // High Council seat color
 const RED    = '#c45a4a'
 const GREEN  = '#7ba673'
 
@@ -140,7 +140,7 @@ export default function CipherTerminal({ open, busy, error, onSubmit, onCancel, 
       {/* Hex grid backdrop */}
       <HexBackdrop />
 
-      {/* Radial vignette in 501st purple */}
+      {/* Radial vignette in council purple */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
         background: `radial-gradient(ellipse at center, ${PURPLE}26 0%, transparent 60%)`,

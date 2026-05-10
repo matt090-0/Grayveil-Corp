@@ -280,7 +280,7 @@ export default function Admin() {
 
   async function save501stSettings() {
     if (!me.is_founder) { flash('Founder access required.'); return }
-    if (!(await ensureElevatedUnlock('501st access control update'))) return
+    if (!(await ensureElevatedUnlock('High Council access control update'))) return
     setFleet501stSaving(true)
     const selectedMembers = d.members.filter(m => fleet501stMembers.member_ids.includes(m.id))
     const nextMembers = {
@@ -315,12 +315,12 @@ export default function Admin() {
     ])
     setFleet501stSaving(false)
     if (membersWrite.error || passcodesWrite.error) {
-      flash(`501st save failed: ${membersWrite.error?.message || passcodesWrite.error?.message}`)
+      flash(`High Council save failed: ${membersWrite.error?.message || passcodesWrite.error?.message}`)
       return
     }
     setFleet501stMembers(nextMembers)
     setFleet501stPasscodes(nextPasscodes)
-    flash('501st access settings saved.')
+    flash('High Council access settings saved.')
   }
 
   async function previewRotatingCode() {
@@ -1479,19 +1479,19 @@ export default function Admin() {
               </div>
             </Section>
 
-            <Section title="501ST ACCESS MANAGER">
+            <Section title="HIGH COUNCIL ACCESS MANAGER">
               {!me.is_founder ? (
                 <div className="card" style={{ padding: 12, color: 'var(--text-3)', fontSize: 12 }}>
-                  Founder access required to view or modify 501st codes and membership.
+                  Founder access required to view or modify High Council codes and membership.
                 </div>
               ) : (
                 <>
                   <div className="card" style={{ padding: 12, marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
                       <div>
-                        <div style={{ fontWeight: 600 }}>Chosen Operators</div>
+                        <div style={{ fontWeight: 600 }}>Seated Council</div>
                         <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                          Select which members can unlock the hidden 501st channel.
+                          Select which members can unlock the High Council chamber.
                         </div>
                       </div>
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
@@ -1530,7 +1530,7 @@ export default function Admin() {
 
                   <div className="card" style={{ padding: 12, marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                      <div style={{ fontWeight: 600 }}>Global 501st Codes</div>
+                      <div style={{ fontWeight: 600 }}>Shared Council Codes</div>
                       <button
                         className="btn btn-ghost btn-sm"
                         onClick={() => setFleet501stPasscodes(s => ({ ...s, codes: [...normalizeStringList(s.codes), randomCode('CELL')] }))}
