@@ -261,6 +261,45 @@ export default function Apply() {
 // ─────────────────────────────────────────────────────────────
 function RecruitmentClosed() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const refCode = searchParams.get('ref') || ''
+  const [email, setEmail] = useState('')
+  const [handle, setHandle] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [signedUp, setSignedUp] = useState(false)
+  const [error, setError] = useState('')
+
+  async function joinWaitlist(e) {
+    e.preventDefault()
+    setError('')
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Enter a valid email.')
+      return
+    }
+    setSubmitting(true)
+    // Use upsert so re-submits with the same email don't error noisily.
+    // The unique constraint on email handles dedup; ignoreDuplicates:true
+    // keeps the form silent for repeat clicks.
+    const { error: insErr } = await supabase
+      .from('waitlist')
+      .upsert(
+        {
+          email: trimmed,
+          handle: handle.trim() || null,
+          source: refCode ? 'referral' : 'apply_closed',
+          referral_code: refCode || null,
+        },
+        { onConflict: 'email', ignoreDuplicates: true },
+      )
+    setSubmitting(false)
+    if (insErr) {
+      setError(insErr.message || 'Could not save. Try again.')
+      return
+    }
+    setSignedUp(true)
+  }
+
   return (
     <div className="auth-shell">
       <div className="auth-card" style={{ maxWidth: 520, position: 'relative' }}>
@@ -295,28 +334,97 @@ function RecruitmentClosed() {
           flood the org with intake we can't onboard properly.
         </p>
 
-        <p style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 13,
-          color: 'var(--text-3)', lineHeight: 1.65,
-          textAlign: 'center', marginBottom: 26,
-        }}>
-          Want first call when intake reopens? Drop into the Discord
-          waitlist. We'll ping the channel as soon as the doors are open.
-        </p>
+        {/* ── Email-capture waitlist (primary CTA) ── */}
+        {signedUp ? (
+          <div style={{
+            border: '1px solid var(--green)',
+            background: 'rgba(70,180,90,0.08)',
+            borderRadius: 6, padding: '14px 16px',
+            textAlign: 'center', marginBottom: 18,
+          }}>
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+              letterSpacing: '.28em', color: 'var(--green)', marginBottom: 6,
+            }}>● ON THE LIST</div>
+            <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+              We'll email <b style={{ color: 'var(--text-1)' }}>{email.trim().toLowerCase()}</b> the
+              moment intake reopens. No spam, no follow-ups.
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={joinWaitlist} style={{ marginBottom: 18 }}>
+            <p style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13,
+              color: 'var(--text-2)', lineHeight: 1.65,
+              textAlign: 'center', marginBottom: 14,
+            }}>
+              Drop your email — we'll ping you the moment doors open. Add your
+              SC handle if you want to skip the queue when it does.
+            </p>
+            <input
+              type="email"
+              className="form-input"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              style={{ width: '100%', marginBottom: 8, fontSize: 14 }}
+            />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Star Citizen handle (optional)"
+              value={handle}
+              onChange={e => setHandle(e.target.value)}
+              style={{ width: '100%', marginBottom: 12, fontSize: 14 }}
+            />
+            {error && (
+              <div style={{
+                fontSize: 12, color: 'var(--red)', marginBottom: 10, textAlign: 'center',
+              }}>{error}</div>
+            )}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="h-accent-bg"
+              style={{
+                display: 'block', width: '100%',
+                background: 'var(--accent)', color: '#0a0a0c', border: 'none',
+                borderRadius: 2, padding: '14px 22px',
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                letterSpacing: '.28em', fontWeight: 700,
+                textTransform: 'uppercase', cursor: submitting ? 'wait' : 'pointer',
+                transition: 'background .15s', opacity: submitting ? 0.7 : 1,
+              }}
+            >{submitting ? 'Adding you...' : 'Notify me when doors open →'}</button>
+            {refCode && (
+              <div style={{
+                marginTop: 10, fontSize: 10, color: 'var(--text-3)',
+                fontFamily: 'JetBrains Mono, monospace', textAlign: 'center',
+              }}>REFERRAL: <span style={{ color: 'var(--accent)' }}>{refCode}</span></div>
+            )}
+          </form>
+        )}
+
+        {/* ── Discord secondary ── */}
+        <div style={{
+          fontSize: 11, color: 'var(--text-3)', textAlign: 'center',
+          fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.18em',
+          margin: '4px 0 10px',
+        }}>OR</div>
 
         <button
           onClick={() => navigate('/welcome#discord-waitlist')}
-          className="h-accent-bg"
           style={{
             display: 'block', width: '100%',
-            background: 'var(--accent)', color: '#0a0a0c', border: 'none',
-            borderRadius: 2, padding: '14px 22px',
+            background: 'transparent', color: 'var(--text-2)',
+            border: '1px solid var(--border-md)',
+            borderRadius: 2, padding: '12px 22px',
             fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
-            letterSpacing: '.28em', fontWeight: 700,
+            letterSpacing: '.22em', fontWeight: 600,
             textTransform: 'uppercase', cursor: 'pointer',
-            transition: 'background .15s',
           }}
-        >Join the Discord waitlist →</button>
+        >Join the Discord</button>
 
         <div style={{
           marginTop: 22, paddingTop: 18,
