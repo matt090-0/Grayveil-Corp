@@ -282,22 +282,24 @@ function RecruitmentClosed() {
       return
     }
     setSubmitting(true)
-    // Use upsert so re-submits with the same email don't error noisily.
-    // The unique constraint on email handles dedup; ignoreDuplicates:true
-    // keeps the form silent for repeat clicks.
+    // Plain insert + swallow duplicate-key (Postgres 23505 / "duplicate key
+    // value violates unique constraint"). Can't use Supabase upsert here:
+    // even with ignoreDuplicates:true, PostgREST builds an INSERT...ON
+    // CONFLICT path that requires UPDATE permission, which anon doesn't
+    // have (and shouldn't — that'd let strangers overwrite each other's
+    // entries). Treating a dupe as success is the right UX anyway: re-
+    // submitting your email shouldn't spook you with a scary error.
     const { error: insErr } = await supabase
       .from('waitlist')
-      .upsert(
-        {
-          email: trimmed,
-          handle: handle.trim() || null,
-          source: refCode ? 'referral' : 'apply_closed',
-          referral_code: refCode || null,
-        },
-        { onConflict: 'email', ignoreDuplicates: true },
-      )
+      .insert({
+        email: trimmed,
+        handle: handle.trim() || null,
+        source: refCode ? 'referral' : 'apply_closed',
+        referral_code: refCode || null,
+      })
     setSubmitting(false)
-    if (insErr) {
+    const isDupe = insErr && (insErr.code === '23505' || /duplicate key/i.test(insErr.message || ''))
+    if (insErr && !isDupe) {
       setError(insErr.message || 'Could not save. Try again.')
       return
     }
