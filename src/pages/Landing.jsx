@@ -194,7 +194,7 @@ function Hero({ stats, navigate, reduce }) {
           {[
             { status: 'OPERATIONAL', label: 'COMMAND',     color: 'var(--green)'  },
             { status: 'GREEN',       label: 'ALERT LEVEL', color: 'var(--green)'  },
-            { status: 'OPEN',        label: 'RECRUITMENT', color: 'var(--accent)' },
+            { status: 'WAITLIST',    label: 'RECRUITMENT', color: 'var(--amber)'  },
           ].map(s => (
             <div key={s.label} style={{
               textAlign: 'center',
@@ -897,7 +897,7 @@ export default function Landing() {
 
   useSeo({
     title: 'Grayveil Corporation — Private Military & Commercial Enterprise',
-    description: 'A Star Citizen organization operating across the Stanton system. Shared fleet, internal economy, auto-tracked medals, and real ops. Apply for membership.',
+    description: 'A Star Citizen organization operating across the Stanton system. Shared fleet, internal economy, auto-tracked medals, and real ops. Intake paused until 1.0 — join the Discord waitlist.',
     path: '/welcome',
   })
 
