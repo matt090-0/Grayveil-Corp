@@ -5,6 +5,7 @@ import { ToastProvider } from './components/Toast'
 import PWAStatus from './components/PWAStatus'
 import ErrorFallback from './components/ErrorFallback'
 import { initSentry, Sentry } from './lib/sentry'
+import { injectSpeedInsights } from '@vercel/speed-insights'
 import './index.css'
 
 const CHUNK_RELOAD_KEY = 'gv_chunk_reload_once'
@@ -56,6 +57,9 @@ window.addEventListener('unhandledrejection', (event) => recoverFromChunkError(e
 // Initialize Sentry before React mounts so the ErrorBoundary can report
 // errors that happen during the very first render. Safe no-op if DSN unset.
 initSentry()
+
+// Initialize Vercel Speed Insights
+injectSpeedInsights()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
